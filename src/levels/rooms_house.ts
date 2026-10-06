@@ -124,3 +124,16 @@ export function fridge(b: Builder, x: number, z: number, rotY = 0, w = 1.9, d = 
   b.solid(fg, [{ shape: 'box', hx: w / 2, hy: h / 2, hz: d / 2, at: [0, h / 2, 0] }], [x, 0, z], rotY);
   return h;
 }
+
+/**
+ * Work-around: TrailSpecial's ribbon geometry (specials.ts) has no normal attribute, so its
+ * Lambert material renders black. Give this prop's trail an up-facing normal buffer.
+ */
+export function fixTrailNormals(p: Prop) {
+  const geo = (p.special as unknown as { geo?: THREE.BufferGeometry }).geo;
+  if (!geo || geo.getAttribute('normal')) return;
+  const n = new Float32Array(geo.getAttribute('position').count * 3);
+  // the ribbon is wound facing down; DoubleSide flips back-face normals, so -y lights the top side
+  for (let i = 1; i < n.length; i += 3) n[i] = -1;
+  geo.setAttribute('normal', new THREE.BufferAttribute(n, 3));
+}

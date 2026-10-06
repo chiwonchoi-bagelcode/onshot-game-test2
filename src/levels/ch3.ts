@@ -16,12 +16,13 @@ const S3_1: LevelDef = {
   build(b) {
     bedroom(b);
     const sh = C.wallShelf(b, { at: [-2.25, 3.4, -3.4], w: 2.6, pinned: 200 });
-    C.book(b, { at: [-3.0, sh.top, -3.4], color: '#e05a5a' });
-    C.book(b, { at: [-2.7, sh.top, -3.4], color: '#4f86c6' });
-    C.plant(b, { at: [-1.6, sh.top, -3.4] });
-    C.alarmClock(b, { at: [1.5, BR.desk.top, -2.7], rot: 0.3 });
-    C.cup(b, { at: [-0.05, BR.night.top, -2.9], juice: '#bfe9ff', name: '물컵' });
-    C.vase(b, { at: [0.5, BR.night.top, -3.3], color: '#ffd23f', value: 80000 });
+    C.book(b, { at: [-2.75, sh.top, -3.4], color: '#e05a5a' });
+    C.book(b, { at: [-2.5, sh.top, -3.4], color: '#4f86c6' });
+    C.plant(b, { at: [-2.0, sh.top, -3.4] });
+    C.piggy(b, { at: [-1.35, sh.top, -3.35], rot: -0.4 });
+    C.alarmClock(b, { at: [0.05, BR.night.top, -2.95], rot: 0.4 });
+    C.cup(b, { at: [0.55, BR.night.top, -3.3], juice: '#bfe9ff', name: '물컵' });
+    C.vase(b, { at: [1.35, BR.desk.top, -2.8], color: '#ffd23f', value: 80000 });
     C.penCup(b, { at: [2.3, BR.desk.top, -3.3] });
     C.bookStack(b, { at: [3.2, BR.desk.top, -3.1], n: 3 });
     C.mug(b, { at: [2.6, BR.desk.top, -2.6], color: '#5ec4c9' });
@@ -80,9 +81,10 @@ const S3_5: LevelDef = {
     C.paperStack(b, { at: [1.6, y, -3.4] });
     // shelf above the desk, loaded with heavy stuff
     const ds = C.wallShelf(b, { at: [2.45, 3.95, -3.4], w: 2.8, pinned: 120, color: '#b9b0ea' });
-    C.bookRow(b, { at: [1.3, ds.top, -3.4], n: 3, gap: 0.3 });
-    C.plant(b, { at: [2.35, ds.top, -3.4] });
-    C.teapot(b, { at: [3.3, ds.top, -3.4], color: '#9fd8cb' });
+    C.bookRow(b, { at: [1.3, ds.top, -3.4], n: 2, gap: 0.3 });
+    C.bookStack(b, { at: [2.25, ds.top, -3.4], n: 3, rot: Math.PI / 2 });
+    C.plant(b, { at: [2.85, ds.top, -3.4] });
+    C.teapot(b, { at: [3.45, ds.top, -3.4], color: '#9fd8cb' });
     // shelf above the bed
     const sh = C.wallShelf(b, { at: [-2.25, 3.4, -3.4], w: 2.8, pinned: 200 });
     C.trophy(b, { at: [-3.2, sh.top, -3.35] });
