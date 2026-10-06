@@ -200,8 +200,21 @@ export class ClothSpecial implements Special {
       this.done = true;
       this.dropT = 0;
       this.dropFrom.set(nx, t.y, nz);
-      // cloth leaves physics; becomes a crumpled heap
+      // cloth leaves physics; becomes a crumpled heap on the floor
       game.removeProp(p);
+      const mat = (p.group.children.find((c) => (c as THREE.Mesh).isMesh) as THREE.Mesh | undefined)?.material as THREE.Material | undefined;
+      p.group.clear();
+      const heap = new THREE.Mesh(new THREE.IcosahedronGeometry(0.75, 1), mat ?? new THREE.MeshLambertMaterial({ color: '#ff8fa3', flatShading: true }));
+      const pos = heap.geometry.attributes.position as THREE.BufferAttribute;
+      for (let i = 0; i < pos.count; i++) {
+        const k = 0.75 + 0.35 * Math.abs(Math.sin(i * 1.7) * Math.cos(i * 0.9));
+        pos.setXYZ(i, pos.getX(i) * k, Math.max(-0.1, pos.getY(i)) * k, pos.getZ(i) * k);
+      }
+      heap.geometry.computeVertexNormals();
+      heap.castShadow = heap.receiveShadow = true;
+      heap.scale.set(1.5, 0.5, 1.1);
+      p.group.add(heap);
+      p.group.quaternion.identity();
       game.envGroup.add(p.group);
       p.group.position.copy(this.dropFrom);
       game.addScore(2000, this.dropFrom.clone(), { chain: true });
@@ -212,9 +225,10 @@ export class ClothSpecial implements Special {
     this.dropT = Math.min(1, this.dropT + dt * 2.2);
     const k = this.dropT;
     const g = p.group;
-    g.position.set(this.dropFrom.x + this.dir.x * k * 1.2, this.dropFrom.y + (game.floorY + 0.15 - this.dropFrom.y) * k * k, this.dropFrom.z + this.dir.z * k * 1.2);
-    g.scale.set(1 - k * 0.6, 1 + k * 2.5, 1 - k * 0.55);
-    g.rotation.z = k * 0.4;
+    g.position.set(this.dropFrom.x + this.dir.x * k * 1.2, this.dropFrom.y + (game.floorY + 0.05 - this.dropFrom.y) * k * k, this.dropFrom.z + this.dir.z * k * 1.2);
+    const s = 0.4 + 0.6 * k;
+    g.scale.set(s, 0.6 + 0.4 * k, s);
+    g.rotation.y = Math.atan2(this.dir.x, this.dir.z);
   }
 }
 
