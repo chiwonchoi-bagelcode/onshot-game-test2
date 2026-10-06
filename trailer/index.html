@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <title>와장창 냥이 — trailer renderer</title>
+    <style>
+      @font-face { font-family: 'Jua'; src: url('./assets/fonts/Jua-Regular.ttf') format('truetype'); }
+      @font-face { font-family: 'BlackHan'; src: url('./assets/fonts/BlackHanSans-Regular.ttf') format('truetype'); }
+      html, body { margin: 0; background: #222; }
+      canvas { display: block; }
+      #gl { position: absolute; left: -99999px; top: 0; }
+      #out { width: 960px; height: 540px; }
+    </style>
+  </head>
+  <body>
+    <canvas id="gl"></canvas>
+    <canvas id="out"></canvas>
+    <div style="font-family: Jua; position:absolute; opacity:0">가 폰트 로딩</div>
+    <div style="font-family: BlackHan; position:absolute; opacity:0">가 폰트 로딩</div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
