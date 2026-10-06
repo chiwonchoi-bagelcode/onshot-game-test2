@@ -331,7 +331,9 @@ export class Game {
 
   /** wake everything resting on / touching p (a sleeping stack must not hover when its support goes) */
   private lastWake = new Map<Prop, number>();
-  static wakeStacks = (globalThis as { __WAKE_STACKS?: boolean }).__WAKE_STACKS ?? false;
+  static wakeStacks = (globalThis as { __WAKE_STACKS?: boolean }).__WAKE_STACKS ?? true;
+  /** also let fast movers wake what they touch (changes tuned chains; off) */
+  static wakeMovers = (globalThis as { __WAKE_MOVERS?: boolean }).__WAKE_MOVERS ?? false;
   wakeAround(p: Prop, depth = 4) {
     if (!Game.wakeStacks) return;
     const seen = new Set<Prop>([p]);
@@ -800,7 +802,13 @@ export class Game {
         const p = this.byCollider.get(a);
         if (p && p.pinned !== null && f > p.pinned) {
           const other = this.byCollider.get(b);
-          if (!other || other.isDynamic()) this.unpin(p);
+          if (!other || other.isDynamic()) {
+            // whatever knocked the shelf loose is part of the chain
+            let loop = false;
+            for (let c = other?.cause, k = 0; c && k < 24; c = c.cause, k++) if (c === p) loop = true;
+            if (other && !loop && p.activeSwat !== this.swatIndex) { p.cause = other; p.causeCat = false; p.activeSwat = this.swatIndex; }
+            this.unpin(p);
+          }
         }
         if (p && p.spec.touchForce && f > p.spec.touchForce && p.special?.onTouch && this.time > 0.7) {
           const other = this.byCollider.get(b);
@@ -837,7 +845,7 @@ export class Game {
       const impact = Math.sqrt(dvx * dvx + dvy * dvy + dvz * dvz) + 0.35 * Math.sqrt(dwx * dwx + dwy * dwy + dwz * dwz) * p.radius;
       if (settle && impact > SOUND_MIN_IMPACT && this.time > p.graceUntil) this.onImpact(p, impact);
       // a fast mover shakes whatever it touches awake (throttled)
-      if (Game.wakeStacks && p.alive && v.x * v.x + v.y * v.y + v.z * v.z > 2.5 && this.time - (this.lastWake.get(p) ?? -1) > 0.1) {
+      if (Game.wakeMovers && p.alive && v.x * v.x + v.y * v.y + v.z * v.z > 2.5 && this.time - (this.lastWake.get(p) ?? -1) > 0.1) {
         this.lastWake.set(p, this.time);
         this.wakeAround(p, 2);
       }
