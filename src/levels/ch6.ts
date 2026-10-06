@@ -137,7 +137,7 @@ const S6_2: LevelDef = {
     // the domino run: kitchen → doorway → living-room soda (aimed back at the kitchen shelf)
     C.dominoPath(b, [[-3.2, -2.9], [-2.6, -1.2], [-2.4, 0], [-2.1, 1.4], [-0.6, 2.6], [0.45, 3.2]], 0, 0.3);
     C.soda(b, { at: [0.85, 0, 3.2], aim: [0, -1] });
-    b.cat(2.4, 0, 6.8);
+    b.cat(1.4, 0, 2.6);
   },
 };
 
@@ -156,7 +156,8 @@ const S6_3: LevelDef = {
     { type: 'stat', key: 'tpLen', min: 6, text: '선풍기로 휴지 6m 풀기' },
   ],
   tip: '수조가 깨지면 복도가 물바다가 돼요. 바닥에 떨어진 기계는… 풍덩!',
-  hints: ['욕조 말고도 물은 있어요. 복도 수조를 떨어뜨려 보세요!', '선풍기를 켜면 가벼운 물건이 복도를 따라 날아가요.', '옷걸이가 쓰러지면 수조까지 닿아요. 물바다 + 바람 = 한 방에 끝!'],
+  hints: ['욕조 말고도 물은 있어요. 복도 수조를 떨어뜨려 보세요!', '수조 위쪽을 앞으로 세게! 뚜껑 위 태블릿도 함께 떨어져요. 옷걸이로 깨면 태블릿이 깔려 버려요…', '선풍기를 켜면 신발장 위 폰이 복도로 날아가요. 물바다 + 바람이면 기계를 직접 칠 필요가 없어요!'],
+  hintMove: { prop: 'aquarium', dir: [0, 1] },
   start: [1.5, 1.5],
   ownerLine: '복도가 수영장이 됐어…! 내 폰!!',
   build(b) {
@@ -190,7 +191,7 @@ const S6_3: LevelDef = {
     roll.body.setAngularDamping(0.7);
     roll.body.setLinearDamping(0.3);
     fixTrailNormals(roll);
-    // --- bathroom: the owner's earbuds case lies on the bath mat by the door
+    // --- bathroom: the owner's game console lies on the bath mat by the door
     C2.phone(b, { at: [-1.8, 0.0, 2.3], target: true, rot: 0.9, name: '게임기', color: '#ff6b6b', value: 450000 });
     C2.toiletPaper(b, { at: [-1.35, BATH.toilet.tankTop, -3.45], lying: false });
     C.rubberDuck(b, { at: [-3.3, 0, 1.4], rot: 0.5 });
@@ -219,7 +220,8 @@ const S6_4: LevelDef = {
   ],
   tip: '소리는 멀어질수록 작아져요. 멀리서 시작한 장난을 집사 머리맡까지 배달해 볼까요?',
   hints: ['침실 물건은 전부 푹신해요. 집사 머리 위 선반의 자명종이 보이나요?', '풍선은 터질 때 옆 풍선도 터뜨려요. 그런데 너무 높아서 앞발이 안 닿아요… 키 큰 것이나 날아가는 것을 찾아봐요.', '깜짝 상자 위의 공, 복도의 괘종시계, 탄산 로켓… 어느 쪽이든 첫 풍선만 터뜨리면 펑-펑-펑!'],
-  start: [0, -2],
+  hintMove: { prop: 'jack', dir: [0, -1] },
+  start: [1.0, -2.5],
   ownerLine: '으아아… 누가 풍선을… 지금 몇 시야?!',
   build(b) {
     buildHouse(b, {
@@ -281,6 +283,7 @@ const S6_5: LevelDef = {
   ],
   tip: '방마다 큰 장치가 하나씩! 한 번의 장난이 몇 개의 방을 지나갈 수 있을까요?',
   hints: ['복도 괘종시계는 어느 쪽으로 넘어지느냐에 따라 결과가 달라져요. 거실 TV? 아니면 수조?', '아이방 도미노 끝에 탄산음료가 있어요. 로켓은 낮은 벽을 넘어 주방 선반까지 날아가요!', '옷걸이 → 괘종시계 → 수조 → 물바다 → 바닥의 기계들. 복도를 한 번에!'],
+  hintMove: { prop: 'coatRack', dir: [-1, 0] },
   start: [-1, 0.5],
   ownerLine: '여행 다녀왔더니… 집이… 우리 집이…!!',
   build(b) {
