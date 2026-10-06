@@ -33,7 +33,7 @@ export function soap(b: Builder, o: O): Prop {
     kind: 'soap', name: o.name ?? '비누', icon: '🧼', group: grp, pos: o.at, rotY: o.rot,
     colliders: [{ shape: 'box', hx: 0.27, hy: 0.1, hz: 0.17, at: [0, 0.1, 0], round: 0.05 }],
     mass: 0.4, mat: 'soft', value: 2000, friction: 0.012, restitution: 0.35, linDamp: 0.01, angDamp: 0.6, noTopple: true,
-    special: new SoapSpecial(), floats: true,
+    special: new SoapSpecial(), floats: true, frictionMin: true,
   });
 }
 
@@ -44,11 +44,12 @@ export function toiletPaper(b: Builder, o: O & { lying?: boolean }): Prop {
   inner.add(mesh(cyl(0.09, 0.09, 0.39, 8), M('#c9a27a'), { shadow: false }));
   for (const y of [-0.12, 0, 0.12]) inner.add(mesh(torus(0.262, 0.006, 3, 16), M('#e8e8f0'), { pos: [0, y, 0], rot: [Math.PI / 2, 0, 0], shadow: false }));
   const lying = o.lying ?? true;
-  if (lying) { inner.rotation.x = Math.PI / 2; inner.position.y = 0.26; } else inner.position.y = 0.19;
+  if (!lying) inner.position.y = 0.19;
   grp.add(inner);
+  const quat = lying ? new THREE.Quaternion().setFromEuler(new THREE.Euler(Math.PI / 2, o.rot ?? 0, 0, 'YXZ')) : undefined;
   const p = b.prop({
-    kind: 'tp', name: '두루마리 휴지', icon: '🧻', group: grp, pos: o.at, rotY: o.rot,
-    colliders: [lying ? { shape: 'cyl', hh: 0.19, r: 0.26, at: [0, 0.26, 0], rot: [Math.PI / 2, 0, 0] } : { shape: 'cyl', hh: 0.19, r: 0.26, at: [0, 0.19, 0] }],
+    kind: 'tp', name: '두루마리 휴지', icon: '🧻', group: grp, pos: lying ? [o.at[0], o.at[1] + 0.26, o.at[2]] : o.at, rotY: o.rot, quat,
+    colliders: [lying ? { shape: 'cyl', hh: 0.19, r: 0.26 } : { shape: 'cyl', hh: 0.19, r: 0.26, at: [0, 0.19, 0] }],
     mass: 0.25, mat: 'paper', value: 1500, angDamp: 0.08, linDamp: 0.04, friction: 0.9, noTopple: true, floats: true,
     special: new TrailSpecial(b.game, '#ffffff', 0.26, 0.13, 'tpLen', 420),
   });
@@ -186,7 +187,9 @@ export function castle(b: Builder, at: V3, design: 'tower' | 'gate' | 'pyramid' 
   } else if (design === 'wall') {
     const n = o.width ?? 5;
     for (let r = 0; r < floors; r++) {
-      for (let i = 0; i < n - (r % 2); i++) block(b, { at: P((i - (n - 1 - (r % 2)) / 2) * 0.62, y), size: [0.6, 0.38, 0.4], rot });
+      // brick bond that steps in by half a block per row, so every block rests on two below
+      const k = Math.max(1, n - r);
+      for (let i = 0; i < k; i++) block(b, { at: P((i - (k - 1) / 2) * 0.62, y), size: [0.6, 0.38, 0.4], rot });
       y += 0.38;
     }
   } else if (design === 'bridge') {

@@ -309,6 +309,7 @@ export class Game {
         .setFriction(c.friction ?? spec.friction ?? 0.6)
         .setRestitution(c.restitution ?? spec.restitution ?? 0.12)
         .setCollisionGroups(GROUPS.prop);
+      if (spec.frictionMin) d.setFrictionCombineRule(R.CoefficientCombineRule.Min);
       const thr = Math.min(spec.pinned ?? Infinity, spec.breakable?.hitForce ?? Infinity, spec.touchForce ?? Infinity);
       if (thr < Infinity) {
         d.setActiveEvents(R.ActiveEvents.CONTACT_FORCE_EVENTS).setContactForceEventThreshold(thr);
@@ -825,6 +826,8 @@ export class Game {
       this.world.contactPairsWith(col, (c2) => {
         const o = this.byCollider.get(c2.handle);
         if (!o || o === p || !o.alive) return;
+        // o must not already be (indirectly) caused by p – no loops in the story
+        for (let c = o.cause, k = 0; c && k < 24; c = c.cause, k++) if (c === p) return;
         const v = o.body.linvel();
         let sp = Math.hypot(v.x, v.y, v.z);
         if (o.activeSwat === this.swatIndex) sp += 2; // prefer things already in this chain
@@ -850,7 +853,8 @@ export class Game {
       const sp = new THREE.Vector3(c.x, inside.top + 0.05, c.z);
       this.fx('water', sp, 0.8);
       for (let i = 0; i < 8; i++) this.chunks.emit({ pos: sp.clone(), vel: new THREE.Vector3(rand(-2, 2), rand(3, 6), rand(-2, 2)), life: 0.7, size: 0.14, color: '#bfeaff', floor: inside.top });
-      if (!p.dunked) {
+      if (!p.dunked && this.time < 0.7) { p.dunked = true; }
+      else if (!p.dunked) {
         p.dunked = true;
         this.attribute(p);
         this.count('dunk');

@@ -136,12 +136,14 @@ export class BalloonSpecial implements Special {
   private popAt = -1;
   constructor(private r: number, private color: string) {}
   busy() { return this.popAt >= 0; }
+  private gentleUntil = -1;
   onSwat(game: Game, p: Prop, dir: THREE.Vector3, power: number): boolean {
     if (power > 0.72) { this.pop(game, p); return true; }
+    this.gentleUntil = game.time + 0.8;
     p.body.applyImpulse({ x: dir.x * power * 2.2 * p.body.mass() * 4, y: 0.5, z: dir.z * power * 2.2 * p.body.mass() * 4 }, true);
     return true;
   }
-  onImpact(game: Game, p: Prop, impact: number) { if (impact > 2.4 && this.popAt < 0) this.schedule(game, 0); }
+  onImpact(game: Game, _p: Prop, impact: number) { if (impact > 2.4 && this.popAt < 0 && game.time > this.gentleUntil) this.schedule(game, 0); }
   schedule(game: Game, delay: number) { if (!this.popped && this.popAt < 0) this.popAt = game.time + delay; }
   step(game: Game, p: Prop) { if (this.popAt >= 0 && game.time >= this.popAt) this.pop(game, p); }
   frame(_game: Game, p: Prop) {

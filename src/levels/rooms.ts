@@ -228,6 +228,7 @@ export function bathtub(b: Builder, x0: number, x1: number, z0: number, z1: numb
   waterZone(b, x0 + wt, x1 - wt, z0 + wt, z1 - wt, 0.25, water);
 }
 
+/** toilet with a hollow bowl: things that fall in really end up in the water */
 export function toilet(b: Builder, x: number, z: number) {
   const g = new THREE.Group();
   const wh = M('#ffffff');
@@ -237,14 +238,16 @@ export function toilet(b: Builder, x: number, z: number) {
   g.add(mesh(box(0.9, 0.08, 0.5, 0.03), M('#e8f4fb'), { pos: [0, 2.06, -0.45] }));
   g.add(mesh(box(0.86, 0.75, 0.06, 0.04), M('#e8f4fb'), { pos: [0, 1.4, -0.12], rot: [-0.15, 0, 0] }));
   g.add(mesh(box(0.15, 0.06, 0.08, 0.02), M('#c9ccd8'), { pos: [0.3, 1.9, -0.2] }));
+  g.add(mesh(cyl(0.3, 0.3, 0.02, 12), M('#5ab8f0'), { pos: [0, 0.79, 0.25], scale: [1, 1, 1.25], shadow: false }));
   b.solid(g, [
-    { shape: 'cyl', hh: 0.38, r: 0.36, at: [0, 0.38, 0.15] },
+    { shape: 'cyl', hh: 0.05, r: 0.36, at: [0, 0.05, 0.15] },
     { shape: 'box', hx: 0.42, hy: 0.5, hz: 0.22, at: [0, 1.55, -0.45] },
-    { shape: 'box', hx: 0.42, hy: 0.06, hz: 0.07, at: [0, 0.98, 0.72] },
-    { shape: 'box', hx: 0.07, hy: 0.06, hz: 0.45, at: [-0.42, 0.98, 0.25] },
-    { shape: 'box', hx: 0.07, hy: 0.06, hz: 0.45, at: [0.42, 0.98, 0.25] },
+    { shape: 'box', hx: 0.42, hy: 0.47, hz: 0.07, at: [0, 0.57, 0.72] },
+    { shape: 'box', hx: 0.07, hy: 0.47, hz: 0.47, at: [-0.42, 0.57, 0.25] },
+    { shape: 'box', hx: 0.07, hy: 0.47, hz: 0.47, at: [0.42, 0.57, 0.25] },
+    { shape: 'box', hx: 0.42, hy: 0.47, hz: 0.05, at: [0, 0.57, -0.2] },
   ], [x, 0, z]);
-  waterZone(b, x - 0.3, x + 0.3, z - 0.05, z + 0.6, 0.6, 0.85, '#9fe0ff');
+  waterZone(b, x - 0.33, x + 0.33, z - 0.13, z + 0.63, 0.12, 0.86, '#9fe0ff');
 }
 
 export function furnishBathroom(b: Builder, ox = 0, oz = 0, o: { tub?: boolean; backWall?: boolean; leftWall?: boolean } = {}) {

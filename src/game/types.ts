@@ -97,6 +97,8 @@ export interface PropSpec {
   icon?: string;
   /** short trait tags shown when inspecting (e.g. 깨짐, 무거움, 굴러감) */
   traits?: string[];
+  /** slippery things: use the lower friction of the pair instead of the average */
+  frictionMin?: boolean;
   /** instancing key – many identical props share one draw call */
   batch?: string;
 }
