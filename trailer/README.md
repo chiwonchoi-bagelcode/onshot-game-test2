@@ -1,7 +1,7 @@
 # 《와장창 냥이》 트레일러
 
 **결과물:** [`release/wajangchang-nyangi-trailer-1080p.mp4`](release/wajangchang-nyangi-trailer-1080p.mp4)
-1920×1080 · 30 fps · 약 77초 · H.264 High + AAC 256 kbps · −14 LUFS
+1920×1080 · 30 fps · 76.9초 · H.264 High (BT.709) + AAC 256 kbps · −14 LUFS · 48 MB  ·  포스터: [`release/poster.jpg`](release/poster.jpg)
 
 > 평화로운 오후. 그리고 고양이는… 툭.
 > 손가락 하나로 시작된 장난이 온 집안 대참사로 번지고, 집사가 돌아오면 — 냥? (난 아무것도 몰라요)

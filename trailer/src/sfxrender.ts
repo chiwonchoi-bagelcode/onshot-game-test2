@@ -33,7 +33,7 @@ export async function renderSfx(events: SoundEvent[], dur: number, sr = 48000, s
   for (let i = 0; i < sr; i++) d[i] = rnd() * 2 - 1;
   Object.assign(S, { ctx: view, master, bus, musicBus, noiseBuf: noise });
   // trailer mix trims: the soda hiss and the UI-ish plings sit lower than in the game
-  const TRIM: Record<string, number> = { fizz: 0.4, chain: 0.6, coins: 0.5, target: 0.5 };
+  const TRIM: Record<string, number> = { fizz: 0.28, meow: 0.6, chain: 0.6, coins: 0.5, target: 0.5 };
   const trimBus = new Map<string, GainNode>();
   const busFor = (name: string) => {
     if (!(name in TRIM)) return bus;

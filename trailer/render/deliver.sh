@@ -1,6 +1,6 @@
 #!/bin/sh
 # Delivery encode: H.264 High@4.1, BT.709, AAC 256k, faststart. Quality-first
-# (CRF 17); falls back to a two-pass encode if the file would exceed ~48 MB.
+# (CRF 17); falls back to a two-pass encode if the file would exceed ~48 MB (target 46 MB).
 #   sh render/deliver.sh out/master.mp4 release/wajangchang-nyangi-trailer-1080p.mp4
 set -e
 IN=$1; OUT=$2
@@ -9,7 +9,7 @@ ffmpeg -hide_banner -loglevel error -y -i "$IN" -map 0 -c:v libx264 -preset slow
 SIZE=$(stat -c %s "$OUT")
 if [ "$SIZE" -gt 50331648 ]; then
   DUR=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$IN")
-  KBPS=$(python3 -c "print(int(48*8*1024*1024/float('$DUR')/1000 - 270))")
+  KBPS=$(python3 -c "print(int(46*8*1024*1024/float('$DUR')/1000 - 270))")
   echo "too big ($SIZE bytes): two-pass at ${KBPS}k"
   ffmpeg -hide_banner -loglevel error -y -i "$IN" -map 0:v -c:v libx264 -preset slow -tune animation -b:v ${KBPS}k -pass 1 -passlogfile /tmp/x264pass $TAGS -an -f mp4 /dev/null
   ffmpeg -hide_banner -loglevel error -y -i "$IN" -map 0 -c:v libx264 -preset slow -tune animation -b:v ${KBPS}k -pass 2 -passlogfile /tmp/x264pass -profile:v high -level 4.1 $TAGS -c:a copy -movflags +faststart "$OUT"
