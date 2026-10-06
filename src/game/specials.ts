@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { clamp, rand } from '../core/util';
+import { clamp, rand, srand } from '../core/util';
 import type { Loop } from '../audio/Sfx';
 import type { Game } from './Game';
 import type { Prop } from './Prop';
@@ -86,13 +86,15 @@ export class SodaSpecial implements Special {
   private dir = new THREE.Vector3();
   private loop: Loop | null = null;
   private wob = 0;
+  /** knocked-over (not swatted) bottles fly this way if set – lets a level aim a chain reaction */
+  aim: THREE.Vector3 | null = null;
   constructor(private power = 1) {}
   busy() { return this.delay >= 0 || this.thrust > 0; }
   private fire(game: Game, p: Prop, dir: THREE.Vector3) {
     if (!this.armed) return;
     this.armed = false;
     this.dir.copy(dir).setY(0).normalize();
-    if (this.dir.lengthSq() < 0.1) this.dir.set(rand(-1, 1), 0, rand(-1, 1)).normalize();
+    if (this.dir.lengthSq() < 0.1) this.dir.set(srand(-1, 1), 0, srand(-1, 1)).normalize();
     this.delay = 0.22;
     game.emit({ type: 'word', text: '치이익…', pos: p.center(new THREE.Vector3()).add(new THREE.Vector3(0, 0.7, 0)), size: 0.9, color: '#bff3ff' });
   }
@@ -105,7 +107,7 @@ export class SodaSpecial implements Special {
   onTouch(game: Game, p: Prop, other: Prop) {
     if (!this.armed) return;
     const a = p.body.translation(), b = other.body.translation();
-    this.fire(game, p, _v.set(a.x - b.x, 0, a.z - b.z));
+    this.fire(game, p, this.aim ? _v.copy(this.aim) : _v.set(a.x - b.x, 0, a.z - b.z));
   }
   onImpact(game: Game, p: Prop, impact: number) {
     if (this.armed && impact > 2.5) {
@@ -137,7 +139,7 @@ export class SodaSpecial implements Special {
     const v = b.linvel();
     const sp = Math.hypot(v.x, v.y, v.z);
     if (sp > 13) b.setLinvel({ x: (v.x / sp) * 13, y: (v.y / sp) * 13, z: (v.z / sp) * 13 }, true);
-    b.applyTorqueImpulse({ x: rand(-1, 1) * 0.02, y: 0.03, z: rand(-1, 1) * 0.02 }, true);
+    b.applyTorqueImpulse({ x: srand(-1, 1) * 0.02, y: 0.03, z: srand(-1, 1) * 0.02 }, true);
     // spray
     const t = b.translation();
     for (let i = 0; i < 2; i++) {
@@ -278,14 +280,14 @@ export class AlarmSpecial implements Special {
     if (this.jit <= 0) {
       this.jit = 0.06;
       const m = b.mass();
-      b.applyImpulse({ x: rand(-0.4, 0.4) * m, y: 1.1 * m, z: rand(-0.4, 0.4) * m }, true);
+      b.applyImpulse({ x: srand(-0.4, 0.4) * m, y: 1.1 * m, z: srand(-0.4, 0.4) * m }, true);
       p.graceUntil = game.time + 0.05;
     }
     const t = b.translation();
     if (game.owner && game.owner.mode === 'sleep') {
       const d = _v.set(t.x, t.y, t.z).distanceTo(game.owner.headPos);
-      if (d < 3.6) game.owner.disturb(game, 30 * h * clamp(1.4 - d / 3.6, 0.3, 1), null);
-      else if (d < 7) game.owner.disturb(game, 5 * h, null);
+      if (d < 4.4) game.owner.disturb(game, 32 * h * clamp(1.45 - d / 4.4, 0.35, 1), null);
+      else if (d < 7.5) game.owner.disturb(game, 6 * h, null);
     }
     if (this.ringing <= 0) { this.loop?.stop(); this.loop = null; }
   }

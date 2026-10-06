@@ -22,6 +22,11 @@ export function mulberry32(seed: number) {
   };
 }
 
+/** seeded randomness for anything that affects physics (reset per level load) */
+let seeded = mulberry32(1);
+export function reseed(n: number) { seeded = mulberry32(n); }
+export const srand = (a: number, b: number) => a + seeded() * (b - a);
+
 export function formatWon(n: number): string {
   return '₩' + Math.round(n).toLocaleString('ko-KR');
 }

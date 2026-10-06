@@ -131,9 +131,10 @@ export function explore(level: LevelDef, n: number, seed = 1) {
 }
 
 // CLI
-const [, , cmd, id, ...rest] = process.argv;
+const isMain = import.meta.url === `file://${process.argv[1]}` || process.argv[1]?.endsWith('sim.ts');
+const [, , cmd, id, ...rest] = isMain ? process.argv : [];
 const level = LEVELS.find((l) => l.id === id);
-if (cmd && !level && cmd !== 'all') { console.error('no level', id); process.exit(1); }
+if (cmd && !level) { console.error('no level', id); process.exit(1); }
 if (cmd === 'props') {
   const r = listProps(level!);
   console.log(r.rows.join('\n'));

@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { B, M, ball, box, cone, cyl, lathe, mesh, screenTexture, sphere, torus } from '../render/kit';
-import { rand } from '../core/util';
+import { srand } from '../core/util';
 import type { Builder } from '../levels/Builder';
 import type { ColDef } from './types';
 import type { Prop } from './Prop';
@@ -189,7 +189,7 @@ export function marbleJar(b: Builder, o: O): Prop {
   grp.add(mesh(lathe(prof, 10), M('#d8f3ff', { transparent: true, opacity: 0.55 })));
   grp.add(mesh(cyl(0.28, 0.28, 0.08, 10), M('#ff6b6b'), { pos: [0, 0.8, 0] }));
   const mc = ['#ff6b6b', '#4f86c6', '#ffd23f', '#5bb98c', '#9b6fcf'];
-  for (let i = 0; i < 9; i++) grp.add(mesh(ball(0.09, 0), M(mc[i % 5]), { pos: [rand(-0.17, 0.17), 0.12 + (i % 3) * 0.13, rand(-0.17, 0.17)], shadow: false }));
+  for (let i = 0; i < 9; i++) grp.add(mesh(ball(0.09, 0), M(mc[i % 5]), { pos: [Math.sin(i * 2.4) * 0.17, 0.12 + (i % 3) * 0.13, Math.cos(i * 2.4) * 0.17], shadow: false }));
   return b.prop({
     kind: 'marbleJar', name: o.name ?? '구슬병', group: grp, pos: o.at, rotY: o.rot,
     colliders: [{ shape: 'cyl', hh: 0.42, r: 0.33, at: [0, 0.42, 0] }],
@@ -199,8 +199,8 @@ export function marbleJar(b: Builder, o: O): Prop {
       word: '쨍그랑! 데구르르',
       after: (game, _p, pos, vel) => {
         for (let i = 0; i < 12; i++) {
-          const mp = marble(game.builder!, { at: [pos.x + rand(-0.25, 0.25), pos.y + rand(0, 0.3), pos.z + rand(-0.25, 0.25)], color: mc[i % 5] });
-          mp.body.setLinvel({ x: vel.x * 0.4 + rand(-4, 4), y: rand(1, 4), z: vel.z * 0.4 + rand(-4, 4) }, true);
+          const mp = marble(game.builder!, { at: [pos.x + srand(-0.25, 0.25), pos.y + srand(0, 0.3), pos.z + srand(-0.25, 0.25)], color: mc[i % 5] });
+          mp.body.setLinvel({ x: vel.x * 0.4 + srand(-4, 4), y: srand(1, 4), z: vel.z * 0.4 + srand(-4, 4) }, true);
           mp.graceUntil = game.time + 0.2;
           mp.prevV.set(0, 0, 0);
         }
@@ -220,7 +220,7 @@ export function marble(b: Builder, o: O): Prop {
 /* ------------------------------ books & dominoes ------------------------------ */
 
 export function book(b: Builder, o: O & { lying?: boolean; size?: [number, number, number] }): Prop {
-  const c = o.color ?? BOOK_COLORS[Math.floor(rand(0, BOOK_COLORS.length))];
+  const c = o.color ?? BOOK_COLORS[Math.floor(Math.abs(o.at[0] * 7 + o.at[2] * 13)) % BOOK_COLORS.length];
   const [w, h, d] = o.size ?? [0.22, 0.78, 0.56];
   const grp = g();
   if (o.lying) {
@@ -366,17 +366,19 @@ export function roomba(b: Builder, o: O): Prop {
   return p;
 }
 
-export function soda(b: Builder, o: O): Prop {
+export function soda(b: Builder, o: O & { aim?: [number, number] }): Prop {
   const c = o.color ?? '#ff5e5e';
   const grp = g();
   const prof: [number, number][] = [[0, 0], [0.17, 0], [0.18, 0.08], [0.17, 0.5], [0.08, 0.66], [0.07, 0.74], [0, 0.74]];
   grp.add(mesh(lathe(prof, 9), M('#a8e6c0', { transparent: true, opacity: 0.85 })));
   grp.add(mesh(cyl(0.185, 0.185, 0.2, 9), M(c), { pos: [0, 0.28, 0] }));
   grp.add(mesh(cyl(0.08, 0.08, 0.06, 8), M('#ffffff'), { pos: [0, 0.76, 0] }));
+  const sp = new SodaSpecial();
+  if (o.aim) sp.aim = new THREE.Vector3(o.aim[0], 0, o.aim[1]).normalize();
   return b.prop({
     kind: 'soda', name: '탄산음료', group: grp, pos: o.at, rotY: o.rot,
     colliders: [hullFromLathe(prof.slice(1), 8)],
-    mass: 0.5, mat: 'plastic', value: 3000, special: new SodaSpecial(), touchForce: 14,
+    mass: 0.5, mat: 'plastic', value: 3000, special: sp, touchForce: 14,
   });
 }
 
@@ -436,7 +438,7 @@ export function laptop(b: Builder, o: O): Prop {
     ],
     mass: 1.8, mat: 'electronic', value: o.value ?? 1500000, target: o.target, friction: 0.45,
     breakable: {
-      threshold: 6.5, hitForce: 220, mode: 'damage', fx: 'sparks', word: '파지직!',
+      threshold: 6.5, hitForce: 160, mode: 'damage', fx: 'sparks', word: '파지직!',
       debris: { count: 4, colors: ['#c9ccd8', '#7c8095'], size: 0.13, flat: true },
       onDamage: () => { const t = screenTexture('broken'); if (t) screenMat.map = t; else screenMat.color.set('#111'); screenMat.needsUpdate = true; },
     },
@@ -623,8 +625,8 @@ export function toaster(b: Builder, o: O): Prop {
       const off = new THREE.Vector3(0, 0.72, z).applyQuaternion(q);
       const tp = toast(game.builder!, { at: [t.x + off.x, t.y + off.y, t.z + off.z], rot: new THREE.Euler().setFromQuaternion(q).y });
       const up = new THREE.Vector3(0, 1, 0).applyQuaternion(q);
-      tp.body.setLinvel({ x: up.x * 11 + rand(-0.6, 0.6), y: up.y * 11, z: up.z * 11 + rand(-0.6, 0.6) }, true);
-      tp.body.setAngvel({ x: rand(-6, 6), y: rand(-2, 2), z: rand(-6, 6) }, true);
+      tp.body.setLinvel({ x: up.x * 11 + srand(-0.6, 0.6), y: up.y * 11, z: up.z * 11 + srand(-0.6, 0.6) }, true);
+      tp.body.setAngvel({ x: srand(-6, 6), y: srand(-2, 2), z: srand(-6, 6) }, true);
       tp.graceUntil = game.time + 0.2;
       tp.prevV.set(up.x * 11, up.y * 11, up.z * 11);
     }
@@ -812,7 +814,7 @@ export function penCup(b: Builder, o: O): Prop {
 
 export function paperStack(b: Builder, o: O): Prop {
   const grp = g();
-  for (let i = 0; i < 5; i++) grp.add(mesh(box(0.7, 0.04, 0.5, 0), M(i % 2 ? '#ffffff' : '#f4f1ea'), { pos: [rand(-0.03, 0.03), 0.02 + i * 0.04, rand(-0.03, 0.03)], rot: [0, rand(-0.1, 0.1), 0] }));
+  for (let i = 0; i < 5; i++) grp.add(mesh(box(0.7, 0.04, 0.5, 0), M(i % 2 ? '#ffffff' : '#f4f1ea'), { pos: [Math.sin(i * 7.1) * 0.03, 0.02 + i * 0.04, Math.cos(i * 3.3) * 0.03], rot: [0, Math.sin(i * 5.7) * 0.1, 0] }));
   let flown = false;
   return b.prop({
     kind: 'papers', name: '서류', group: grp, pos: o.at, rotY: o.rot,

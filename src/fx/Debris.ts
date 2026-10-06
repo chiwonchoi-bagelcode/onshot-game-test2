@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import type RAPIER from '@dimforge/rapier3d-compat';
 import { GROUPS } from '../core/constants';
-import { rand } from '../core/util';
+import { srand } from '../core/util';
 
 interface Frag {
   body: RAPIER.RigidBody | null;
@@ -49,20 +49,20 @@ export class Debris {
     this.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
   }
 
-  spawn(pos: THREE.Vector3, vel: THREE.Vector3, size: number, color: THREE.ColorRepresentation, flat = false, life = rand(7, 10)) {
+  spawn(pos: THREE.Vector3, vel: THREE.Vector3, size: number, color: THREE.ColorRepresentation, flat = false, life = srand(7, 10)) {
     const i = this.cursor;
     this.cursor = (this.cursor + 1) % this.capacity;
     const f = this.frags[i];
     if (f.body) this.world.removeRigidBody(f.body);
-    const sx = size * rand(0.7, 1.3), sy = size * (flat ? rand(0.18, 0.3) : rand(0.6, 1.1)), sz = size * rand(0.7, 1.3);
+    const sx = size * srand(0.7, 1.3), sy = size * (flat ? srand(0.18, 0.3) : srand(0.6, 1.1)), sz = size * srand(0.7, 1.3);
     const bd = this.R.RigidBodyDesc.dynamic()
       .setTranslation(pos.x, pos.y, pos.z)
       .setLinvel(vel.x, vel.y, vel.z)
-      .setAngvel({ x: rand(-12, 12), y: rand(-12, 12), z: rand(-12, 12) })
+      .setAngvel({ x: srand(-12, 12), y: srand(-12, 12), z: srand(-12, 12) })
       .setLinearDamping(0.15)
       .setAngularDamping(0.6)
       .setCcdEnabled(true);
-    this.q.random();
+    this.q.setFromEuler(new THREE.Euler(srand(0, 6.28), srand(0, 6.28), srand(0, 6.28)));
     bd.setRotation({ x: this.q.x, y: this.q.y, z: this.q.z, w: this.q.w });
     const body = this.world.createRigidBody(bd);
     const cd = this.R.ColliderDesc.cuboid(sx * 0.42, sy * 0.42, sz * 0.42)

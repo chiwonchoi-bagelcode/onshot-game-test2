@@ -9,7 +9,8 @@
     "build:single": "tsc --noEmit && vite build --mode single",
     "preview": "vite preview --host",
     "typecheck": "tsc --noEmit",
-    "sim": "tsx tools/sim.ts"
+    "sim": "tsx tools/sim.ts",
+    "test:levels": "tsx tools/solutions.ts"
   },
   "dependencies": {
     "@dimforge/rapier3d-compat": "^0.19.0",

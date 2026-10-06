@@ -18,7 +18,7 @@ const A1: LevelDef = {
   id: 'A1', room: 'living', title: '첫 번째 장난', subtitle: '탁자 위 물건은 떨어뜨리라고 있는 거다냥',
   paws: 2,
   goal: { kind: 'break', text: '탁자 위 꽃병을 깨뜨려라', short: '꽃병 깨기' },
-  stars: [150000, 190000],
+  stars: [145000, 155000],
   tip: '물건을 누른 채 보내고 싶은 방향으로 끌었다 놓으세요. 길게 끌수록 세게 칩니다.',
   hints: ['꽃병을 탁자 밖으로 세게 밀어보세요.', '줄 선 책을 쓰러뜨리면 도미노처럼 꽃병까지 밀어요. 남은 앞발로 머그컵도!'],
   ownerLine: '내 꽃병!! 누가 그랬어?!',
@@ -82,7 +82,7 @@ const A3: LevelDef = {
   ownerLine: '할머니가 물려주신 도자기가…!!',
   build(b) {
     livingRoom(b, { coffee: true });
-    const bs = C.bookshelf(b, { at: [-3.5, 0, -0.3], rot: Math.PI / 2, h: 5.4, w: 2.2, shelves: 4, d: 0.65, mass: 12 });
+    const bs = C.bookshelf(b, { at: [-3.5, 0, -0.3], rot: Math.PI / 2, h: 5.4, w: 2.2, shelves: 4, d: 0.62, mass: 10.5 });
     const top = bs.shelfY[bs.shelfY.length - 1];
     C.vase(b, { at: [-3.45, top, -0.55], tall: true, color: '#3f6fb5', target: true, flowers: false, value: 450000, name: '골동품 도자기' });
     C.piggy(b, { at: [-3.5, top, 0.35], rot: 1.2 });
@@ -283,7 +283,7 @@ const C3: LevelDef = {
     C.cushion(b, { at: [-2.6, BR.bed.top, -1.0], color: '#ffffff' });
     // floor: domino trail that ends at a soda bottle aimed at the desk
     C.dominoPath(b, [[-2.6, 2.0], [-0.8, 2.6], [0.8, 3.15], [1.45, 3.0], [1.6, 2.4]], 0, 0.3);
-    C.soda(b, { at: [1.63, 0, 1.92] });
+    C.soda(b, { at: [1.63, 0, 1.92], aim: [0.75, -5.2] });
     C.chair(b, { at: [0.95, 0, -1.35], wheels: true, rot: -0.5 });
     C.roomba(b, { at: [-0.4, 0, 0.9] });
     C.plant(b, { at: [3.4, 0, -1.4] });

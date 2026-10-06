@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import type RAPIER from '@dimforge/rapier3d-compat';
 import { GRAVITY, GROUPS, G, groups, MAX_STEPS_PER_FRAME, PAW, REACH, SOUND_MIN_IMPACT, STEP } from '../core/constants';
-import { clamp, rand, pick } from '../core/util';
+import { clamp, rand, pick, srand, reseed } from '../core/util';
 import type { Sfx } from '../audio/Sfx';
 import { Debris } from '../fx/Debris';
 import { ChunkSystem, PuffSystem } from '../fx/Particles';
@@ -125,6 +125,7 @@ export class Game {
   load(level: LevelDef) {
     this.unload();
     this.level = level;
+    reseed([...level.id].reduce((a, c) => a * 31 + c.charCodeAt(0), 7));
     const R = this.R;
     this.world = new R.World({ x: 0, y: GRAVITY, z: 0 });
     this.world.timestep = STEP;
@@ -421,12 +422,12 @@ export class Game {
       const box = p.localBox;
       p.group.updateMatrixWorld(true);
       for (let i = 0; i < n; i++) {
-        _v.set(rand(box.min.x, box.max.x), rand(box.min.y, box.max.y), rand(box.min.z, box.max.z)).applyMatrix4(p.group.matrixWorld);
-        _v2.copy(_v).sub(pos).setY(0).normalize().multiplyScalar(rand(1.5, 4.5) * (0.6 + k));
-        _v2.y = rand(1.5, 5) * (0.6 + k * 0.6);
+        _v.set(srand(box.min.x, box.max.x), srand(box.min.y, box.max.y), srand(box.min.z, box.max.z)).applyMatrix4(p.group.matrixWorld);
+        _v2.copy(_v).sub(pos).setY(0).normalize().multiplyScalar(srand(1.5, 4.5) * (0.6 + k));
+        _v2.y = srand(1.5, 5) * (0.6 + k * 0.6);
         _v2.addScaledVector(vel, 0.25);
         const colors = b.debris?.colors ?? ['#ffffff'];
-        this.debris.spawn(_v, _v2, (b.debris?.size ?? 0.2) * rand(0.7, 1.25), colors[i % colors.length], b.debris?.flat);
+        this.debris.spawn(_v, _v2, (b.debris?.size ?? 0.2) * srand(0.7, 1.25), colors[i % colors.length], b.debris?.flat);
       }
       this.removeProp(p);
     } else {
@@ -434,7 +435,7 @@ export class Game {
       b.onDamage?.(p);
       const colors = b.debris?.colors;
       if (colors) for (let i = 0; i < (b.debris?.count ?? 3); i++) {
-        _v2.set(rand(-2, 2), rand(2, 4), rand(-2, 2));
+        _v2.set(srand(-2, 2), srand(2, 4), srand(-2, 2));
         this.debris.spawn(pos, _v2, (b.debris?.size ?? 0.15), colors[i % colors.length], b.debris?.flat);
       }
     }

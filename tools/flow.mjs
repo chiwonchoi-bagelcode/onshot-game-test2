@@ -1,0 +1,42 @@
+// Click through the whole UI flow like a player (with audio unlocked) and report console errors.
+import { chromium } from 'playwright';
+const browser = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', '--autoplay-policy=no-user-gesture-required'] });
+const page = await (await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true })).newPage();
+const errs = [];
+page.on('console', (m) => { if (m.type() === 'error' && !m.text().includes('ERR_CERT')) errs.push(m.text()); });
+page.on('pageerror', (e) => errs.push('pageerror: ' + e.message));
+await page.goto(process.env.URL ?? 'http://localhost:5173/');
+await page.waitForFunction(() => !document.getElementById('boot'), null, { timeout: 30000 });
+const shot = (n) => page.screenshot({ path: `shots/flow-${n}.png` });
+await page.waitForTimeout(600);
+await page.click('text=장난 시작!', { force: true });
+await page.waitForTimeout(700);
+await shot('1-levels');
+await page.click('.lvbtn >> nth=0', { force: true });
+await page.waitForTimeout(600);
+await shot('2-intro');
+await page.click('text=장난 개시!', { force: true });
+await page.waitForTimeout(1200);
+// swat the vase toward the camera by real drag from its screen position
+const v = await page.evaluate(() => { const g = window.app.game; const p = g.props.find((p) => p.kind === 'vase'); const c = p.center(g.catHome.clone()); return window.app.stage.toScreen(c); });
+await page.mouse.move(v.x, v.y); await page.mouse.down();
+for (let i = 1; i <= 10; i++) { await page.mouse.move(v.x + i * 6, v.y + i * 9); await page.waitForTimeout(25); }
+await shot('3-aim');
+await page.mouse.up();
+await page.waitForTimeout(1500);
+await shot('4-hit');
+await page.click('text=시치미 떼기', { timeout: 8000, force: true }).catch(() => errs.push('no end button'));
+await page.waitForTimeout(4500);
+await shot('5-result');
+const audio = await page.evaluate(() => ({ state: window.app.sfx.ctx?.state, mode: window.app.mode }));
+await page.click('text=다음 장난', { force: true }).catch(() => errs.push('no next button'));
+await page.waitForTimeout(800);
+await shot('6-next-intro');
+await page.click('text=장난 개시!', { force: true });
+await page.waitForTimeout(500);
+await page.click('.btn-round >> nth=0', { force: true });
+await page.waitForTimeout(500);
+await shot('7-pause');
+console.log('audio', JSON.stringify(audio));
+console.log('errors:', errs.length ? errs.join('\n') : 'none');
+await browser.close();
