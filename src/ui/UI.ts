@@ -340,6 +340,16 @@ export class UI {
     this.tutEl = e;
   }
 
+  /** move the hand without restarting its animation (creates it if needed) */
+  moveHand(from: { x: number; y: number }, to: { x: number; y: number }) {
+    if (!this.tutEl) { this.hand(from, to); return; }
+    const e = this.tutEl;
+    e.style.left = `${from.x}px`;
+    e.style.top = `${from.y}px`;
+    e.style.setProperty('--dx', `${to.x - from.x}px`);
+    e.style.setProperty('--dy', `${to.y - from.y}px`);
+  }
+
   /** coach bubble (tutorial steps) */
   coach(text: string | null, step = 0, steps = 0) {
     const e = this.coachEl;

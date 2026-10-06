@@ -42,18 +42,25 @@ export class Input {
     return new THREE.Vector2((x / window.innerWidth) * 2 - 1, -(y / window.innerHeight) * 2 + 1);
   }
 
+  /** a visible object the paw can't touch (behind glass etc.) that was pressed */
+  lastBlocked: Prop | null = null;
+
   pick(x: number, y: number): { prop: Prop; hit: THREE.Vector3 } | null {
     const g = this.game;
+    this.lastBlocked = null;
     this.ray.setFromCamera(this.ndc(x, y), this.stage.camera);
     const hits = this.ray.intersectObjects(g.propGroup.children, true);
+    let blocked: Prop | null = null;
     for (const h of hits) {
       let o: THREE.Object3D | null = h.object;
       while (o && !o.userData.prop) o = o.parent;
       const p = o?.userData.prop as Prop | undefined;
       if (p && p.alive && p.interactable) return { prop: p, hit: h.point.clone() };
-      if (p && p.alive && !p.interactable) continue;
+      if (p && p.alive && !p.interactable) { blocked ??= p; continue; }
       break;
     }
+    // pressed straight on something out of reach: say so instead of grabbing a random neighbour
+    if (blocked) { this.lastBlocked = blocked; return null; }
     let best: Prop | null = null, bestScore = 30;
     const c = new THREE.Vector3(), e = new THREE.Vector3();
     const right = new THREE.Vector3().setFromMatrixColumn(this.stage.camera.matrixWorld, 0);
@@ -92,6 +99,14 @@ export class Input {
     if (this.mode.kind !== 'none') return;
     const now = performance.now();
     const r = g.phase === 'ready' && g.paws > 0 ? this.pick(e.clientX, e.clientY) : null;
+    if (!r && this.lastBlocked && g.phase === 'ready') {
+      const b = this.lastBlocked;
+      g.emit({ type: 'toast', text: b.target ? `${b.name}에는 앞발이 직접 닿지 않아요! 다른 물건으로 노려 봐요` : '여긴 앞발이 닿지 않아요! 다른 물건을 찾아봐요' });
+      this.sfx.denied();
+      this.onInspect(b, e.clientX, e.clientY);
+      setTimeout(() => this.onInspect(null, 0, 0), 1800);
+      return;
+    }
     if (!r) {
       // empty space → pan / double-tap
       if (now - this.lastTap.t < 320 && Math.hypot(e.clientX - this.lastTap.x, e.clientY - this.lastTap.y) < 40) {

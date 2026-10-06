@@ -421,7 +421,8 @@ const S4_2: LevelDef = {
     towelStack(b, -0.2, 0, -1.0, 3, -0.3);
     slippers(b, -3.15, 0.55, 1.5, '#ffb3c6');
     laundryBasket(b, { at: [0.9, 0, -1.0] });
-    b.cat(-1.2, 0, 2.6);
+    // the cat waits off to the side so it never hides the soap from the camera
+    b.cat(-1.4, 0, 0.7);
   },
 };
 

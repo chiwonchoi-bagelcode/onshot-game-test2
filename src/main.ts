@@ -43,6 +43,9 @@ class App {
   private tut: { steps: TutorialStep[]; i: number; waitSettle: boolean; t: number } | null = null;
   private loadedId = '';
   private hintShown = false;
+  /** the tutorial / hint hand, anchored to an object every frame */
+  private pointer: { prop: Prop; dir: THREE.Vector3; until: number; showAt: number } | null = null;
+  private hintTimer = 0;
   private aiming = false;
   /** the simulation is frozen (pause menu and the settings opened from it) */
   private frozen = false;
@@ -214,6 +217,8 @@ class App {
 
   private leaveOverlayModes() {
     this.frozen = false;
+    this.clearHint();
+    this.pointer = null;
     if (this.catRoom.active) this.catRoom.close();
     this.ui.hideHud();
     this.ui.hand(null);
@@ -337,6 +342,8 @@ class App {
     this.game.emitGoal();
     this.game.start();
     this.hintShown = false;
+    this.clearHint();
+    this.pointer = null;
     this.music.setMood('play');
     if (this.stage.roomy) {
       const s = level.start ? new THREE.Vector3(level.start[0], 0, level.start[1]) : this.game.catHome.clone();
@@ -365,16 +372,37 @@ class App {
     return c[0];
   }
 
-  private demo(kind: string | undefined, near: [number, number, number] | undefined, dir: [number, number] | undefined) {
-    if (!kind) { this.ui.hand(null); return; }
+  /** point the animated hand at an object (and bring it into view first in big houses) */
+  private demo(kind: string | undefined, near: [number, number, number] | undefined, dir: [number, number] | undefined, dur = Infinity) {
+    this.pointer = null;
+    this.ui.hand(null);
+    if (!kind) return;
     const p = this.findProp(kind, near);
-    if (!p) { this.ui.hand(null); return; }
+    if (!p) return;
     const c = p.center(new THREE.Vector3());
-    if (this.stage.roomy && !this.stage.onScreen(c, 40)) this.stage.lookAtPoint(c);
+    const now = performance.now() / 1000;
+    let showAt = now;
+    if (!this.stage.onScreen(c, 60)) { this.stage.lookAtPoint(c); showAt = now + 0.7; }
     const d = dir ? new THREE.Vector3(dir[0], 0, dir[1]).normalize() : new THREE.Vector3(0, 0, 1);
+    this.pointer = { prop: p, dir: d, until: now + dur, showAt };
+  }
+
+  /** keep the hand on its object while the camera moves; hide it while aiming */
+  private updatePointer() {
+    const pt = this.pointer;
+    if (!pt) return;
+    const now = performance.now() / 1000;
+    if (!pt.prop.alive || now > pt.until || this.mode !== 'play') { this.pointer = null; this.ui.hand(null); return; }
+    if (this.aiming || now < pt.showAt) { this.ui.hand(null); return; }
+    const c = pt.prop.center(_v);
     const from = this.stage.toScreen(c);
-    const to = this.stage.toScreen(c.clone().addScaledVector(d, 1.9));
-    this.ui.hand(from, to);
+    const to = this.stage.toScreen(c.clone().addScaledVector(pt.dir, 1.9));
+    this.ui.moveHand(from, to);
+  }
+
+  private clearHint() {
+    clearTimeout(this.hintTimer);
+    this.hintTimer = 0;
   }
 
   private showTutStep() {
@@ -387,6 +415,7 @@ class App {
   }
 
   private onSwatUsed() {
+    this.pointer = null;
     this.ui.hand(null);
     const t = this.tut;
     if (!t) return;
@@ -398,6 +427,7 @@ class App {
   }
 
   private endTutorial(done: boolean) {
+    this.pointer = null;
     if (!this.tut) return;
     if (done && !this.profile.tutorial.includes(this.level.id)) { this.profile.tutorial.push(this.level.id); this.save(); }
     this.tut = null;
@@ -410,9 +440,14 @@ class App {
     const L = this.level;
     const rec = peekRec(this.profile, L.id);
     const i = Math.min(L.hints.length - 1, Math.max(0, (rec?.streak ?? 0) - 1));
+    // a fresh hint replaces the previous one (its timer must not hide the new bubble)
+    this.clearHint();
     if (L.hints[i]) this.ui.coach(L.hints[i]);
-    if (L.hintMove) this.demo(L.hintMove.prop, L.hintMove.near, L.hintMove.dir);
-    setTimeout(() => { if (!this.tut) this.ui.coach(null); }, 4200);
+    if (L.hintMove) this.demo(L.hintMove.prop, L.hintMove.near, L.hintMove.dir, 5);
+    this.hintTimer = window.setTimeout(() => {
+      this.hintTimer = 0;
+      if (this.tut) this.showTutStep(); else this.ui.coach(null);
+    }, 5000);
   }
 
   /* ------------------------------------------------------------------ */
@@ -581,7 +616,7 @@ class App {
         this.stage.track(_box, n);
         const t = this.tut;
         if (t?.waitSettle && !this.game.busy()) { t.waitSettle = false; this.showTutStep(); }
-        if (t && !t.waitSettle && !this.aiming) { t.t += dt; if (t.t > 0.6) { t.t = 0; const s = t.steps[t.i]; if (s) this.demo(s.prop, s.near, s.dir); } }
+        this.updatePointer();
       }
     }
     this.catRoom.update(dt);
