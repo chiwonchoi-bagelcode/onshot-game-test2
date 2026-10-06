@@ -335,6 +335,11 @@ export class TrailSpecial implements Special {
     const idx: number[] = [];
     for (let i = 0; i < this.max - 1; i++) { const a = i * 2; idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2); }
     this.geo.setIndex(idx);
+    // the ribbon is wound facing down; with DoubleSide the visible top is the back face,
+    // whose normal gets flipped – so store "down" to light the top like a floor
+    const nrm = new Float32Array(this.max * 2 * 3);
+    for (let i = 1; i < nrm.length; i += 3) nrm[i] = -1;
+    this.geo.setAttribute('normal', new THREE.BufferAttribute(nrm, 3));
     this.geo.setDrawRange(0, 0);
     this.line = new THREE.Mesh(this.geo, new THREE.MeshLambertMaterial({ color, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -1 }));
     this.line.frustumCulled = false;
