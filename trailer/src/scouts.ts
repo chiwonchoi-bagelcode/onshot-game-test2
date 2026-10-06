@@ -1,4 +1,4 @@
-import type { Shot } from './shots';
+import type { Shot } from './kit';
 import { orbit } from './camera';
 
 /**

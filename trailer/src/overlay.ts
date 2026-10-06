@@ -36,7 +36,7 @@ export class Overlay {
   damage: { value: number; shown: number; visible: boolean } = { value: 0, shown: 0, visible: false };
   constructor(private v: View) {}
 
-  clear() { this.words = []; this.bubbles = []; this.cards = []; this.chainN = 0; this.chainT = -10; this.finger = null; this.damage = { value: 0, shown: 0, visible: false }; }
+  clear() { this.chainVisible = true; this.words = []; this.bubbles = []; this.cards = []; this.chainN = 0; this.chainT = -10; this.finger = null; this.damage = { value: 0, shown: 0, visible: false }; }
 
   word(text: string, anchor: Anchor, t: number, size = 1, color = '#ffd23f') {
     // avoid stacking words on the same spot
@@ -202,7 +202,7 @@ export class Overlay {
       const s = '₩' + Math.round(d.shown).toLocaleString('ko-KR');
       ctx.save();
       ctx.translate(W - 60, 70);
-      this.inkText('집사 손해액', 0, 0, 34, '#ffffff', INK, 0.22, FONT, 'right');
+      this.inkText('피해액', 0, 0, 34, '#ffffff', INK, 0.22, FONT, 'right');
       this.inkText(s, 0, 62, 66, '#ff6b6b', INK, 0.2, FONT, 'right');
       ctx.restore();
     }

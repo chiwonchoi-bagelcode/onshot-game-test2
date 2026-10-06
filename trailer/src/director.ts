@@ -7,6 +7,7 @@ import { catById, withSkin } from '../../src/meta/cats';
 import { View, type CamState } from './view';
 import { Overlay } from './overlay';
 import { vclock } from './clock';
+import { mulberry32 } from '../../src/core/util';
 import { SHOTS, type Shot } from './shots';
 
 /** one recorded sound call (replayed later through the game's own synth) */
@@ -34,11 +35,13 @@ export class Director {
   t = 0;
   state: Record<string, unknown> = {};
   sounds: SoundEvent[] = [];
+  events: { t: number; type: string; info: unknown; pos?: number[] }[] = [];
   private loopId = 1;
   private cuesDone = new Set<number>();
   private shakeAmt = 0;
   private shakeT = 0;
   extraScene: THREE.Object3D | null = null;
+  private loaded = false;
   log: string[] = [];
 
   constructor(readonly R: typeof RAPIER, w: number, h: number, ss: number) {
@@ -61,6 +64,7 @@ export class Director {
     this.view.scene.add(this.game.scene);
     this.game.on((e) => {
       const o = this.overlay, t = this.t;
+      if (e.type === 'word' || e.type === 'score' || e.type === 'chain') this.events.push({ t, type: e.type, info: e.type === 'word' ? e.text : e.type === 'score' ? e.amount : e.n, pos: e.type === 'chain' ? undefined : e.pos.toArray().map((v) => +v.toFixed(2)) });
       if (e.type === 'word') o.word(e.text, e.pos.clone(), t, e.size, e.color);
       else if (e.type === 'chain') o.chain(e.n, t);
       else if (e.type === 'bubble' && !this.state.muteBubbles) o.bubble(e.text, e.anchor, t, e.dur, e.style);
@@ -84,6 +88,9 @@ export class Director {
     this.t = 0;
     this.state = {};
     this.sounds = [];
+    this.events = [];
+    // cosmetic randomness (particles, idle acts, lines) repeatable per shot
+    Math.random = mulberry32([...id].reduce((a, ch) => a * 31 + ch.charCodeAt(0), 11));
     this.cuesDone.clear();
     this.overlay.clear();
     this.overlay.subs = [];
@@ -101,8 +108,11 @@ export class Director {
       this.game.start();
       this.game.paws = this.game.maxPaws = 99;
       if (!shot.markers) this.game.aim.clearMarkers();
+      this.loaded = true;
     } else {
-      this.game.unload();
+      // (unloading twice would free the physics world twice)
+      if (this.loaded) { this.game.unload(); (this.game as unknown as { world: unknown }).world = null; }
+      this.loaded = false;
       this.game.scene.visible = false;
     }
     if (shot.theme) this.view.theme(shot.theme);
@@ -110,25 +120,42 @@ export class Director {
     return { dur: shot.dur, frames: Math.round(shot.dur * fps) };
   }
 
-  /** advance one video frame and draw it */
+  /**
+   * Advance one video frame and draw it. The simulation always runs in
+   * 1/60 s substeps (cues, swats and slow motion included) so a preview at
+   * 15 fps and the final 30 fps render play out identically.
+   */
   step() {
     const shot = this.shot!;
-    const dt = 1 / this.fps;
-    this.t = this.frameNo / this.fps;
-    const c = this.ctx();
-    (shot.cues ?? []).forEach((cue, i) => {
+    const sub = Math.max(1, Math.round(60 / this.fps));
+    const runCues = (c: Ctx) => (shot.cues ?? []).forEach((cue, i) => {
       if (!this.cuesDone.has(i) && cue.t <= this.t + 1e-6) { this.cuesDone.add(i); cue.run(c); }
     });
-    const rate = shot.rate ? shot.rate(this.t) : 1;
-    if (shot.level) {
-      vclock.advance(dt * rate * 1000);
-      if (this.frameNo > 0) this.game.update(dt * rate);
-      else this.game.update(1e-6);
-      this.shakeAmt = Math.max(this.shakeAmt, this.game.shakeAmt * (shot.shake ?? 1));
-      this.game.shakeAmt = 0;
-      this.game.punchAmt = 0;
-    } else vclock.advance(dt * 1000);
-    shot.tick?.(c);
+    if (this.frameNo === 0) {
+      this.t = 0;
+      const c = this.ctx();
+      runCues(c);
+      if (shot.level) this.game.update(1e-6);
+      shot.tick?.(c);
+    } else {
+      for (let i = 1; i <= sub; i++) {
+        this.t = ((this.frameNo - 1) * sub + i) / (this.fps * sub);
+        const c = { ...this.ctx(), dt: 1 / 60 };
+        runCues(c);
+        const rate = shot.rate ? shot.rate(this.t) : 1;
+        if (shot.level) {
+          vclock.advance((rate * 1000) / 60);
+          this.game.update(rate / 60);
+          this.shakeAmt = Math.max(this.shakeAmt, this.game.shakeAmt * (shot.shake ?? 1));
+          this.game.shakeAmt = 0;
+          this.game.punchAmt = 0;
+        } else vclock.advance(1000 / 60);
+        shot.tick?.(c);
+      }
+    }
+    this.t = this.frameNo / this.fps;
+    const dt = 1 / this.fps;
+    const c = this.ctx();
     // camera (+ impact shake)
     const cam: CamState & { shadow?: number } = shot.cam(c);
     this.shakeT += dt * 60;

@@ -47,8 +47,9 @@ for (const id of want) {
   }
   ff.stdin.end();
   await new Promise((r) => ff.on('close', r));
-  const meta = await page.evaluate(() => ({ sounds: window.T.sounds, log: window.T.log.splice(0) }));
+  const meta = await page.evaluate(() => ({ sounds: window.T.sounds, events: window.T.events, log: window.T.log.splice(0) }));
   writeFileSync(join(OUT, `${id}.sounds.json`), JSON.stringify({ id, fps: FPS, frames: n, sounds: meta.sounds }));
+  writeFileSync(join(OUT, `${id}.events.json`), JSON.stringify(meta.events.map((e) => ({ ...e, t: +e.t.toFixed(3) }))));
   console.log(`\r${id}: ${n} frames in ${((Date.now() - t0) / 1000).toFixed(0)}s  ${meta.sounds.length} sounds`);
   for (const l of meta.log) console.log('   ', l);
 }

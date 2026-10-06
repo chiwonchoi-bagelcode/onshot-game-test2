@@ -18,6 +18,7 @@ for (const id of process.argv.slice(2)) {
     arr.push(f(p.center(new THREE.Vector3())));
     groups.set(k, arr);
   }
-  for (const [k, v] of groups) console.log(`  ${k} ×${v.length}: ${v.slice(0, 6).join(' | ')}${v.length > 6 ? ' …' : ''}`);
+  const all = process.env.ALL === "1";
+  for (const [k, v] of groups) console.log(`  ${k} ×${v.length}: ${(all ? v : v.slice(0, 6)).join(" | ")}${!all && v.length > 6 ? " …" : ""}`);
   g.unload();
 }
