@@ -125,7 +125,7 @@ export class Director {
    * 1/60 s substeps (cues, swats and slow motion included) so a preview at
    * 15 fps and the final 30 fps render play out identically.
    */
-  step() {
+  step(draw = true) {
     const shot = this.shot!;
     const sub = Math.max(1, Math.round(60 / this.fps));
     const runCues = (c: Ctx) => (shot.cues ?? []).forEach((cue, i) => {
@@ -154,6 +154,7 @@ export class Director {
       }
     }
     this.t = this.frameNo / this.fps;
+    if (!draw) { this.frameNo++; return; }
     const dt = 1 / this.fps;
     const c = this.ctx();
     // camera (+ impact shake)

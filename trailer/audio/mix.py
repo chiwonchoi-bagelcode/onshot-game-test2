@@ -77,6 +77,29 @@ place(design, 0, load(design_f))
 music = np.zeros((N, 2))
 place(music, 0, load(music_f))
 
+
+def shelf(x, f0, gain_db, high=True):
+    """RBJ shelving biquad"""
+    A = 10 ** (gain_db / 40)
+    w0 = 2 * np.pi * f0 / SR
+    al = np.sin(w0) / 2 * np.sqrt(2)
+    cw = np.cos(w0)
+    sA = 2 * np.sqrt(A) * al
+    if high:
+        b = [A * ((A + 1) + (A - 1) * cw + sA), -2 * A * ((A - 1) + (A + 1) * cw), A * ((A + 1) + (A - 1) * cw - sA)]
+        a = [(A + 1) - (A - 1) * cw + sA, 2 * ((A - 1) - (A + 1) * cw), (A + 1) - (A - 1) * cw - sA]
+    else:
+        b = [A * ((A + 1) - (A - 1) * cw + sA), 2 * A * ((A - 1) - (A + 1) * cw), A * ((A + 1) - (A - 1) * cw - sA)]
+        a = [(A + 1) + (A - 1) * cw + sA, -2 * ((A - 1) + (A + 1) * cw), (A + 1) + (A - 1) * cw - sA]
+    return signal.lfilter(b, a, x, axis=0)
+
+
+# score polish: rumble cut, a little air, slightly wider image
+music = signal.sosfilt(signal.butter(2, 32, 'highpass', fs=SR, output='sos'), music, axis=0)
+music = shelf(music, 7500, 2.0, True)
+mid, side = (music[:, 0] + music[:, 1]) / 2, (music[:, 0] - music[:, 1]) / 2
+music = np.stack([mid + side * 1.25, mid - side * 1.25], 1)
+
 # ---- narration
 vo = np.zeros((N, 2))
 active = np.zeros(N)

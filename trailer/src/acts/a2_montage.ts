@@ -23,7 +23,7 @@ export const B_yank: Shot = {
   cues: [
     { t: 0.1, run: (c) => c.d.aimAndSwat('cloth', { dir: [0, 1], power: 1, aim: 0.75 }) },
     { t: 0.12, run: (c) => c.o.card('세게?', c.t, 1.25, { x: 0.2, y: 0.2, size: 120, style: 'soft', rot: -0.05 }) },
-    { t: 2.25, run: (c) => { c.g.cat.faceYaw = 0.35; say(c, '…어라?', 1.8); } },
+    { t: 2.25, run: (c) => { c.g.cat.faceYaw = 0.35; say(c, '(고개 갸웃)', 1.8); } },
   ],
   tick(c) { c.d.updateAim(); },
   cam: (c) => clothCam(c, c.t),

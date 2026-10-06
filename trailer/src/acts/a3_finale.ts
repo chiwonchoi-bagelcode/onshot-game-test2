@@ -61,7 +61,7 @@ export const G_finale: Shot = {
     // …and the cat has no idea what happened here
     { t: T.cat - 0.1, run: (c) => {
       c.s.muteBubbles = true;
-      c.g.cat.faceYaw = 1.32;
+      c.g.cat.faceYaw = 1.34;
       c.g.cat.reset(new THREE.Vector3(0.9, 0, 0.6));
       c.g.cat.ending(c.g, true);
     } },
@@ -133,8 +133,8 @@ export const G_finale: Shot = {
     ], 'none')(l), shadow: 6 }) },
     // reverse: the culprit
     { from: T.cat, cam: (_c, l) => ({ ...path([
-      { t: 0, pos: [3.7, 2.0, 1.3], look: [0.2, 1.15, -0.1], fov: 34 },
-      { t: 5, pos: [3.4, 1.9, 1.25], look: [0.2, 1.15, -0.1], fov: 31 },
+      { t: 0, pos: [3.55, 1.32, 1.22], look: [-1.0, 1.42, 0.05], fov: 37 },
+      { t: 5, pos: [3.35, 1.3, 1.18], look: [-1.0, 1.42, 0.05], fov: 34 },
     ], 'none')(l), shadow: 5 }) },
   ]),
 };
