@@ -1,6 +1,8 @@
 import * as C from '../game/catalog';
+import * as C2 from '../game/catalog2';
 import type { LevelDef } from '../game/types';
-import { bedroom, BEDROOM } from './rooms';
+import { bedroom, BEDROOM, furnishBedroom, rect } from './rooms';
+import { block, buildHouse, cabinet, doorOn, rug, windowOn } from './house';
 
 const BR = BEDROOM;
 
@@ -61,6 +63,94 @@ const S3_2: LevelDef = {
   },
 };
 
+const S3_3: LevelDef = {
+  id: '3-3', chapter: 3, theme: 'bedroom', title: '쉿! 몰래 작전', subtitle: '집사가 잠든 사이 보물 사냥. 단, 절대 깨우면 안 된다냥',
+  paws: 3,
+  goal: { kind: 'sneak', text: '집사를 깨우지 말고 보물 3개를 깨뜨려라', short: '몰래 깨기' },
+  stars: [260000, 400000],
+  challenges: [
+    { type: 'quiet', max: 25, text: '소음 25 이하로 (집사가 거의 못 들음)' },
+    { type: 'paws', max: 2 },
+    { type: 'count', kind: 'vase', n: 1, text: '침대 위 고급 꽃병까지 깨고도 안 들키기' },
+  ],
+  tip: '이번엔 몰래! 집사가 깨면 바로 실패예요. 깨지는 소리는 집사 머리에서 멀수록 작아져요.',
+  hints: [
+    '자명종을 건드리면 집사가 벌떡! 인형은 자명종 반대쪽, 방 앞쪽으로 쳐요.',
+    '세게 쳐서 집사에게서 멀리 날려 깨뜨리면 소리가 작아요. 로봇청소기와 고무오리는 시끄러운 함정!',
+    '돼지저금통을 스노우볼 쪽으로 세게 밀면 둘 다 와장창. 침대 위 꽃병은 방 쪽으로 멀리 날리면 들키지 않아요.',
+  ],
+  hintMove: { prop: 'doll', dir: [0.2, 1] },
+  ownerLine: 'Zzz… 음냐… 우리 냥이… 착하지…',
+  build(b) {
+    bedroom(b);
+    const y = BR.desk.top, n = BR.night.top;
+    // desk: far from the bed – the safe side of the room
+    C2.snowGlobe(b, { at: [1.6, y, -2.75], target: true });
+    C.piggy(b, { at: [2.45, y, -2.75], target: true, rot: 0.6 });
+    C.mug(b, { at: [3.3, y, -2.6], color: '#5ec4c9' });
+    C.deskLamp(b, { at: [3.55, y, -3.4], rot: Math.PI });
+    C.paperStack(b, { at: [2.4, y, -3.4] });
+    // nightstand right by the sleeping head: the doll stands next to the alarm clock
+    C.alarmClock(b, { at: [0.05, n, -2.9], rot: 0.5 });
+    C2.doll(b, { at: [0.55, n, -3.2], target: true, value: 60000 });
+    // above the bed
+    const sh = C.wallShelf(b, { at: [-2.25, 3.4, -3.4], w: 2.6, pinned: 200 });
+    C.book(b, { at: [-2.9, sh.top, -3.4], color: '#e05a5a' });
+    C.book(b, { at: [-2.65, sh.top, -3.4], color: '#4f86c6' });
+    C.vase(b, { at: [-1.55, sh.top, -3.35], color: '#9b8fdd', value: 150000, name: '고급 꽃병' });
+    // floor: noisy traps
+    C.rubberDuck(b, { at: [1.3, 0, 0.3], rot: 2.4 });
+    C2.pillow(b, { at: [1.6, 0, -1.4], rot: 0.3 });
+    C.roomba(b, { at: [2.4, 0, 1.4] });
+    b.cat(2.6, 0, 2.8);
+  },
+};
+
+const S3_4: LevelDef = {
+  id: '3-4', chapter: 3, theme: 'bedroom', title: '드레스룸 습격', subtitle: '집사는 외출 준비로 샤워 중. 드레스룸 문이 열려 있다',
+  paws: 3,
+  goal: { kind: 'break', count: 4, text: '향수 3병과 기타를 망가뜨려라', short: '드레스룸' },
+  stars: [700000, 780000],
+  challenges: [
+    { type: 'indirect', text: '향수도 기타도 직접 치지 않고 클리어' },
+    { type: 'paws', max: 2 },
+    { type: 'discover', id: 'feathers', text: '옷장 위 베개로 깃털 폭발' },
+  ],
+  tip: '침실 옆에 드레스룸이 붙어 있어요. 쓰러지는 물건은 문을 넘어 옆방까지 닿아요.',
+  hints: [
+    '화장대 덮개를 살살 당기면 향수가 전부 와르르!',
+    '문간의 옷걸이 윗부분을 침실 쪽으로 밀면 기타 위로 쿵! 직접 치지 않아도 돼요.',
+    '옷장 위 베개는 높이 떨어질수록… 펑! 깃털 폭발까지 터뜨리면 별 셋.',
+  ],
+  hintMove: { prop: 'cloth', dir: [0, 1] },
+  ownerLine: '내 향수…! 기타는 또 왜 이래?!',
+  start: [4.0, -0.5],
+  build(b) {
+    buildHouse(b, {
+      rooms: [rect('bedroom', '침실', 0, 0, 8, 7.5, 'lilac', 'night'), rect('dress', '드레스룸', 6.5, 0, 5, 7.5, 'darkwood', 'study')],
+      doors: [{ x: 4, z: 0.7, w: 1.9 }],
+      base: '#3f3478',
+    });
+    furnishBedroom(b, 0, 0, { owner: 'none' });
+    doorOn(b, { x: -4 }, BR.doorZ, '#b9b0ea');
+    b.ownerAtDoor(-4 + 0.9, 0, BR.doorZ, Math.PI / 2);
+    // dressing room: vanity with three perfumes on a runner cloth
+    const vt = cabinet(b, 6.6, -3.25, 2.6, 0.9, 1.9, '#f4efe4', '#ffd6e3', 2);
+    C.tablecloth(b, { at: [6.6, vt, -3.25], w: 2.5, d: 0.8, tableTop: vt, floorY: 0, color: '#b9a6ff' });
+    for (const [x, c] of [[5.75, '#ff9fc0'], [6.35, '#b9a6ff'], [7.45, '#ffd23f']] as const) C2.perfume(b, { at: [x, vt + 0.05, -3.2], color: c, target: true });
+    C.piggy(b, { at: [6.95, vt + 0.05, -3.25], name: '보석함', color: '#ffd23f', value: 120000, rot: 0.2 });
+    // tall wardrobe with spare pillows on top (a long fall = feather explosion)
+    block(b, 8.15, -1.2, 1.4, 1.8, 4.2, '#b9825a', '#8e5f3e');
+    C2.pillow(b, { at: [8.15, 4.2, -1.6], color: '#ffffff', rot: 0.2 });
+    C2.pillow(b, { at: [8.15, 4.2, -0.8], color: '#ffd6e3', rot: -0.2 });
+    // coat rack right at the doorway, the guitar just on the bedroom side
+    C2.coatRack(b, { at: [4.75, 0, 0.7] });
+    C2.guitar(b, { at: [3.2, 0, 0.7], rot: Math.PI / 2, target: true });
+    for (const [x, z, r] of [[5.6, 2.6, 0.3], [6.1, 2.8, -0.2]] as const) C2.shoe(b, { at: [x, 0, z], rot: r });
+    b.cat(2.6, 0, 2.6);
+  },
+};
+
 const S3_5: LevelDef = {
   id: '3-5', chapter: 3, theme: 'bedroom', title: '완전 범죄', subtitle: '집사 외출 중. 오늘 이 방은 내 거다냥',
   challenges: [],
@@ -110,4 +200,4 @@ const S3_5: LevelDef = {
   },
 };
 
-export const CH3: LevelDef[] = [S3_1, S3_2, S3_5];
+export const CH3: LevelDef[] = [S3_1, S3_2, S3_3, S3_4, S3_5];

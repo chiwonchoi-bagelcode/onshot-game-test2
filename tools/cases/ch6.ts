@@ -35,9 +35,10 @@ export const CASES: Case[] = [
   { level: '6-4', name: 'coat rack too short, clock the wrong way', expect: 'lose', plan: [top('coatRack', [1, -0.2], 0.9, 4), top('grandClock', [1, 0], 0.9, 6)] },
   // 6-5 와장창 대참사
   { level: '6-5', name: 'hallway topple line, 1 paw (not enough)', expect: 'lose', plan: [top('coatRack', [-1, 0], 0.8, 10)] },
-  { level: '6-5', name: 'hallway line + lamp onto the TV', expect: 'win', plan: [top('coatRack', [-1, 0], 0.8, 10), top('lamp', [-0.69, -0.73], 0.8, 6)] },
-  { level: '6-5', name: 'domino → rocket + hallway line + lamp/TV (3★)', expect: 'win', minStars: 3, plan: [top('domino', [0.74, -0.67], 0.4, 12, [1.2, 0.3, 6.7]), top('coatRack', [-1, 0], 0.8, 10), top('lamp', [-0.69, -0.73], 0.8, 6)] },
+  { level: '6-5', name: 'hallway line + lamp onto the TV', expect: 'win', minStars: 2, challenges: [0, 2], plan: [top('coatRack', [-1, 0], 0.8, 10), top('lamp', [-0.69, -0.73], 0.8, 6)] },
+  { level: '6-5', name: 'domino → rocket + hallway line + lamp/TV (3★)', expect: 'win', minStars: 3, challenges: [0, 1], plan: [top('domino', [0.74, -0.67], 0.4, 12, [1.2, 0.3, 6.7]), top('coatRack', [-1, 0], 0.8, 10), top('lamp', [-0.69, -0.73], 0.8, 6)] },
   { level: '6-5', name: 'clock into the TV + flood + rocket', expect: 'win', minStars: 2, plan: [top('grandClock', [0, 1], 0.9, 8), top('aquarium', [0, 1], 0.85, 8), top('domino', [0.74, -0.67], 0.4, 12, [1.2, 0.3, 6.7])] },
   { level: '6-5', name: 'toaster + hallway line + lamp', expect: 'win', minStars: 2, plan: [{ pick: 'toaster', dir: [0, -1], power: 0.4, wait: 6 }, top('coatRack', [-1, 0], 0.8, 10), top('lamp', [-0.69, -0.73], 0.8, 6)] },
-  { level: '6-5', name: 'small stuff only', expect: 'lose', plan: [{ pick: 'cloth', dir: [0, 1], power: 0.4, wait: 4 }, top('vase', [1, 0], 0.7, 3, [-4.3, 1.3, 4.0]), { pick: 'perfume', dir: [0, 1], power: 0.7, wait: 3 }] },
+  { level: '6-5', name: 'vase at the TV + rocket + hallway line', expect: 'win', minStars: 3, challenges: [0, 1], plan: [top('vase', [1, 0], 0.7, 3, [-4.3, 1.3, 4.0]), top('domino', [0.74, -0.67], 0.4, 12, [1.2, 0.3, 6.7]), top('coatRack', [-1, 0], 0.8, 10)] },
+  { level: '6-5', name: 'small stuff only', expect: 'lose', plan: [{ pick: 'cloth', dir: [0, 1], power: 0.4, wait: 4 }, { pick: 'perfume', dir: [0, 1], power: 0.7, wait: 3 }, top('doll', [-1, 0], 0.7, 4)] },
 ];

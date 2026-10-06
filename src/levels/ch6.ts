@@ -2,7 +2,7 @@ import * as C from '../game/catalog';
 import * as C2 from '../game/catalog2';
 import type { LevelDef } from '../game/types';
 import { block, buildHouse, cabinet, doorOn, posterOn, rug, sofa, table, windowOn } from './house';
-import { BATH, bathtub, bedFrame, furnishBathroom, furnishKitchen, furnishLiving, rect, toilet } from './rooms';
+import { BATH, bathtub, bedFrame, furnishBathroom, furnishKitchen, rect, toilet } from './rooms';
 import { entranceTiles, fixTrailNormals, floodOnBreak, fridge, hooksOn, mirrorOn, shoeCabinet } from './rooms_house';
 
 /* ================================================================== */
@@ -24,7 +24,7 @@ const S6_1: LevelDef = {
   hintMove: { prop: 'grandClock', dir: [1, 0] },
   tutorial: [
     { text: '괘종시계는 나무처럼 쓰러져요. 위쪽을 눌러 거실 문 쪽으로 세게!', prop: 'grandClock', dir: [1, 0] },
-    { text: '문을 지나 거실까지 와장창! 남은 앞발로 더 어지럽혀 봐요.', prop: 'roomba', dir: [-1, 0] },
+    { text: '문을 지나 거실까지 와장창! 남은 앞발로 신발장 위를 한 번에 쓸어 봐요.', prop: 'plant', near: [-8.0, 1.5, -3.2], dir: [1, 0] },
   ],
   start: [-4.5, 1],
   ownerLine: '현관부터 거실까지… 이게 다 뭐야?!',
@@ -126,7 +126,8 @@ const S6_2: LevelDef = {
     posterOn(b, { x: -4 }, 1.6, 4.4, 1.3, 1.7, ['#fff1c1', '#ff7aa8', '#4f86c6']);
     rug(b, 0, 4.0, 4.4, 3.4, ['#ffcf5c', '#ff8c6b', '#ffffff']);
     const tvTop = cabinet(b, -3.45, 3.6, 2.8, 0.9, 1.25, '#f4efe4', '#b9825a', 1, Math.PI / 2);
-    C.tv(b, { at: [-3.5, tvTop, 3.6], rot: Math.PI / 2, value: 600000 });
+    const tv = C.tv(b, { at: [-3.5, tvTop, 3.6], rot: Math.PI / 2, value: 300000 });
+    tv.body.setEnabledRotations(false, true, false, true); // wall-bracketed: paws can't tip it
     sofa(b, 2.75, 4.0, -Math.PI / 2, '#ff8c6b');
     const cf = table(b, -0.9, 4.6, 1.6, 2.2, 1.2, '#b9825a', '#8e5f3e');
     C.vase(b, { at: [-1.1, cf, 4.2], color: '#ff8fa3', value: 100000 });
@@ -273,7 +274,11 @@ const S6_5: LevelDef = {
   paws: 3,
   goal: { kind: 'score', amount: 2800000, text: '피해액 ₩2,800,000 달성', short: '대참사' },
   stars: [3300000, 3650000],
-  challenges: [],
+  challenges: [
+    { type: 'cause', victim: 'phone', culprit: 'coatRack', text: '복도 대연쇄: 옷걸이 → 괘종시계 → 수조 → 폰' },
+    { type: 'chain', n: 28, text: '아이방 → 복도 → 주방, 한 번에 연쇄 x28' },
+    { type: 'paws', max: 2, text: '앞발 2번으로 대참사' },
+  ],
   tip: '방마다 큰 장치가 하나씩! 한 번의 장난이 몇 개의 방을 지나갈 수 있을까요?',
   hints: ['복도 괘종시계는 어느 쪽으로 넘어지느냐에 따라 결과가 달라져요. 거실 TV? 아니면 수조?', '아이방 도미노 끝에 탄산음료가 있어요. 로켓은 낮은 벽을 넘어 주방 선반까지 날아가요!', '옷걸이 → 괘종시계 → 수조 → 물바다 → 바닥의 기계들. 복도를 한 번에!'],
   start: [-1, 0.5],
