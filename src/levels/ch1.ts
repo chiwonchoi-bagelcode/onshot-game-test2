@@ -194,6 +194,9 @@ const S1_4: LevelDef = {
     C.pictureFrame(b, { at: [2.4, y, -3.45], w: 1.1, h: 0.85, art: 1, pinned: 99999, name: '가족사진' });
     C.cushion(b, { at: [-2.3, L.sofaSeat, -2.55], color: '#5ec4c9', rot: 0.2 });
     C.cushion(b, { at: [-0.4, L.sofaSeat, -2.55], color: '#ffd23f', rot: -0.15 });
+    C.mug(b, { at: [2.45, y, -2.95], color: '#5ec4c9' });
+    C.floorLamp(b, { at: [-3.3, 0, -1.6] });
+    C.toyCar(b, { at: [-2.6, 0, 2.6], rot: 0.6 });
     b.cat(2.6, 0, 2.4);
   },
 };
@@ -252,7 +255,7 @@ const S1_5: LevelDef = {
     C.dominoPath(b, [[2.08, 3.1], [3.0, 2.6], [4.6, 1.8], [5.6, 1.2]], 0, 0.3, ['#4f86c6', '#5bb98c']);
     C.soda(b, { at: [2.62, 0, 1.9], aim: [-0.05, -1] });
     C.soda(b, { at: [5.85, 0, 0.95], aim: [0.2, -1] });
-    // --- sunroom: wall shelf of plants & a vase over a glass cabinet ---
+    // --- sunroom: a wall shelf of plants and a precious celadon vase ---
     const ss = C.wallShelf(b, { at: [6.6, 3.7, -3.35], w: 3.0, d: 0.8, pinned: 110, color: '#ffffff' });
     C.plant(b, { at: [5.5, ss.top, -3.3], color: '#5ec4c9' });
     C.vase(b, { at: [6.5, ss.top, -3.3], tall: true, color: '#3f6fb5', flowers: false, value: 150000, name: '청자 화병' });

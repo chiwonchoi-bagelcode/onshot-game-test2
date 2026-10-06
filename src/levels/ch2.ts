@@ -25,7 +25,7 @@ const S2_1: LevelDef = {
   hintMove: { prop: 'cloth', dir: [0, 1] },
   tutorial: [
     { text: '식탁보는 특별한 물건! 짧게 살살 끌면 위에 있는 게 전부 끌려가요.', prop: 'cloth', dir: [0, 1] },
-    { text: '잘했어요! 남은 앞발로 조리대 위 샴페인도 떨어뜨려 봐요.', prop: '샴페인', dir: [0, 1] },
+    { text: '잘했어요! 남은 앞발로 조리대 위 샴페인도 떨어뜨려 봐요.', prop: 'bottle', near: [1.75, 2.9, -2.55], dir: [0, 1] },
   ],
   ownerLine: '저녁상이…! 손님 오시는데?!',
   build(b) {
@@ -126,7 +126,7 @@ const S2_4: LevelDef = {
   id: '2-4', chapter: 2, theme: 'kitchen', title: '아침밥 대참사', subtitle: '집사가 차린 아침 식탁. 시리얼에 우유를 붓기 직전이다',
   paws: 3,
   goal: { kind: 'break', count: 4, text: '시리얼 2개와 우유 2개를 쏟아라', short: '아침밥' },
-  stars: [130000, 150000],
+  stars: [140000, 155000],
   challenges: [
     { type: 'paws', max: 2 },
     { type: 'cause', victim: 'milk', culprit: 'pan', text: '프라이팬으로 우유 밀어내기' },
@@ -151,13 +151,16 @@ const S2_4: LevelDef = {
     C.plate(b, { at: [T.x + 1.2, tt + 0.05, T.z + 0.5], color: '#ffffff', name: '시리얼 그릇' });
     C.cup(b, { at: [T.x - 0.1, tt + 0.05, T.z + 0.6], juice: '#ffb347' });
     // counter: the frying pan sits right behind the second cereal box and milk – a bulldozer
-    C2.pan(b, { at: [3.1, ct, -3.15], rot: 0 });
-    C.egg(b, { at: [3.0, ct + 0.1, -3.15], name: '달걀 프라이' });
+    C2.pan(b, { at: [3.1, ct, -3.15], rot: Math.PI });
+    C.egg(b, { at: [3.15, ct + 0.1, -3.15], name: '달걀 프라이' });
     C2.cereal(b, { at: [2.8, ct, -2.45], target: true, rot: 0 });
     C2.milk(b, { at: [3.45, ct, -2.45], target: true });
     C.toaster(b, { at: [-1.2, ct, -2.75] });
     C.marbleJar(b, { at: [0.4, ct, -2.6], name: '사탕 병' });
     C.fruit(b, { at: [1.5, ct, -2.7], kind: 'apple' });
+    C.fruit(b, { at: [1.8, ct, -2.45], kind: 'orange' });
+    C.bottle(b, { at: [-0.5, ct, -2.55], name: '오렌지 주스', color: '#ffb347', value: 15000 });
+    C.plateStack(b, { at: [0.9, ct, -3.35], n: 3 });
     b.cat(3.0, 0, 3.0);
   },
 };
