@@ -212,6 +212,7 @@ export class Game {
     this.swatIndex = -1;
     this.noise = 0;
     this.caughtT = 0;
+    this.lastWake.clear();
     this.run = { swats: [], chains: [], counters: {}, maxes: {}, discovered: [], culprits: [] };
     const b = new Builder(this);
     level.build(b);
@@ -328,8 +329,34 @@ export class Game {
 
   propOf(colliderHandle: number): Prop | undefined { return this.byCollider.get(colliderHandle); }
 
+  /** wake everything resting on / touching p (a sleeping stack must not hover when its support goes) */
+  private lastWake = new Map<Prop, number>();
+  static wakeStacks = (globalThis as { __WAKE_STACKS?: boolean }).__WAKE_STACKS ?? false;
+  wakeAround(p: Prop, depth = 4) {
+    if (!Game.wakeStacks) return;
+    const seen = new Set<Prop>([p]);
+    let frontier: Prop[] = [p];
+    for (let d = 0; d < depth && frontier.length; d++) {
+      const next: Prop[] = [];
+      for (const q of frontier) {
+        for (const h of q.colliderHandles) {
+          const col = this.world.getCollider(h);
+          if (!col) continue;
+          this.world.contactPairsWith(col, (c2) => {
+            const o = this.byCollider.get(c2.handle);
+            if (!o || seen.has(o) || !o.isDynamic()) return;
+            seen.add(o);
+            if (o.body.isSleeping()) { o.body.wakeUp(); next.push(o); }
+          });
+        }
+      }
+      frontier = next;
+    }
+  }
+
   removeProp(p: Prop) {
     if (!p.alive) return;
+    this.wakeAround(p);
     p.alive = false;
     for (const h of p.colliderHandles) this.byCollider.delete(h);
     this.world.removeRigidBody(p.body);
@@ -342,6 +369,7 @@ export class Game {
     if (this.time > 0.7) this.discover('shelf', p.center(new THREE.Vector3()));
     p.body.setBodyType(this.R.RigidBodyType.Dynamic, true);
     p.body.wakeUp();
+    this.wakeAround(p);
     p.prevV.set(0, 0, 0); p.prevW.set(0, 0, 0);
   }
 
@@ -430,6 +458,7 @@ export class Game {
         this.discover('heavy', point.clone());
       }
     }
+    this.wakeAround(p);
     const lv = body.linvel(), av = body.angvel();
     p.prevV.set(lv.x, lv.y, lv.z);
     p.prevW.set(av.x, av.y, av.z);
@@ -807,6 +836,11 @@ export class Game {
       const dwx = w.x - p.prevW.x, dwy = w.y - p.prevW.y, dwz = w.z - p.prevW.z;
       const impact = Math.sqrt(dvx * dvx + dvy * dvy + dvz * dvz) + 0.35 * Math.sqrt(dwx * dwx + dwy * dwy + dwz * dwz) * p.radius;
       if (settle && impact > SOUND_MIN_IMPACT && this.time > p.graceUntil) this.onImpact(p, impact);
+      // a fast mover shakes whatever it touches awake (throttled)
+      if (Game.wakeStacks && p.alive && v.x * v.x + v.y * v.y + v.z * v.z > 2.5 && this.time - (this.lastWake.get(p) ?? -1) > 0.1) {
+        this.lastWake.set(p, this.time);
+        this.wakeAround(p, 2);
+      }
       if (p.alive && this.waterZones.length) this.water(p, h);
       if (p.alive) {
         p.prevV.set(v.x, v.y, v.z);
