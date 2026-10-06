@@ -341,6 +341,7 @@ export class Game {
       if (wl > 16) body.setAngvel({ x: (w.x / wl) * 16, y: (w.y / wl) * 16, z: (w.z / wl) * 16 }, true);
       if (dv < 1.6) {
         this.emit({ type: 'word', text: pick(['꿈쩍!', '끄응..', '무거워!']), pos: point.clone(), size: 0.9, color: '#ffffff' });
+        this.cat.say(this, pick(['칫, 무겁잖아…', '더 세게…?', '흥, 다른 방법이 있겠지']), 1.6);
       }
     }
     const lv = body.linvel(), av = body.angvel();
@@ -369,6 +370,8 @@ export class Game {
       if (this.chain > 1) total += 500 * (this.chain - 1);
       this.sfx.chain(this.chain - 1);
       if (this.chain >= 3) this.emit({ type: 'chain', n: this.chain });
+      if (this.chain === 6) this.cat.say(this, pick(['후훗…', '계획대로다냥', '흐흥~']), 1.5);
+      if (this.chain === 14) { this.cat.say(this, pick(['완벽해…', '예술이다냥…', '이 정도면 걸작']), 1.8); this.sfx.purr(1.2); }
     }
     this.score += total;
     this.emit({ type: 'score', amount: total, total: this.score, pos: pos.clone(), big: total >= 50000, chain: this.chain });

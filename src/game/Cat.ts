@@ -197,6 +197,14 @@ export class Cat {
     }
   }
 
+  private lastSay = -10;
+  /** smug little comments while the chaos unfolds */
+  say(game: Game, text: string, dur: number) {
+    if (this.state === 'ending' || game.time - this.lastSay < 2.5) return;
+    this.lastSay = game.time;
+    game.emit({ type: 'bubble', text, anchor: () => this.headPos(), dur, style: 'cat' });
+  }
+
   headPos(): THREE.Vector3 {
     return this.head.getWorldPosition(new THREE.Vector3()).add(new THREE.Vector3(0, 0.55, 0));
   }

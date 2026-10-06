@@ -49,7 +49,7 @@ export class Debris {
     this.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
   }
 
-  spawn(pos: THREE.Vector3, vel: THREE.Vector3, size: number, color: THREE.ColorRepresentation, flat = false, life = srand(7, 10)) {
+  spawn(pos: THREE.Vector3, vel: THREE.Vector3, size: number, color: THREE.ColorRepresentation, flat = false, life = srand(16, 24)) {
     const i = this.cursor;
     this.cursor = (this.cursor + 1) % this.capacity;
     const f = this.frags[i];
