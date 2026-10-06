@@ -18,7 +18,7 @@ const T = {
   overview: 17.1,
   door: 19.7,
   cat: 22.75,
-  end: 27.6,
+  end: 28.4,
 };
 
 const pos = (c: Ctx, kind: string, near?: [number, number, number]) => {
