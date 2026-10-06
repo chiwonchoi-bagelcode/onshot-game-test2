@@ -1,6 +1,7 @@
 import type { Case } from './types';
 import type { Action } from '../sim';
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const book = (near: [number, number, number], dir: [number, number], power = 0.5): Action => ({ pick: 'book', near, dir, power, at: 'top' });
 void book;
 
