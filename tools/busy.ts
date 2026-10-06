@@ -1,7 +1,7 @@
 // Which props keep a level "busy" (prevent it from settling)?
 import RAPIER from '@dimforge/rapier3d-compat';
 import { Game } from '../src/game/Game';
-import { LEVELS } from '../src/levels/levels';
+import { LEVELS } from '../src/levels/index';
 await RAPIER.init();
 const noop: any = new Proxy(() => noop, { get: () => noop, apply: () => ({ stop() {}, set() {} }) });
 for (const l of LEVELS) {

@@ -145,6 +145,7 @@ export class Owner {
     if (game.time - this.lastHit < 0.12) return;
     this.lastHit = game.time;
     const add = clamp((force - 40) / 11, 3, 36) * (p.mat === 'soft' ? 0.4 : 1);
+    if (add > 8) game.discover('bonk', this.headPos.clone());
     this.disturb(game, add, '아얏…!');
   }
 
@@ -154,7 +155,9 @@ export class Owner {
     const d = pos.distanceTo(this.headPos);
     const k = clamp(1.15 - d / 9, 0, 1);
     if (k <= 0) return;
-    this.disturb(game, loudness * k, null);
+    const l = loudness * k * game.noiseMul;
+    game.noise += l;
+    this.disturb(game, l, null);
   }
 
   disturb(game: Game, amount: number, word: string | null) {
@@ -175,7 +178,8 @@ export class Owner {
       this.snore?.stop();
       game.sfx.gasp();
       game.emit({ type: 'bubble', text: '!!?', anchor: () => this.headPos.clone().add(new THREE.Vector3(0, 0.9, 0)), dur: 1.4, style: 'owner' });
-      game.addScore(50000, this.headPos.clone(), { chain: false });
+      game.discover('wake', this.headPos.clone());
+      if (game.level.goal.kind !== 'sneak') game.addScore(50000, this.headPos.clone(), { chain: false });
       game.checkGoal();
     }
   }
@@ -197,6 +201,9 @@ export class Owner {
           game.emit({ type: 'bubble', text: '우리 냥이 얌전히 있었네~ ♥', anchor: () => this.top(), dur: 2.4, style: 'owner' });
         }
       }, game.headless ? 0 : 650);
+    } else if (game.level.goal.kind === 'sneak') {
+      if (this.awake) game.emit({ type: 'bubble', text: '너 이 녀석…! 딱 걸렸어!', anchor: () => this.headPos.clone().add(new THREE.Vector3(0, 1.3, 0)), dur: 2.6, style: 'owner' });
+      else game.emit({ type: 'bubble', text: game.level.ownerLine ?? 'Zzz… 우리 냥이 착하지… Zzz', anchor: () => this.headPos.clone().add(new THREE.Vector3(0, 0.9, 0)), dur: 2.6, style: 'owner' });
     } else if (success) {
       game.emit({ type: 'bubble', text: game.level.ownerLine ?? '너… 지금 몇 시인 줄 알아?!', anchor: () => this.headPos.clone().add(new THREE.Vector3(0, 1.3, 0)), dur: 2.6, style: 'owner' });
     } else {

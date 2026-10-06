@@ -2,7 +2,7 @@
 import RAPIER from '@dimforge/rapier3d-compat';
 import * as THREE from 'three';
 import { Game } from '../src/game/Game';
-import { LEVELS } from '../src/levels/levels';
+import { LEVELS } from '../src/levels/index';
 await RAPIER.init();
 const noop: any = new Proxy(() => noop, { get: () => noop, apply: () => ({ stop() {}, set() {} }) });
 const [, , id, planJson, kinds] = process.argv;

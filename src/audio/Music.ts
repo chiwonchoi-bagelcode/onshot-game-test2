@@ -10,6 +10,22 @@ export class Music {
   private nextTime = 0;
   private tempo = 104;
   private mood: 'play' | 'calm' = 'play';
+  /** semitone shift + tempo per chapter, chain intensity 0..3 */
+  private key = 0;
+  intensity = 0;
+  private intensityT = 0;
+
+  setFlavor(chapter: number) {
+    const flavors: [number, number][] = [[0, 104], [0, 104], [3, 110], [5, 98], [7, 116], [-2, 92], [2, 120]];
+    const f = flavors[chapter] ?? flavors[0];
+    this.key = f[0];
+    this.tempo = f[1];
+  }
+
+  bump(chain: number) {
+    this.intensity = Math.max(this.intensity, chain >= 20 ? 3 : chain >= 10 ? 2 : chain >= 4 ? 1 : 0);
+    this.intensityT = 3;
+  }
 
   constructor(private sfx: Sfx) {}
 
@@ -33,6 +49,7 @@ export class Music {
     const ctx = this.sfx.ctx;
     if (!ctx) return;
     const spb = 60 / this.tempo / 4; // 16th notes
+    if (this.intensityT > 0) { this.intensityT -= 0.04; if (this.intensityT <= 0) this.intensity = 0; }
     while (this.nextTime < ctx.currentTime + 0.15) {
       this.play(this.step, this.nextTime);
       this.nextTime += spb * (this.step % 2 === 0 ? 1.12 : 0.88); // swing
@@ -47,8 +64,13 @@ export class Music {
     const i = s % 16;
     // chord roots (semitones from A2) : Am  F  G  E | Am  Dm  E  E
     const roots = [0, -4, -2, -5, 0, 5, -5, -5];
-    const root = 110 * Math.pow(2, roots[bar] / 12);
+    const root = 110 * Math.pow(2, (roots[bar] + this.key) / 12);
     const calm = this.mood === 'calm';
+    const hot = this.intensity;
+    // chaos layer: kick + low octave pulses that build with the chain
+    if (!calm && hot >= 1 && i % 4 === 0) sfx.tone('sine', 110, 45, t, 0.18, 0.28 + hot * 0.06, bus, 0.002);
+    if (!calm && hot >= 2 && i % 2 === 1) sfx.tone('square', root, root, t, 0.08, 0.05, bus, 0.003);
+    if (!calm && hot >= 3 && (i === 3 || i === 11)) sfx.noise(t, 0.12, 0.16, 'bandpass', 2500, 1200, 1.5, bus);
     // walking bass on 8ths
     if (i % 4 === 0 || (!calm && i % 4 === 2 && (i === 6 || i === 14))) {
       const walk = [0, 7, 12, 7][(i / 4) | 0] ?? 0;

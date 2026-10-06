@@ -12,8 +12,33 @@ import { Cat } from './Cat';
 import { Owner } from './Owner';
 import { Aim } from './Aim';
 import { Builder } from '../levels/Builder';
+import { CATS, type CatDef } from '../meta/cats';
+import { FX_DISCOVERY } from '../meta/dex';
+import { disposeMerged } from '../render/merge';
 
 export type Phase = 'intro' | 'ready' | 'ending' | 'done';
+
+export interface ChainEvent {
+  id: number;
+  name: string;
+  kind: string;
+  icon: string;
+  cause: number | null;
+  causeCat: boolean;
+  type: 'break' | 'fall' | 'topple' | 'dunk' | 'other';
+  value: number;
+}
+
+export interface RunRecord {
+  swats: { kind: string; id: number; target: boolean }[];
+  /** scoring events grouped per swat */
+  chains: ChainEvent[][];
+  counters: Record<string, number>;
+  maxes: Record<string, number>;
+  discovered: string[];
+  /** culprit kinds (nearest first) for every broken prop */
+  culprits: { kind: string; target: boolean; by: string[] }[];
+}
 
 export interface Result {
   success: boolean;
@@ -22,8 +47,16 @@ export interface Result {
   maxChain: number;
   broken: number;
   pawsLeft: number;
+  pawsUsed: number;
   pawBonus: number;
+  /** icons along the longest cause-and-effect chain */
+  story: { icon: string; name: string }[];
+  run: RunRecord;
+  wokeOwner: boolean;
+  noise: number;
 }
+
+export interface WaterZone { x0: number; x1: number; z0: number; z1: number; y0: number; top: number }
 
 export type GameEvent =
   | { type: 'score'; amount: number; total: number; pos: THREE.Vector3; big: boolean; chain: number }
@@ -37,7 +70,8 @@ export type GameEvent =
   | { type: 'goalReached' }
   | { type: 'end'; result: Result }
   | { type: 'sleep'; value: number }
-  | { type: 'aim'; label: string | null; power: number };
+  | { type: 'aim'; label: string | null; power: number }
+  | { type: 'discover'; id: string; pos: THREE.Vector3 | null };
 
 /** Sfx-compatible no-op used in headless simulation */
 export type SfxLike = Pick<Sfx, keyof Sfx>;
@@ -108,10 +142,41 @@ export class Game {
   roomBounds = { minX: -5, maxX: 5, minZ: -4.5, maxZ: 4.5 };
   readonly headless: boolean;
   builder: Builder | null = null;
+  waterZones: WaterZone[] = [];
+  wallH = 7;
+  roomLabels: { name: string; pos: THREE.Vector3 }[] = [];
+  catDef: CatDef = CATS[0];
+  swatIndex = -1;
+  run!: RunRecord;
+  /** loudness the owner heard (used by sneak goals / challenges) */
+  noise = 0;
 
   constructor(readonly R: typeof RAPIER, readonly sfx: SfxLike, opts: { headless?: boolean } = {}) {
     this.headless = !!opts.headless;
     this.scene.add(this.envGroup, this.propGroup, this.decals.group, this.puffs.mesh, this.glows.mesh, this.chunks.mesh, this.cat.group, this.aim.group);
+  }
+
+  setCat(def: CatDef, acc: string[]) {
+    this.catDef = def;
+    this.cat.setLook(def, acc);
+  }
+
+  get perk() { return this.catDef.perk.id; }
+  /** haptics (settings can turn it off) */
+  vibrate = true;
+  buzz(ms: number) { if (this.vibrate && !this.headless && typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(ms); }
+  get reach() { return REACH + this.catDef.stats.reach; }
+  get noiseMul() { return this.perk === 'quiet' ? 0.6 : 1; }
+
+  /** a stat counter for challenges / achievements */
+  count(key: string, n = 1) { this.run.counters[key] = (this.run.counters[key] ?? 0) + n; }
+  best(key: string, v: number) { if (v > (this.run.maxes[key] ?? 0)) this.run.maxes[key] = v; }
+
+  /** first time something special happens this run */
+  discover(id: string, pos: THREE.Vector3 | null = null) {
+    if (this.run.discovered.includes(id)) return;
+    this.run.discovered.push(id);
+    this.emit({ type: 'discover', id, pos });
   }
 
   on(fn: (e: GameEvent) => void) { this.listeners.push(fn); }
@@ -141,6 +206,13 @@ export class Game {
     this.lastActionTime = -100; this.settleTimer = 0; this.endTimer = -1;
     this.timeScale = 1; this.slowTimer = 0; this.hitstop = 0; this.acc = 0;
     this.endRequested = false;
+    this.waterZones = [];
+    this.roomLabels = [];
+    this.wallH = 7;
+    this.swatIndex = -1;
+    this.noise = 0;
+    this.caughtT = 0;
+    this.run = { swats: [], chains: [], counters: {}, maxes: {}, discovered: [], culprits: [] };
     const b = new Builder(this);
     level.build(b);
     b.finish();
@@ -156,6 +228,8 @@ export class Game {
     this.props = [];
     this.byCollider.clear();
     this.ownerColliders.clear();
+    disposeMerged(this.envGroup);
+    disposeMerged(this.propGroup);
     this.envGroup.clear();
     this.propGroup.clear();
     this.decals.clear();
@@ -264,6 +338,7 @@ export class Game {
   unpin(p: Prop) {
     if (p.pinned === null || !p.alive) return;
     p.pinned = null;
+    if (this.time > 0.7) this.discover('shelf', p.center(new THREE.Vector3()));
     p.body.setBodyType(this.R.RigidBodyType.Dynamic, true);
     p.body.wakeUp();
     p.prevV.set(0, 0, 0); p.prevW.set(0, 0, 0);
@@ -285,7 +360,7 @@ export class Game {
   reachable(p: Prop): boolean {
     if (!p.alive || !p.interactable) return false;
     const t = p.body.translation();
-    return t.y + Math.min(0.3, p.height * 0.2) < REACH;
+    return t.y + Math.min(0.3, p.height * 0.2) < this.reach;
   }
 
   targetsLeft(): Prop[] { return this.props.filter((p) => p.target && p.alive && !p.broken && !p.damaged); }
@@ -309,13 +384,17 @@ export class Game {
     this.paws--;
     this.emit({ type: 'paws', left: this.paws, max: this.maxPaws });
     this.chain = 0;
+    this.swatIndex++;
+    this.run.chains.push([]);
+    this.run.swats.push({ kind: p.kind, id: p.id, target: p.target });
+    p.swatted = true;
     this.lastActionTime = this.time;
     this.settleTimer = 0;
     const d = dir.clone().setY(0).normalize();
     const pw = clamp(power, PAW.minPower, 1);
     const strike = hit.clone();
     const t = p.body.translation();
-    strike.y = clamp(strike.y, t.y + 0.05, REACH);
+    strike.y = clamp(strike.y, t.y + 0.05, this.reach);
     this.cat.performSwat(this, p, d, strike, pw, () => this.applySwat(p, d, pw, strike));
     return true;
   }
@@ -328,11 +407,16 @@ export class Game {
     const body = p.body;
     body.wakeUp();
     p.lastSwatAt = this.time;
+    p.cause = null;
+    p.causeCat = true;
+    p.activeSwat = this.swatIndex;
     let handled = false;
     if (p.special?.onSwat) handled = p.special.onSwat(this, p, dir, power, point);
+    if (!p.alive) return;
     if (!handled && !p.kinematic) {
       const m = body.mass();
-      const dv = PAW.vmax * power * Math.min(1, PAW.mref / m);
+      const st = this.catDef.stats;
+      const dv = PAW.vmax * st.speed * power * Math.min(1, (PAW.mref * st.power) / m);
       const imp = _v.copy(dir).multiplyScalar(dv * m);
       imp.y += PAW.lift * dv * m;
       body.applyImpulseAtPoint({ x: imp.x, y: imp.y, z: imp.z }, { x: point.x, y: point.y, z: point.z }, true);
@@ -341,7 +425,8 @@ export class Game {
       if (wl > 16) body.setAngvel({ x: (w.x / wl) * 16, y: (w.y / wl) * 16, z: (w.z / wl) * 16 }, true);
       if (dv < 1.6) {
         this.emit({ type: 'word', text: pick(['꿈쩍!', '끄응..', '무거워!']), pos: point.clone(), size: 0.9, color: '#ffffff' });
-        this.cat.say(this, pick(['칫, 무겁잖아…', '더 세게…?', '흥, 다른 방법이 있겠지']), 1.6);
+        this.cat.sayLine(this, 'heavy', 1.6);
+        this.discover('heavy', point.clone());
       }
     }
     const lv = body.linvel(), av = body.angvel();
@@ -355,23 +440,27 @@ export class Game {
     }
     this.hitstop = 0.045;
     this.shake(0.25 + power * 0.25);
-    if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(12);
+    this.buzz(12);
   }
 
   /* ------------------------------------------------------------ */
   /* scoring & goal                                               */
   /* ------------------------------------------------------------ */
 
-  addScore(amount: number, pos: THREE.Vector3, opts: { chain?: boolean } = {}) {
-    let total = Math.round(amount);
+  addScore(amount: number, pos: THREE.Vector3, opts: { chain?: boolean; prop?: Prop; type?: ChainEvent['type'] } = {}) {
+    let total = Math.round(amount * (this.perk === 'gold' ? 1.1 : 1));
     if (opts.chain !== false) {
       this.chain++;
       this.maxChain = Math.max(this.maxChain, this.chain);
-      if (this.chain > 1) total += 500 * (this.chain - 1);
+      if (this.chain > 1) total += Math.round(500 * (this.chain - 1) * (this.perk === 'chatty' ? 1.4 : 1));
       this.sfx.chain(this.chain - 1);
       if (this.chain >= 3) this.emit({ type: 'chain', n: this.chain });
-      if (this.chain === 6) this.cat.say(this, pick(['후훗…', '계획대로다냥', '흐흥~']), 1.5);
-      if (this.chain === 14) { this.cat.say(this, pick(['완벽해…', '예술이다냥…', '이 정도면 걸작']), 1.8); this.sfx.purr(1.2); }
+      if (this.chain === 6) this.cat.sayLine(this, 'chain', 1.5);
+      if (this.chain === 14) { this.cat.sayLine(this, 'big', 1.8); this.sfx.purr(1.2); }
+      const p = opts.prop;
+      if (p && this.swatIndex >= 0) {
+        this.run.chains[this.swatIndex].push({ id: p.id, name: p.name, kind: p.kind, icon: p.icon, cause: p.cause?.id ?? null, causeCat: p.causeCat, type: opts.type ?? 'other', value: total });
+      }
     }
     this.score += total;
     this.emit({ type: 'score', amount: total, total: this.score, pos: pos.clone(), big: total >= 50000, chain: this.chain });
@@ -382,11 +471,16 @@ export class Game {
     const g = this.level.goal;
     if (g.kind === 'wake') return { done: this.owner?.awake ? 1 : 0, need: 1 };
     if (g.kind === 'score') return { done: Math.min(this.score, g.amount ?? 0), need: g.amount ?? 0 };
+    if (g.kind === 'dunk') {
+      const targets = this.props.filter((p) => p.target);
+      const need = g.count ?? targets.length;
+      return { done: Math.min(need, targets.filter((p) => p.dunked).length), need };
+    }
     const targets = this.props.filter((p) => p.target);
     const need = g.count ?? targets.length;
     let done = 0;
     for (const p of targets) {
-      if (g.kind === 'break' && (p.broken || p.damaged)) done++;
+      if ((g.kind === 'break' || g.kind === 'sneak') && (p.broken || p.damaged)) done++;
       if (g.kind === 'floor' && (p.broken || p.damaged || p.onFloor || !p.alive)) done++;
     }
     return { done: Math.min(done, need), need };
@@ -443,15 +537,24 @@ export class Game {
       }
     }
     this.brokenCount++;
+    this.count('break:' + p.kind);
+    this.count('break');
+    const by: string[] = [];
+    for (let c = p.cause, n = 0; c && n < 12; c = c.cause, n++) by.push(c.kind);
+    if (p.causeCat) by.unshift('cat');
+    this.run.culprits.push({ kind: p.kind, target: p.target, by });
     this.owner?.hear(this, pos, clamp(p.value / 5000, 6, 30));
     this.sfx.shatter(p.mat, k, pan);
     this.fx(b.fx ?? 'none', pos, k);
+    const fd = FX_DISCOVERY[b.fx ?? 'none'];
+    if (fd) this.discover(fd, pos.clone());
+    if (p.kind === 'marbleJar') this.discover('marbles', pos.clone());
     this.puffs.emit({ pos: pos.clone(), life: 0.7, size0: 0.6, size1: 2.2, color: '#fff7ea', alpha: 0.7, drag: 3 });
     const words = WORDS[p.mat];
     const word = b.word ?? (words ? pick(words) : '와장창!');
     const big = p.value >= 100000 || p.target;
     this.emit({ type: 'word', text: word, pos: pos.clone().add(new THREE.Vector3(0, 0.6, 0)), size: big ? 1.5 : 1.0, color: p.target ? '#ff4f6d' : '#ffd23f' });
-    this.addScore(p.value, pos);
+    this.addScore(p.value * (this.perk === 'elegant' ? 1.15 : 1), pos, { prop: p, type: 'break' });
     this.shake(clamp(0.25 + p.value / 300000, 0.25, 1));
     if (big) this.punch(1.2);
     if (p.target) {
@@ -460,7 +563,7 @@ export class Game {
     } else if (p.value >= 100000) {
       this.slowmo(0.5, 0.35);
     }
-    if (!this.headless && navigator.vibrate) navigator.vibrate(big ? 40 : 18);
+    this.buzz(big ? 40 : 18);
     p.special?.onBreak?.(this, p);
     b.after?.(this, p, pos, vel);
     this.checkGoal();
@@ -550,6 +653,41 @@ export class Game {
       case 'glass':
         for (let i = 0; i < 10; i++) this.glows.emit({ pos: pos.clone(), vel: new THREE.Vector3(rand(-4, 4), rand(1, 5), rand(-4, 4)), life: rand(0.4, 0.8), size0: 0.4, size1: 0.05, color: '#e8fbff', drag: 2.5, gravity: -10 });
         break;
+      case 'perfume':
+        for (let i = 0; i < 14; i++) this.puffs.emit({ pos: pos.clone().add(new THREE.Vector3(rand(-0.3, 0.3), rand(0, 0.3), rand(-0.3, 0.3))), vel: new THREE.Vector3(rand(-1.6, 1.6), rand(0.6, 2.2), rand(-1.6, 1.6)), life: rand(1.6, 2.6), size0: 0.6, size1: rand(2.2, 3.2), color: pick(['#ffc2dc', '#ffd9f0', '#e8c8ff']), alpha: 0.55, drag: 1.4, gravity: -0.6 });
+        for (let i = 0; i < 12; i++) this.glows.emit({ pos: pos.clone(), vel: new THREE.Vector3(rand(-2, 2), rand(1, 3.5), rand(-2, 2)), life: rand(0.8, 1.4), size0: 0.3, size1: 0.05, color: '#ffe0f0', drag: 1.5, gravity: 1 });
+        drops(8, ['#ff9fc0', '#ffffff'], 3, 0.14, { flat: true, flutter: true, life: 2.4, gravity: -4, drag: 1.5 });
+        this.sfx.puff(0.7, pan);
+        this.stain(pos, 0.9, '#ffc2dc', 0.5);
+        this.owner?.hear(this, pos, 6);
+        break;
+      case 'snow':
+        for (let i = 0; i < 26; i++) this.chunks.emit({ pos: pos.clone().add(new THREE.Vector3(0, 0.3, 0)), vel: new THREE.Vector3(rand(-2.5, 2.5), rand(1.5, 4.5), rand(-2.5, 2.5)), life: rand(2.2, 3.4), size: rand(0.06, 0.12), color: '#ffffff', flat: true, flutter: true, gravity: -1.4, drag: 2.2, floor: this.floorY + 0.03 });
+        for (let i = 0; i < 6; i++) this.puffs.emit({ pos: pos.clone(), vel: new THREE.Vector3(rand(-1, 1), rand(0.5, 1.5), rand(-1, 1)), life: 1.4, size0: 0.5, size1: 1.8, color: '#f4fbff', alpha: 0.6, drag: 2 });
+        this.sfx.splash(k * 0.5, pan);
+        this.stain(pos, 1.1, '#e8f6ff', 0.75);
+        break;
+      case 'flood': {
+        drops(40, ['#7fd4ff', '#bfeaff', '#5ab8f0', '#ffffff'], 6.5, 0.2, { life: rand(1, 1.6) });
+        drops(5, ['#ff9f43', '#ffd23f'], 4, 0.16, { life: 2.4 });
+        for (let i = 0; i < 6; i++) this.puffs.emit({ pos: pos.clone(), vel: new THREE.Vector3(rand(-3, 3), rand(0.5, 2), rand(-3, 3)), life: 0.9, size0: 0.7, size1: 2.4, color: '#d9f4ff', alpha: 0.6, drag: 2.5 });
+        this.sfx.splash(1, pan);
+        this.sfx.splash(0.7, -pan);
+        for (let i = 0; i < 4; i++) this.stain(pos.clone().add(new THREE.Vector3(rand(-1.4, 1.4), 0, rand(-1.4, 1.4))), rand(1.4, 2.2), '#8fd3f5', 0.55);
+        this.count('flood');
+        this.discover('flood', pos.clone());
+        break;
+      }
+      case 'cereal':
+        drops(30, ['#ffd23f', '#ff9f43', '#ffb347', '#ff6b6b'], 4, 0.11, { life: 2.2 });
+        this.sfx.coins(0.4, pan);
+        this.stain(pos, 1.0, '#ffd27f', 0.6);
+        break;
+      case 'milk':
+        drops(18, ['#ffffff', '#f4f8ff'], 4.5, 0.15);
+        this.sfx.splash(k * 0.7, pan);
+        this.stain(pos, 1.4, '#ffffff', 0.92);
+        break;
       default:
         break;
     }
@@ -636,12 +774,18 @@ export class Game {
         }
         if (p && p.spec.touchForce && f > p.spec.touchForce && p.special?.onTouch && this.time > 0.7) {
           const other = this.byCollider.get(b);
-          if (other && other.isDynamic()) p.special.onTouch(this, p, other);
+          if (other && other.isDynamic()) {
+            if (p.activeSwat !== this.swatIndex) { p.cause = other; p.causeCat = false; p.activeSwat = this.swatIndex; }
+            p.special.onTouch(this, p, other);
+          }
         }
         const hf = p?.breakable?.hitForce;
         if (p && hf && f > hf && this.time > 0.7 && !p.broken && !p.damaged) {
           const other = this.byCollider.get(b);
-          if (other && other.isDynamic() && other.body.mass() > 0.3) this.breakProp(p, f / (60 * Math.max(1, p.body.mass())) + p.breakable!.threshold);
+          if (other && other.isDynamic() && other.body.mass() > 0.3) {
+            if (!p.causeCat && p.activeSwat !== this.swatIndex) { p.cause = other; p.activeSwat = this.swatIndex; }
+            this.breakProp(p, f / (60 * Math.max(1, p.body.mass())) + p.breakable!.threshold);
+          }
         }
         if (this.ownerColliders.has(a) && this.owner) {
           const other = this.byCollider.get(b);
@@ -662,6 +806,7 @@ export class Game {
       const dwx = w.x - p.prevW.x, dwy = w.y - p.prevW.y, dwz = w.z - p.prevW.z;
       const impact = Math.sqrt(dvx * dvx + dvy * dvy + dvz * dvz) + 0.35 * Math.sqrt(dwx * dwx + dwy * dwy + dwz * dwz) * p.radius;
       if (settle && impact > SOUND_MIN_IMPACT && this.time > p.graceUntil) this.onImpact(p, impact);
+      if (p.alive && this.waterZones.length) this.water(p, h);
       if (p.alive) {
         p.prevV.set(v.x, v.y, v.z);
         p.prevW.set(w.x, w.y, w.z);
@@ -670,8 +815,75 @@ export class Game {
     }
   }
 
+  /** who bumped into p? (the fastest moving prop it is touching) */
+  attribute(p: Prop) {
+    if (p.activeSwat === this.swatIndex || this.swatIndex < 0) return;
+    let best: Prop | null = null, bestS = 0.6;
+    for (const h of p.colliderHandles) {
+      const col = this.world.getCollider(h);
+      if (!col) continue;
+      this.world.contactPairsWith(col, (c2) => {
+        const o = this.byCollider.get(c2.handle);
+        if (!o || o === p || !o.alive) return;
+        const v = o.body.linvel();
+        let sp = Math.hypot(v.x, v.y, v.z);
+        if (o.activeSwat === this.swatIndex) sp += 2; // prefer things already in this chain
+        if (o.kinematic) sp += 3;
+        if (sp > bestS) { bestS = sp; best = o; }
+      });
+    }
+    p.activeSwat = this.swatIndex;
+    p.causeCat = false;
+    p.cause = best;
+  }
+
+  private water(p: Prop, h: number) {
+    const c = p.center(_v);
+    let inside: WaterZone | null = null;
+    for (const z of this.waterZones) {
+      if (c.x > z.x0 && c.x < z.x1 && c.z > z.z0 && c.z < z.z1 && c.y < z.top + 0.1 && c.y > z.y0 - 0.6) { inside = z; break; }
+    }
+    if (!inside) { p.inWater = false; return; }
+    const body = p.body;
+    if (!p.inWater) {
+      p.inWater = true;
+      const sp = new THREE.Vector3(c.x, inside.top + 0.05, c.z);
+      this.fx('water', sp, 0.8);
+      for (let i = 0; i < 8; i++) this.chunks.emit({ pos: sp.clone(), vel: new THREE.Vector3(rand(-2, 2), rand(3, 6), rand(-2, 2)), life: 0.7, size: 0.14, color: '#bfeaff', floor: inside.top });
+      if (!p.dunked) {
+        p.dunked = true;
+        this.attribute(p);
+        this.count('dunk');
+        this.count('dunk:' + p.kind);
+        this.discover('splash', sp.clone());
+        if (p.breakable && (p.mat === 'electronic' || p.mat === 'paper')) {
+          this.emit({ type: 'word', text: p.mat === 'electronic' ? '풍덩! 지지직' : '흐물흐물…', pos: sp.clone().add(new THREE.Vector3(0, 0.8, 0)), size: 1.1, color: '#7fd3ff' });
+          this.breakProp(p, 99);
+        } else {
+          this.emit({ type: 'word', text: '풍덩!', pos: sp.clone().add(new THREE.Vector3(0, 0.7, 0)), size: 1.1, color: '#7fd3ff' });
+          this.addScore(Math.max(1500, p.value * 0.15), sp, { prop: p, type: 'dunk' });
+        }
+        this.checkGoal();
+      }
+    }
+    if (!p.alive) return;
+    const m = body.mass();
+    const floats = p.spec.floats ?? ['rubber', 'squeak', 'soft', 'plastic', 'wood'].includes(p.mat);
+    const bottom = c.y - p.height * 0.5;
+    const depth = clamp((inside.top - bottom) / Math.max(0.2, p.height), 0, 1);
+    const lift = -GRAVITY * (floats ? 1.45 : 0.55) * depth;
+    body.applyImpulse({ x: 0, y: m * lift * h, z: 0 }, true);
+    const v = body.linvel(), w = body.angvel();
+    const k = 1 - Math.min(0.5, 3.2 * h);
+    body.setLinvel({ x: v.x * k, y: v.y * k, z: v.z * k }, true);
+    body.setAngvel({ x: w.x * k, y: w.y * k, z: w.z * k }, true);
+    p.prevV.set(v.x * k, v.y * k + GRAVITY * h * 0, v.z * k);
+    p.graceUntil = this.time + 0.05;
+  }
+
   private onImpact(p: Prop, impact: number) {
     p.lastImpact = impact;
+    if (impact > 1.5) this.attribute(p);
     const m = p.body.mass();
     if (this.time - p.lastSound > 0.07) {
       p.lastSound = this.time;
@@ -703,16 +915,26 @@ export class Game {
     if (p.spec.scoreMoves === false || p.broken) return;
     if (!p.fell && p.startPos.y - t.y > 1.1) {
       p.fell = true;
+      if (p.activeSwat !== this.swatIndex && !p.causeCat) this.attribute(p);
+      this.count('fall');
+      this.count('fall:' + p.kind);
       const amt = Math.max(300, p.value * 0.12);
-      this.addScore(amt, _v.set(t.x, t.y + p.height * 0.5, t.z));
+      this.addScore(amt, _v.set(t.x, t.y + p.height * 0.5, t.z), { prop: p, type: 'fall' });
       if (p.target && this.level.goal.kind === 'floor') this.checkGoal();
     }
     if (!p.toppled && !p.spec.noTopple) {
       p.up(_v2);
       if (_v2.dot(p.startUp) < 0.7) {
         p.toppled = true;
-        const amt = p.spec.toppleValue ?? Math.max(200, p.value * 0.06);
-        this.addScore(amt, _v.set(t.x, t.y + p.height * 0.5, t.z));
+        if (p.activeSwat !== this.swatIndex && !p.causeCat) this.attribute(p);
+        this.count('topple:' + p.kind);
+        this.count('topple');
+        if (this.swatIndex >= 0) { const k = `swatTopple${this.swatIndex}`; this.count(k); this.best('toppleChain', this.run.counters[k]); }
+        const amt = (p.spec.toppleValue ?? Math.max(200, p.value * 0.06)) * (this.perk === 'domino' ? 2 : 1);
+        this.addScore(amt, _v.set(t.x, t.y + p.height * 0.5, t.z), { prop: p, type: 'topple' });
+        if ((p.kind === 'domino' || p.kind === 'book') && (this.run.counters[`swatTopple${this.swatIndex}`] ?? 0) >= 4) this.discover('domino', _v.clone());
+        if (p.body.mass() >= 8) this.discover('furniture', _v.clone());
+        if (p.kind === 'block' && (this.run.counters[`swatTopple${this.swatIndex}`] ?? 0) >= 6) this.discover('castle', _v.clone());
       }
     }
     if (p.onFloor && p.target && this.level.goal.kind === 'floor') this.checkGoal();
@@ -736,7 +958,15 @@ export class Game {
     if (this.phase === 'ready' && this.goalComplete) this.endRequested = true;
   }
 
+  private caughtT = 0;
+
   private updateFlow(dt: number) {
+    if (this.phase === 'ready' && this.level.goal.kind === 'sneak' && this.owner?.awake) {
+      // sneak missions fail the moment the owner wakes up
+      this.caughtT += dt;
+      if (this.caughtT > 1.3) { this.goalComplete = false; this.beginEnding(false); }
+      return;
+    }
     if (this.phase === 'ready') {
       const since = this.time - this.lastActionTime;
       const busy = this.busy();
@@ -760,11 +990,15 @@ export class Game {
   private beginEnding(success: boolean) {
     this.phase = 'ending';
     this.emit({ type: 'phase', phase: 'ending' });
-    const pawBonus = success ? this.paws * 10000 : 0;
+    const pawBonus = success ? this.paws * 10000 * (this.perk === 'bonus2x' ? 2 : 1) : 0;
     if (pawBonus) this.score += pawBonus;
     const [s2, s3] = this.level.stars;
     const stars = success ? (this.score >= s3 ? 3 : this.score >= s2 ? 2 : 1) : 0;
-    this.pendingResult = { success, score: this.score, stars, maxChain: this.maxChain, broken: this.brokenCount, pawsLeft: this.paws, pawBonus };
+    this.pendingResult = {
+      success, score: this.score, stars, maxChain: this.maxChain, broken: this.brokenCount,
+      pawsLeft: this.paws, pawsUsed: this.maxPaws - this.paws, pawBonus, story: this.story(), run: this.run,
+      wokeOwner: !!this.owner?.awake, noise: this.noise,
+    };
     this.endTimer = this.headless ? 0 : success ? 3.6 : 2.4;
     this.cat.ending(this, success);
     if (this.owner) this.owner.discover(this, success);
@@ -774,6 +1008,39 @@ export class Game {
     this.phase = 'done';
     this.emit({ type: 'phase', phase: 'done' });
     if (this.pendingResult) this.emit({ type: 'end', result: this.pendingResult });
+  }
+
+  /** longest cause → effect path among this level's chains */
+  story(): { icon: string; name: string }[] {
+    const byId = new Map(this.props.map((p) => [p.id, p] as const));
+    let best: Prop[] = [];
+    for (const evs of this.run.chains) {
+      for (const e of evs) {
+        const path: Prop[] = [];
+        const seen = new Set<number>();
+        for (let cur = byId.get(e.id); cur && !seen.has(cur.id); cur = cur.causeCat ? undefined : cur.cause ?? undefined) {
+          seen.add(cur.id);
+          path.unshift(cur);
+        }
+        if (path.length > best.length) best = path;
+      }
+    }
+    return best.slice(-9).map((p) => ({ icon: p.icon, name: p.name }));
+  }
+
+  /** world box around everything that is currently moving (for the camera) */
+  actionBox(out: THREE.Box3): number {
+    out.makeEmpty();
+    let n = 0;
+    for (const p of this.props) {
+      if (!p.isDynamic() || p.body.isSleeping()) continue;
+      const v = p.body.linvel();
+      if (v.x * v.x + v.y * v.y + v.z * v.z < 1.5) continue;
+      const t = p.body.translation();
+      out.expandByPoint(_v.set(t.x, t.y, t.z));
+      n++;
+    }
+    return n;
   }
 
   /** for headless sims: run until settled */

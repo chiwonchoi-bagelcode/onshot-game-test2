@@ -6,6 +6,14 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
  * (baking their transforms). Cuts draw calls a lot on phones. Subtrees with
  * `userData.keep` (animated parts) are left alone.
  */
+/** free GPU buffers of merged (per-level, uncached) geometry under root */
+export function disposeMerged(root: THREE.Object3D) {
+  root.traverse((o) => {
+    const g = (o as THREE.Mesh).geometry as THREE.BufferGeometry | undefined;
+    if (g?.userData?.merged) g.dispose();
+  });
+}
+
 export function mergeByMaterial(root: THREE.Object3D) {
   root.updateMatrixWorld(true);
   const inv = new THREE.Matrix4().copy(root.matrixWorld).invert();
@@ -54,6 +62,7 @@ export function mergeByMaterial(root: THREE.Object3D) {
     if (b.geos.length > 1) for (const g of b.geos) g.dispose();
     geo.computeBoundingBox();
     geo.computeBoundingSphere();
+    geo.userData.merged = true;
     const mesh = new THREE.Mesh(geo, b.mat);
     mesh.castShadow = b.cast;
     mesh.receiveShadow = b.recv;

@@ -256,3 +256,41 @@ export function starTexture() {
     c.fill();
   });
 }
+
+export function tileTexture(a: string, grout: string, repeat: [number, number]) {
+  return canvasTex(`tile|${a}|${grout}|${repeat}`, 64, 64, (c) => {
+    c.fillStyle = grout; c.fillRect(0, 0, 64, 64);
+    c.fillStyle = a; c.fillRect(2, 2, 60, 60);
+    c.fillStyle = 'rgba(255,255,255,0.35)'; c.fillRect(6, 6, 20, 6);
+  }, repeat);
+}
+
+export function starTexture2(a: string, b: string, repeat: [number, number]) {
+  return canvasTex(`stars2|${a}|${b}|${repeat}`, 64, 64, (c) => {
+    c.fillStyle = a; c.fillRect(0, 0, 64, 64);
+    c.fillStyle = b;
+    const star = (x: number, y: number, r: number) => {
+      c.beginPath();
+      for (let i = 0; i < 10; i++) { const ang = (i / 10) * Math.PI * 2 - Math.PI / 2; const rr = i % 2 ? r * 0.45 : r; c.lineTo(x + Math.cos(ang) * rr, y + Math.sin(ang) * rr); }
+      c.fill();
+    };
+    star(16, 16, 8); star(48, 44, 6);
+    c.beginPath(); c.arc(46, 14, 3, 0, Math.PI * 2); c.fill();
+    c.beginPath(); c.arc(14, 48, 3, 0, Math.PI * 2); c.fill();
+  }, repeat);
+}
+
+export function matTexture(repeat: [number, number]) {
+  return canvasTex(`mat|${repeat}`, 128, 128, (c) => {
+    const cols = ['#ffe08a', '#9fd8cb', '#ffb3c6', '#a9c8ff'];
+    for (let i = 0; i < 2; i++) for (let j = 0; j < 2; j++) {
+      c.fillStyle = cols[(i + j * 2) % 4]; c.fillRect(i * 64, j * 64, 64, 64);
+      c.fillStyle = 'rgba(0,0,0,0.06)';
+      // puzzle tabs
+      c.beginPath(); c.arc(i * 64 + 32, j * 64 + 2, 7, 0, Math.PI * 2); c.fill();
+      c.beginPath(); c.arc(i * 64 + 2, j * 64 + 32, 7, 0, Math.PI * 2); c.fill();
+    }
+    c.strokeStyle = 'rgba(0,0,0,0.08)'; c.lineWidth = 2;
+    c.strokeRect(0, 0, 64, 64); c.strokeRect(64, 64, 64, 64); c.strokeRect(64, 0, 64, 64); c.strokeRect(0, 64, 64, 64);
+  }, repeat);
+}

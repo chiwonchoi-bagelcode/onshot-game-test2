@@ -35,6 +35,7 @@ export class RoombaSpecial implements Special {
       this.active = true;
       this.timer = this.duration;
       this.loop = game.sfx.motor();
+      game.discover('roomba', p.center(new THREE.Vector3()));
       game.emit({ type: 'word', text: '위잉~', pos: p.center(new THREE.Vector3()).add(new THREE.Vector3(0, 0.8, 0)), size: 0.9, color: '#7fe3ff' });
     } else this.timer = Math.max(this.timer, this.duration * 0.6);
     p.body.setLinvel({ x: this.dir.x * this.speed * (0.6 + power * 0.4), y: 0, z: this.dir.z * this.speed * (0.6 + power * 0.4) }, true);
@@ -121,6 +122,7 @@ export class SodaSpecial implements Special {
       if (this.delay < 0) {
         this.thrust = 0.95;
         this.loop = game.sfx.fizz();
+        game.discover('rocket', p.center(new THREE.Vector3()));
         game.emit({ type: 'word', text: '퓨슝!!', pos: p.center(new THREE.Vector3()).add(new THREE.Vector3(0, 0.8, 0)), size: 1.2, color: '#7fe3ff' });
         p.body.setGravityScale(0.35, true);
       }
@@ -184,6 +186,7 @@ export class ClothSpecial implements Special {
     const t = p.body.translation();
     this.start.set(t.x, t.y, t.z);
     game.sfx.whoosh(1.2);
+    game.discover(power < 0.62 ? 'clothPull' : 'magic', this.start.clone());
     game.emit({ type: 'word', text: power < 0.62 ? '스르륵…' : '휘릭!!', pos: this.start.clone().add(new THREE.Vector3(0, 0.8, 0)), size: 1.1, color: '#ffffff' });
     return true;
   }
@@ -251,6 +254,7 @@ export class ToasterSpecial implements Special {
     this.armed = false;
     this.timer = -1;
     game.sfx.pop();
+    game.discover('toast', p.center(new THREE.Vector3()));
     game.emit({ type: 'word', text: '팝!', pos: p.center(new THREE.Vector3()).add(new THREE.Vector3(0, 0.9, 0)), size: 1.1, color: '#ffb347' });
     this.spawnToast(game, p);
   }
@@ -281,6 +285,7 @@ export class AlarmSpecial implements Special {
     this.used = true;
     this.ringing = 5;
     this.loop = game.sfx.ring();
+    game.discover('alarm', p.center(new THREE.Vector3()));
     game.emit({ type: 'word', text: '따르르릉!!', pos: p.center(new THREE.Vector3()).add(new THREE.Vector3(0, 0.8, 0)), size: 1.2, color: '#ffd23f' });
     game.addScore(5000, p.center(new THREE.Vector3()));
   }
@@ -313,15 +318,17 @@ export class AlarmSpecial implements Special {
 }
 
 /* ------------------------------------------------------------------ */
-/* Yarn ball: leaves an unravelled trail wherever it rolls               */
+/* Trails: yarn balls and toilet paper unroll wherever they roll        */
 /* ------------------------------------------------------------------ */
-export class YarnSpecial implements Special {
+export class TrailSpecial implements Special {
   private pts: THREE.Vector3[] = [];
   private geo: THREE.BufferGeometry;
   private line: THREE.Mesh;
-  private max = 500;
+  private max = 600;
   private pos: Float32Array;
-  constructor(game: Game, color: string, private r: number) {
+  private len = 0;
+  private scored = 0;
+  constructor(game: Game, color: string, private r: number, private width: number, private stat: 'yarnLen' | 'tpLen', private shrink = 700) {
     this.pos = new Float32Array(this.max * 2 * 3);
     this.geo = new THREE.BufferGeometry();
     this.geo.setAttribute('position', new THREE.BufferAttribute(this.pos, 3));
@@ -336,26 +343,40 @@ export class YarnSpecial implements Special {
     game.envGroup.add(this.line);
   }
   busy() { return false; }
-  frame(_game: Game, p: Prop) {
+  frame(game: Game, p: Prop) {
     const t = p.body.translation();
-    const cur = new THREE.Vector3(t.x, t.y - this.r + 0.03, t.z);
+    const cur = new THREE.Vector3(t.x, t.y - this.r * p.group.scale.y + 0.03, t.z);
     const last = this.pts[this.pts.length - 1];
     if (!last) { this.pts.push(cur); return; }
-    if (last.distanceTo(cur) < 0.15 || this.pts.length >= this.max) return;
+    const step = last.distanceTo(cur);
+    if (step < 0.15 || this.pts.length >= this.max) return;
     this.pts.push(cur);
+    this.len += Math.min(step, 1);
+    game.best(this.stat, this.len);
+    if (this.len > 3) game.discover(this.stat === 'tpLen' ? 'tp' : 'yarn', cur.clone());
+    if (this.stat === 'tpLen' && this.len - this.scored > 1.5) {
+      this.scored = this.len;
+      game.sfx.unroll();
+      game.addScore(600, cur.clone().add(new THREE.Vector3(0, 0.4, 0)), { chain: false });
+    }
     const n = this.pts.length;
     for (let i = Math.max(0, n - 2); i < n; i++) {
       const a = this.pts[Math.max(0, i - 1)], b = this.pts[i];
       const d = _v.subVectors(b, a); d.y = 0;
       if (d.lengthSq() < 1e-6) d.set(1, 0, 0);
       d.normalize();
-      const w = 0.045;
+      const w = this.width;
       this.pos.set([b.x - d.z * w, b.y, b.z + d.x * w, b.x + d.z * w, b.y, b.z - d.x * w], i * 6);
     }
     (this.geo.attributes.position as THREE.BufferAttribute).needsUpdate = true;
     this.geo.setDrawRange(0, Math.max(0, (n - 1) * 6));
     this.geo.computeBoundingSphere();
-    const s = Math.max(0.55, 1 - n / 700);
-    p.group.scale.setScalar(s);
+    const sc = Math.max(0.5, 1 - n / this.shrink);
+    p.group.scale.setScalar(sc);
   }
+}
+
+/** kept for older level code */
+export class YarnSpecial extends TrailSpecial {
+  constructor(game: Game, color: string, r: number) { super(game, color, r, 0.045, 'yarnLen'); }
 }

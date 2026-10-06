@@ -20,12 +20,12 @@ const shot = async (name) => { await page.screenshot({ path: `${out}/${name}.png
 if (scenario === 'title') {
   await shot('title');
 } else if (scenario === 'levels') {
-  await page.evaluate(() => window.app.toLevels());
+  await page.evaluate(() => window.app.toMap());
   await page.waitForTimeout(800);
   await shot('levels');
 } else if (scenario === 'level') {
   const id = args[0];
-  await page.evaluate((id) => { const a = window.app; a.toIntro(window.__levels.find((l) => l.id === id)); }, id);
+  await page.evaluate((id) => { const a = window.app; a.profile.chapterIntro.push(1, 2, 3, 4, 5, 6); void a.toIntro(window.__levels.find((l) => l.id === id)); }, id);
   await page.waitForTimeout(500);
   await shot(`${id}-intro`);
   await page.evaluate(() => window.app.startPlay());
@@ -34,7 +34,7 @@ if (scenario === 'title') {
 } else if (scenario === 'action') {
   // action <id> <kind> <dx> <dz> <power> <frac> [shots...]
   const [id, kind, dx, dz, pw, frac, near] = args;
-  await page.evaluate((id) => { const a = window.app; a.toIntro(window.__levels.find((l) => l.id === id)); a.startPlay(); }, id);
+  await page.evaluate((id) => window.app.debugLevel(id), id);
   await page.waitForTimeout(1200);
   await page.evaluate(([kind, dx, dz, pw, frac, near]) => {
     const g = window.app.game;
@@ -53,7 +53,7 @@ if (scenario === 'title') {
 } else if (scenario === 'drag') {
   // real touch drag: drag <id> x0 y0 x1 y1
   const [id, x0, y0, x1, y1] = args.map((v, i) => (i === 0 ? v : Number(v)));
-  await page.evaluate((id) => { const a = window.app; a.toIntro(window.__levels.find((l) => l.id === id)); a.startPlay(); }, id);
+  await page.evaluate((id) => window.app.debugLevel(id), id);
   await page.waitForTimeout(1200);
   await page.mouse.move(x0, y0);
   await page.mouse.down();
@@ -66,7 +66,7 @@ if (scenario === 'title') {
   await shot(`${id}-drag-2.2`);
 } else if (scenario === 'end') {
   const id = args[0];
-  await page.evaluate((id) => { const a = window.app; a.toIntro(window.__levels.find((l) => l.id === id)); a.startPlay(); }, id);
+  await page.evaluate((id) => window.app.debugLevel(id), id);
   await page.waitForTimeout(800);
   await page.evaluate(() => { const g = window.app.game; for (const p of g.props) if (p.target) g.breakProp(p, 10); });
   await page.waitForTimeout(500);

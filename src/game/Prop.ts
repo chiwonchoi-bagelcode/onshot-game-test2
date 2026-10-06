@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type RAPIER from '@dimforge/rapier3d-compat';
 import type { BreakDef, Mat, PropSpec, Special } from './types';
+import { OBJECTS } from '../meta/dex';
 
 let nextId = 1;
 
@@ -8,6 +9,7 @@ export class Prop {
   readonly id = nextId++;
   readonly kind: string;
   readonly name: string;
+  readonly icon: string;
   readonly mat: Mat;
   readonly value: number;
   readonly breakable?: BreakDef;
@@ -39,6 +41,16 @@ export class Prop {
 
   lastSound = -1;
   lastImpact = 0;
+  /** who knocked this into the current chain (null = unknown / support gone) */
+  cause: Prop | null = null;
+  /** was this the object the cat swatted in its chain */
+  causeCat = false;
+  /** swat index in which this prop last got involved */
+  activeSwat = -1;
+  /** ever swatted directly by the cat */
+  swatted = false;
+  inWater = false;
+  dunked = false;
   /** game time until which impacts are ignored (after swats / spawn) */
   graceUntil = 0;
   lastSwatAt = -10;
@@ -63,6 +75,7 @@ export class Prop {
     this.spec = spec;
     this.kind = spec.kind;
     this.name = spec.name;
+    this.icon = spec.icon ?? OBJECTS[spec.kind]?.icon ?? '📦';
     this.mat = spec.mat;
     this.value = spec.value;
     this.breakable = spec.breakable;

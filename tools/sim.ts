@@ -2,9 +2,14 @@
 import RAPIER from '@dimforge/rapier3d-compat';
 import * as THREE from 'three';
 import { Game, type Result } from '../src/game/Game';
-import { LEVELS } from '../src/levels/levels';
+import { LEVELS } from '../src/levels/index';
 import type { Prop } from '../src/game/Prop';
 import type { LevelDef } from '../src/game/types';
+import { CATS } from '../src/meta/cats';
+import { challengeText, evalChallenges } from '../src/meta/challenges';
+
+/** star thresholds are tuned with a perk that does not touch the score */
+export const NEUTRAL_CAT = { ...CATS[0], perk: { id: 'lucky' as const, name: '', text: '' } };
 
 await RAPIER.init();
 
@@ -25,6 +30,7 @@ export interface Action {
 
 export interface SimOut {
   result: Result | null;
+  challenges: boolean[];
   score: number;
   goal: { done: number; need: number };
   broken: string[];
@@ -44,6 +50,7 @@ function findProp(g: Game, a: Action): Prop | null {
 
 export function runPlan(level: LevelDef, plan: Action[], verbose = false): SimOut {
   const g = new Game(RAPIER, noop, { headless: true });
+  g.catDef = NEUTRAL_CAT;
   const log: string[] = [];
   let result: Result | null = null;
   const broken: string[] = [];
@@ -83,13 +90,15 @@ export function runPlan(level: LevelDef, plan: Action[], verbose = false): SimOu
   }
   g.simulate(0.2);
   for (const p of g.props) if ((p.broken || p.damaged) && !startBroken.has(p.id)) broken.push(p.name);
-  const out: SimOut = { result, score: g.score, goal: g.goalProgress(), broken, events, log };
+  const res = result as Result | null;
+  const out: SimOut = { result: res, challenges: res ? evalChallenges(level, res) : level.challenges.map(() => false), score: g.score, goal: g.goalProgress(), broken, events, log };
   g.unload();
   return out;
 }
 
 export function listProps(level: LevelDef) {
   const g = new Game(RAPIER, noop, { headless: true });
+  g.catDef = NEUTRAL_CAT;
   g.load(level);
   g.start();
   g.simulate(1.5);
@@ -108,6 +117,7 @@ export function explore(level: LevelDef, n: number, seed = 1) {
   let s = seed;
   const rnd = () => { s = (s * 16807) % 2147483647; return s / 2147483647; };
   const g0 = new Game(RAPIER, noop, { headless: true });
+  g0.catDef = NEUTRAL_CAT;
   g0.load(level);
   const kinds = g0.props.filter((p) => p.interactable && g0.reachable(p)).map((p) => ({ kind: p.kind, pos: p.startPos.toArray() as [number, number, number] }));
   g0.unload();
@@ -143,7 +153,9 @@ if (cmd === 'props') {
   const plan = JSON.parse(rest.join(' ')) as Action[];
   const r = runPlan(level!, plan, true);
   console.log(r.log.join('\n'));
-  console.log(JSON.stringify({ success: r.result?.success, stars: r.result?.stars, score: r.score, goal: r.goal, broken: r.broken, maxChain: r.result?.maxChain }));
+  console.log(JSON.stringify({ success: r.result?.success, stars: r.result?.stars, score: r.score, goal: r.goal, broken: r.broken, maxChain: r.result?.maxChain, pawsUsed: r.result?.pawsUsed, noise: r.result?.noise?.toFixed(1), discovered: r.result?.run.discovered, story: r.result?.story.map((s) => s.icon + s.name).join(' → ') }));
+  level!.challenges.forEach((c, i) => console.log(`  challenge ${r.challenges[i] ? '✔' : '✘'} ${challengeText(c)}`));
+  if (r.result) console.log('  counters', JSON.stringify(r.result.run.counters), 'maxes', JSON.stringify(r.result.run.maxes));
 } else if (cmd === 'explore') {
   const n = Number(rest[0] ?? 40);
   const r = explore(level!, n);

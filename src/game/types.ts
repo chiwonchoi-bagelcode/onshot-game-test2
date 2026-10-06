@@ -17,7 +17,8 @@ export type ColDef = (
 ) & { at?: [number, number, number]; rot?: [number, number, number]; friction?: number; restitution?: number; massShare?: number };
 
 export type FxKind =
-  | 'water' | 'dirt' | 'flour' | 'yolk' | 'sparks' | 'coins' | 'coffee' | 'cream' | 'feathers' | 'juice' | 'glass' | 'paper' | 'flowers' | 'none';
+  | 'water' | 'dirt' | 'flour' | 'yolk' | 'sparks' | 'coins' | 'coffee' | 'cream' | 'feathers' | 'juice' | 'glass' | 'paper' | 'flowers'
+  | 'perfume' | 'snow' | 'flood' | 'cereal' | 'milk' | 'none';
 
 export interface BreakDef {
   /** gravity-compensated delta-v (units/s) needed to break */
@@ -90,9 +91,17 @@ export interface PropSpec {
   rollingResistance?: number;
   /** used by the cat to decide where it lands */
   noLand?: boolean;
+  /** floats in water (otherwise sinks slowly) */
+  floats?: boolean;
+  /** emoji used in chain stories and the object card */
+  icon?: string;
+  /** short trait tags shown when inspecting (e.g. 깨짐, 무거움, 굴러감) */
+  traits?: string[];
+  /** instancing key – many identical props share one draw call */
+  batch?: string;
 }
 
-export type GoalKind = 'break' | 'wake' | 'score' | 'floor';
+export type GoalKind = 'break' | 'wake' | 'score' | 'floor' | 'dunk' | 'sneak';
 
 export interface GoalDef {
   kind: GoalKind;
@@ -104,17 +113,48 @@ export interface GoalDef {
   short: string;
 }
 
+export type ChallengeDef =
+  | { type: 'paws'; max: number; text?: string }
+  | { type: 'chain'; n: number; text?: string }
+  | { type: 'indirect'; text?: string }
+  | { type: 'cause'; victim: string; culprit: string; text: string }
+  | { type: 'discover'; id: string; text: string }
+  | { type: 'count'; kind: string; n: number; text: string; event?: 'break' | 'topple' | 'dunk' | 'fall' }
+  | { type: 'stat'; key: string; min: number; text: string }
+  | { type: 'score'; amount: number; text?: string }
+  | { type: 'quiet'; max: number; text?: string };
+
+export interface TutorialStep {
+  /** text shown in the coach bubble */
+  text: string;
+  /** prop kind (and optional nearest position) the hand points at */
+  prop?: string;
+  near?: [number, number, number];
+  /** world direction for the drag demo */
+  dir?: [number, number];
+  /** advance after the n-th swat (default: next swat) */
+  until?: 'swat' | 'settle';
+}
+
 export interface LevelDef {
   id: string;
-  room: 'living' | 'kitchen' | 'bedroom';
+  chapter: number;
+  theme: import('../levels/rooms').Theme;
   title: string;
   subtitle: string;
   paws: number;
   goal: GoalDef;
   /** score thresholds for 2 and 3 stars */
   stars: [number, number];
+  /** up to three mastery challenges */
+  challenges: ChallengeDef[];
   tip?: string;
   hints: string[];
+  /** a suggested first move (shown by the hint button) */
+  hintMove?: { prop: string; near?: [number, number, number]; dir: [number, number] };
+  tutorial?: TutorialStep[];
+  /** big houses: where the zoomed play view starts (x, z); defaults to the cat */
+  start?: [number, number];
   build(b: import('../levels/Builder').Builder): void;
   /** owner's line when they discover the mess */
   ownerLine?: string;

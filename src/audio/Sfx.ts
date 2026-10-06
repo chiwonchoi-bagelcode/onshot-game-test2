@@ -309,7 +309,7 @@ export class Sfx {
     this.tone('sine', 140, 70, t, 0.07, 0.25, this.bus);
   }
 
-  meow(kind: 'short' | 'long' | 'ask' | 'smug' | 'annoyed' = 'short') {
+  meow(kind: 'short' | 'long' | 'ask' | 'smug' | 'annoyed' = 'short', pitch = 1) {
     if (!this.ok('meow', 0.25)) return;
     const ctx = this.ctx!, t = ctx.currentTime;
     const shapes: Record<string, [number, number, number, number, number]> = {
@@ -320,7 +320,8 @@ export class Sfx {
       smug: [430, 600, 380, 0.14, 0.55],
       annoyed: [380, 520, 300, 0.1, 0.45],
     };
-    const [f0, fp, f1, tp, dur] = shapes[kind];
+    const [b0, bp, b1, tp, dur] = shapes[kind];
+    const f0 = b0 * pitch, fp = bp * pitch, f1 = b1 * pitch;
     const src = ctx.createOscillator(); src.type = 'sawtooth';
     src.frequency.setValueAtTime(f0, t);
     src.frequency.linearRampToValueAtTime(fp, t + tp);
@@ -461,6 +462,107 @@ export class Sfx {
     const t = this.ctx!.currentTime;
     this.noise(t, 0.25, 0.25, 'bandpass', 1200, 2400, 2, this.bus, 0.05);
     this.tone('sine', 500, 900, t, 0.22, 0.12, this.bus, 0.02, 'lin');
+  }
+
+  jingle() {
+    if (!this.ok('jingle', 0.15)) return;
+    const t = this.ctx!.currentTime;
+    for (let i = 0; i < 4; i++) {
+      const f = 3200 + (i % 2) * 600;
+      this.tone('sine', f, f, t + i * 0.045, 0.16, 0.07, this.bus);
+    }
+  }
+
+  balloonPop(pan = 0) {
+    if (!this.ok('balloon', 0.04)) return;
+    const t = this.ctx!.currentTime, o = this.out(pan);
+    this.noise(t, 0.08, 0.9, 'highpass', 1200, 600, 0.7, o);
+    this.tone('sine', 220, 60, t, 0.09, 0.5, o);
+  }
+
+  spring() {
+    if (!this.ok('spring', 0.1)) return;
+    const ctx = this.ctx!, t = ctx.currentTime;
+    const o = ctx.createOscillator(); o.type = 'triangle';
+    o.frequency.setValueAtTime(140, t); o.frequency.exponentialRampToValueAtTime(900, t + 0.18);
+    const lfo = ctx.createOscillator(); lfo.frequency.value = 26;
+    const lg = ctx.createGain(); lg.gain.value = 120; lfo.connect(lg); lg.connect(o.frequency);
+    const g = ctx.createGain(); g.gain.setValueAtTime(0.32, t); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.5);
+    o.connect(g); g.connect(this.bus); o.start(t); lfo.start(t);
+    this.track(o, t + 0.52); lfo.stop(t + 0.52);
+    this.noise(t + 0.02, 0.05, 0.4, 'bandpass', 2500, 2500, 2, this.bus);
+  }
+
+  choo() {
+    if (!this.ok('choo', 0.6)) return;
+    const t = this.ctx!.currentTime;
+    for (const [f, d] of [[740, 0], [880, 0.02], [988, 0.04]] as const) this.tone('square', f, f * 0.99, t + d, 0.45, 0.035, this.bus, 0.03);
+    this.noise(t, 0.4, 0.15, 'bandpass', 3000, 2000, 1, this.bus, 0.05);
+  }
+
+  squish(pan = 0) {
+    if (!this.ok('squish', 0.08)) return;
+    const t = this.ctx!.currentTime, o = this.out(pan);
+    this.tone('sine', 380, 900, t, 0.09, 0.2, o, 0.004, 'lin');
+    this.noise(t, 0.07, 0.15, 'bandpass', 1800, 900, 3, o);
+  }
+
+  unroll() {
+    if (!this.ok('unroll', 0.09)) return;
+    const t = this.ctx!.currentTime;
+    this.noise(t, 0.1, 0.12, 'bandpass', 2200, 1500, 1.2, this.bus);
+  }
+
+  flush() {
+    if (!this.ok('flush', 1)) return;
+    const t = this.ctx!.currentTime;
+    this.noise(t, 1.4, 0.4, 'lowpass', 1800, 300, 0.8, this.bus, 0.1);
+    for (let i = 0; i < 6; i++) this.tone('sine', 300 + i * 70, 600 + i * 50, t + i * 0.15, 0.12, 0.06, this.bus);
+  }
+
+  /** sparkly "new discovery" motif */
+  discover() {
+    if (!this.ctx || this.muted) return;
+    const t = this.ctx.currentTime;
+    [988, 1319, 1568, 1976].forEach((f, i) => { this.tone('sine', f, f, t + i * 0.07, 0.35, 0.12, this.bus); this.tone('triangle', f / 2, f / 2, t + i * 0.07, 0.2, 0.05, this.bus); });
+  }
+
+  /** stamp for a new record */
+  stamp() {
+    if (!this.ctx || this.muted) return;
+    const t = this.ctx.currentTime;
+    this.tone('sine', 120, 50, t, 0.25, 0.8, this.bus);
+    this.noise(t, 0.12, 0.6, 'lowpass', 1200, 300, 1, this.bus);
+    [784, 988, 1175, 1568, 1976].forEach((f, i) => this.tone('square', f, f, t + 0.12 + i * 0.06, 0.16, 0.05, this.bus));
+  }
+
+  /** big reveal (new cat, chapter, finale) */
+  reveal() {
+    if (!this.ctx || this.muted) return;
+    const t = this.ctx.currentTime;
+    this.noise(t, 1.2, 0.18, 'bandpass', 300, 4000, 0.8, this.bus, 0.9);
+    const chord = [523, 659, 784, 1047, 1319];
+    chord.forEach((f, i) => this.tone('triangle', f, f, t + 1.0 + i * 0.03, 1.4, 0.09, this.bus, 0.02));
+    chord.forEach((f, i) => this.tone('sine', f * 2, f * 2, t + 1.0 + i * 0.05, 0.9, 0.04, this.bus));
+    this.tone('sine', 65, 40, t + 1.0, 0.8, 0.6, this.bus);
+  }
+
+  /** coins counting up */
+  tick(i: number) {
+    if (!this.ok('tick', 0.03)) return;
+    const t = this.ctx!.currentTime;
+    const f = 1400 + (i % 8) * 90;
+    this.tone('sine', f, f, t, 0.06, 0.08, this.bus);
+  }
+
+  /** chain climax hits */
+  climax(level: number) {
+    if (!this.ok('climax', 0.4)) return;
+    const t = this.ctx!.currentTime;
+    this.tone('sine', 80, 40, t, 0.5, 0.7, this.bus);
+    this.noise(t, 0.35, 0.4, 'lowpass', 900, 200, 0.7, this.bus);
+    const base = [392, 494, 587, 784][Math.min(3, level)];
+    for (const m of [1, 1.25, 1.5]) this.tone('sawtooth', base * m, base * m, t + 0.02, 0.5, 0.04, this.bus, 0.02);
   }
 
   /* ---------------------------- loops ---------------------------- */
