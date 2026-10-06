@@ -1,0 +1,123 @@
+import type * as THREE from 'three';
+import type RAPIER from '@dimforge/rapier3d-compat';
+import type { Game } from './Game';
+import type { Prop } from './Prop';
+
+export type Mat =
+  | 'glass' | 'ceramic' | 'wood' | 'metal' | 'plastic' | 'soft' | 'paper'
+  | 'rubber' | 'egg' | 'food' | 'electronic' | 'squeak' | 'marble';
+
+export type ColDef = (
+  | { shape: 'box'; hx: number; hy: number; hz: number; round?: number }
+  | { shape: 'cyl'; hh: number; r: number }
+  | { shape: 'ball'; r: number }
+  | { shape: 'cone'; hh: number; r: number }
+  | { shape: 'capsule'; hh: number; r: number }
+  | { shape: 'hull'; points: number[] }
+) & { at?: [number, number, number]; rot?: [number, number, number]; friction?: number; restitution?: number; massShare?: number };
+
+export type FxKind =
+  | 'water' | 'dirt' | 'flour' | 'yolk' | 'sparks' | 'coins' | 'coffee' | 'cream' | 'feathers' | 'juice' | 'glass' | 'paper' | 'flowers' | 'none';
+
+export interface BreakDef {
+  /** gravity-compensated delta-v (units/s) needed to break */
+  threshold: number;
+  /** also breaks when another moving prop hits it with this contact force */
+  hitForce?: number;
+  mode: 'shatter' | 'damage';
+  debris?: { count: number; colors: string[]; size: number; flat?: boolean };
+  fx?: FxKind;
+  /** word shown on break, e.g. 쨍그랑! */
+  word?: string;
+  /** called after breaking (spawn marbles, toast, etc.) */
+  after?: (game: Game, prop: Prop, pos: THREE.Vector3, vel: THREE.Vector3) => void;
+  /** visual change for 'damage' mode */
+  onDamage?: (prop: Prop) => void;
+}
+
+export interface Special {
+  /** shown on the aim arrow, e.g. "켜기" */
+  label?: string;
+  /** is the special still doing something that should keep the turn alive */
+  busy(): boolean;
+  /** return true to replace the default paw impulse */
+  onSwat?(game: Game, prop: Prop, dir: THREE.Vector3, power: number, point: THREE.Vector3): boolean;
+  onImpact?(game: Game, prop: Prop, impact: number): void;
+  /** another moving prop pressed against this one (needs spec.touchForce) */
+  onTouch?(game: Game, prop: Prop, other: Prop): void;
+  /** physics-rate update (before world.step) */
+  step?(game: Game, prop: Prop, h: number): void;
+  /** frame-rate visual update */
+  frame?(game: Game, prop: Prop, dt: number): void;
+  onBreak?(game: Game, prop: Prop): void;
+  dispose?(game: Game, prop: Prop): void;
+}
+
+export interface PropSpec {
+  kind: string;
+  name: string;
+  group: THREE.Object3D;
+  colliders: ColDef[];
+  mass: number;
+  mat: Mat;
+  value: number;
+  pos: [number, number, number];
+  rotY?: number;
+  quat?: THREE.Quaternion;
+  friction?: number;
+  restitution?: number;
+  linDamp?: number;
+  angDamp?: number;
+  breakable?: BreakDef;
+  target?: boolean;
+  interactable?: boolean;
+  /** stays fixed (wall-hung, shelf) until hit with this contact force */
+  pinned?: number;
+  ccd?: boolean;
+  special?: Special;
+  /** for picking/aiming; computed from the visual if omitted */
+  radius?: number;
+  /** kinematic body (tablecloth) */
+  kinematic?: boolean;
+  /** does not count for "fell"/"toppled" points (e.g. dominoes use custom) */
+  scoreMoves?: boolean;
+  /** contact force that triggers special.onTouch */
+  touchForce?: number;
+  /** round things roll – don't count rotation as "toppled" */
+  noTopple?: boolean;
+  /** custom topple score (dominoes, books) */
+  toppleValue?: number;
+  rollingResistance?: number;
+  /** used by the cat to decide where it lands */
+  noLand?: boolean;
+}
+
+export type GoalKind = 'break' | 'wake' | 'score' | 'floor';
+
+export interface GoalDef {
+  kind: GoalKind;
+  /** for break/floor: how many target props; defaults to all targets */
+  count?: number;
+  /** for score */
+  amount?: number;
+  text: string;
+  short: string;
+}
+
+export interface LevelDef {
+  id: string;
+  room: 'living' | 'kitchen' | 'bedroom';
+  title: string;
+  subtitle: string;
+  paws: number;
+  goal: GoalDef;
+  /** score thresholds for 2 and 3 stars */
+  stars: [number, number];
+  tip?: string;
+  hints: string[];
+  build(b: import('../levels/Builder').Builder): void;
+  /** owner's line when they discover the mess */
+  ownerLine?: string;
+}
+
+export type RAPIERType = typeof RAPIER;
