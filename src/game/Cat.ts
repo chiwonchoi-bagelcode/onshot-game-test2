@@ -4,6 +4,7 @@ import { clamp, damp, easeInOut, pick, rand } from '../core/util';
 import type { Game } from './Game';
 import type { Prop } from './Prop';
 import { CATS, accById, type CatDef, type IdleAct } from '../meta/cats';
+import { disposeMerged, mergeByMaterial } from '../render/merge';
 
 type CatState = 'idle' | 'crouch' | 'leap' | 'strike' | 'fall' | 'land' | 'ending';
 
@@ -73,6 +74,7 @@ export class Cat {
   setLook(def: CatDef, acc: string[]) {
     this.def = def;
     this.accessories = acc;
+    disposeMerged(this.rig);
     this.rig.clear();
     this.body = new THREE.Group();
     this.head = new THREE.Group();
@@ -90,6 +92,22 @@ export class Cat {
       o.traverse((m) => { if ((m as THREE.Mesh).isMesh) { m.castShadow = true; m.userData.noOutline = true; } });
       (a.slot === 'head' ? this.headSlot : a.slot === 'face' ? this.faceSlot : this.neckSlot).add(o);
     }
+    this.mergeStatic();
+  }
+
+  /** fewer draw calls: bake the non-animated parts of body and head into a few meshes */
+  private mergeStatic() {
+    const animated: THREE.Object3D[] = [this.head, this.pawR, this.pawL, this.headSlot, this.faceSlot, this.neckSlot, ...this.eyes, ...this.ears];
+    if (this.mouth) animated.push(this.mouth);
+    if (this.tail[0]?.parent) animated.push(this.tail[0].parent);
+    const prev = animated.map((o) => o.userData.keep);
+    for (const o of animated) o.userData.keep = true;
+    mergeByMaterial(this.body);
+    this.head.userData.keep = false;
+    mergeByMaterial(this.head);
+    for (const s of [this.headSlot, this.faceSlot, this.neckSlot]) { s.userData.keep = false; if (s.children.length) mergeByMaterial(s); }
+    animated.forEach((o, i) => { o.userData.keep = prev[i]; });
+    this.rig.traverse((m) => { if ((m as THREE.Mesh).isMesh) m.userData.noOutline = true; });
   }
 
   private build() {

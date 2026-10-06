@@ -14,7 +14,7 @@ export class Builder {
   get env() { return this.game.envGroup; }
 
   prop(spec: PropSpec): Prop {
-    mergeByMaterial(spec.group);
+    mergeByMaterial(spec.group, { oneShadow: true });
     return this.game.addProp(spec);
   }
 

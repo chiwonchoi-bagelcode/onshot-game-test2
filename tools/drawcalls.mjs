@@ -9,7 +9,7 @@ const ids = process.argv.slice(2).length ? process.argv.slice(2) : await page.ev
 for (const id of ids) {
   const r = await page.evaluate(async (id) => {
     const a = window.app; a.debugLevel(id);
-    await new Promise((r) => setTimeout(r, 700));
+    await new Promise((r) => setTimeout(r, 2800));
     const rr = a.stage.renderer; rr.info.autoReset = false;
     rr.info.reset(); a.stage.render();
     const play = { calls: rr.info.render.calls, tris: rr.info.render.triangles };

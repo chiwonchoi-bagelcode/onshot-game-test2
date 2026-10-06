@@ -205,7 +205,13 @@ export class ClothSpecial implements Special {
       this.dropFrom.set(nx, t.y, nz);
       // cloth leaves physics; becomes a crumpled heap on the floor
       game.removeProp(p);
-      const mat = (p.group.children.find((c) => (c as THREE.Mesh).isMesh) as THREE.Mesh | undefined)?.material as THREE.Material | undefined;
+      const first = p.group.children.find((c) => (c as THREE.Mesh).isMesh) as THREE.Mesh | undefined;
+      let mat = first?.material as THREE.Material | undefined;
+      const colAttr = first?.geometry.getAttribute('color');
+      if (mat && (mat as THREE.MeshLambertMaterial).vertexColors && colAttr) {
+        // baked vertex colours: rebuild a plain material in the cloth's colour for the heap
+        mat = new THREE.MeshLambertMaterial({ color: new THREE.Color(colAttr.getX(0), colAttr.getY(0), colAttr.getZ(0)), flatShading: true });
+      }
       p.group.clear();
       const heap = new THREE.Mesh(new THREE.IcosahedronGeometry(0.75, 1), mat ?? new THREE.MeshLambertMaterial({ color: '#ff8fa3', flatShading: true }));
       const pos = heap.geometry.attributes.position as THREE.BufferAttribute;
