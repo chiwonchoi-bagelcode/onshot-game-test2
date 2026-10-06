@@ -107,15 +107,14 @@ function furnishBath4(b: Builder, ox = 0, oz = 0, o: { tub?: boolean; toilet?: b
 }
 
 /** single bathroom stage (owner comes in through the left door) */
-function bathRoom(b: Builder, o: Parameters<typeof furnishBath4>[3] = {}): HouseInfo {
+function bathRoom(b: Builder, o: Parameters<typeof furnishBath4>[3] & { owner?: 'door' | 'none' } = {}): HouseInfo {
   const info = buildHouse(b, { rooms: [rect('bath', '욕실', 0, 0, BATH_W, BATH_D, 'tile', 'bath')], base: '#5c8fb0', h: 6.8 });
   furnishBath4(b, 0, 0, o);
   doorOn(b, { x: -BATH_W / 2 }, BATH.doorZ, '#9fd8cb');
-  b.ownerAtDoor(-BATH_W / 2 + 0.9, 0, BATH.doorZ, Math.PI / 2);
+  if (o.owner !== 'none') b.ownerAtDoor(-BATH_W / 2 + 0.9, 0, BATH.doorZ, Math.PI / 2);
   return info;
 }
 
-void sphere;
 
 /* ------------------------------ chapter props ------------------------------ */
 
@@ -524,7 +523,7 @@ const S4_4: LevelDef = {
   ownerLine: '콜록콜록! 향수 냄새…! 반신욕 중이었는데!!',
   build(b) {
     const vx = T.x1 + 0.05 + BATH.vanity.w / 2 + 0.1;
-    bathRoom(b, { vanityX: vx });
+    bathRoom(b, { vanityX: vx, owner: 'none' });
     b.ownerAsleep((T.x0 + T.x1) / 2 + 0.25, 0.55, (T.z0 + T.z1) / 2, 0);
     const vt = BATH.vanity.top, vz = BATH.vanity.z;
     const lz = vz + 0.1;

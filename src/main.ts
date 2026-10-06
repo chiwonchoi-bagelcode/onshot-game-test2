@@ -604,6 +604,7 @@ const DEX_NAMES: Record<string, string> = {
   soap: '비누', tp: '두루마리 휴지', phone: '집사 폰', perfume: '향수', shampoo: '샴푸', toothcup: '양치컵', dryer: '드라이기', block: '나무 블록',
   doll: '도자기 인형', globeSnow: '스노우볼', balloon: '풍선', jack: '깜짝 상자', train: '장난감 기차', plush: '인형', coatRack: '옷걸이', umbrella: '우산꽂이',
   grandClock: '괘종시계', aquarium: '수조', fan: '선풍기', shoe: '운동화', pillow: '베개', guitar: '기타', cereal: '시리얼', milk: '우유', pan: '프라이팬',
+  gadget: '전자기기', stool: '목욕 의자', basket: '빨래 바구니', towel: '수건', slipper: '욕실 슬리퍼',
 };
 
 async function boot() {

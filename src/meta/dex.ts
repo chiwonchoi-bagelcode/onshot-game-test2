@@ -76,6 +76,11 @@ export const OBJECTS: Record<string, ObjInfo> = {
   cereal: { icon: '🥣', tip: '쏟아지면 시리얼 비가 내려요.' },
   milk: { icon: '🥛', tip: '쏟아지면 하얀 웅덩이.' },
   pan: { icon: '🍳', tip: '단단한 금속. 시소처럼 쓸 수도 있어요.' },
+  gadget: { icon: '🔊', tip: '작은 전자제품. 물에 빠지면 지지직, 끝장이에요.' },
+  stool: { icon: '🪑', tip: '젖은 의자는 미끄러워요. 무언가 부딪히면 쭉 밀려가요.' },
+  basket: { icon: '🧺', tip: '빨래가 가득. 넘어지면 와르르 쏟아져요.' },
+  towel: { icon: '🧺', tip: '폭신해서 떨어지는 물건을 조용히 받아내요.' },
+  slipper: { icon: '🩴', tip: '가볍게 날아가 다른 물건을 톡 건드려요.' },
 };
 
 export interface Discovery { id: string; icon: string; name: string; desc: string }
