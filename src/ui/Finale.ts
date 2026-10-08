@@ -28,7 +28,7 @@ const R = 3;
 const END = 15.2;
 
 /** pastel continents: a few overlapping waves on the sphere */
-function landAt(d: THREE.Vector3): THREE.Color {
+export function landAt(d: THREE.Vector3): THREE.Color {
   const n = Math.sin(d.x * 3.1 + 0.4) * Math.cos(d.y * 2.3 - 0.8) + Math.sin(d.z * 2.7 + d.x * 1.3) * 0.8 + Math.cos(d.y * 4.2 + d.z * 1.7) * 0.35;
   if (Math.abs(d.y) > 0.86) return ICE;
   if (n > 0.55) return LAND;
@@ -36,7 +36,7 @@ function landAt(d: THREE.Vector3): THREE.Color {
   return OCEAN;
 }
 
-function rnd(seed: number) { let s = seed; return () => { s = (s * 16807) % 2147483647; return s / 2147483647; }; }
+export function rnd(seed: number) { let s = seed; return () => { s = (s * 16807) % 2147483647; return s / 2147483647; }; }
 
 export class Finale {
   private scene = new THREE.Scene();

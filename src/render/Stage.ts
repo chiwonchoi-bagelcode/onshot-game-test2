@@ -285,6 +285,15 @@ export class Stage {
     this.focusAmt = p ? amount : 0;
   }
 
+  /** a scripted camera move: from close on a point, out past the whole place (the door opening) */
+  private cineMove: { t: number; dur: number; p0: THREE.Vector3; d0: number; d1: number } | null = null;
+  pullBack(from: THREE.Vector3, fromDist: number, outK: number, seconds: number) {
+    this.cineMove = { t: 0, dur: seconds, p0: from.clone(), d0: fromDist, d1: this.ovDist * outK };
+    this.target.copy(from); this.dist = fromDist;
+    this.yawOff = 0.35; this.pitchOff = -0.12;
+  }
+  get pulling() { return !!this.cineMove; }
+
   /** swoop in from far away and from another angle (entering a new space) */
   flyIn(distK = 2.6, yaw = 1.1, pitch = 0.35) {
     this.dist *= distK;
@@ -303,12 +312,22 @@ export class Stage {
 
   private applyCamera(dt: number) {
     const cam = this.camera;
+    const cm = this.cineMove;
+    if (cm) {
+      // ease-in-out on the distance (log scale reads as one long continuous zoom)
+      cm.t = Math.min(cm.dur, cm.t + dt);
+      const k = cm.t / cm.dur, e = k * k * (3 - 2 * k);
+      this.dist = Math.exp(Math.log(cm.d0) + (Math.log(cm.d1) - Math.log(cm.d0)) * e);
+      this.target.lerpVectors(cm.p0, this.ovTarget, Math.min(1, e * 1.4));
+      this.wantTarget.copy(this.target); this.wantDist = this.dist;
+      if (k >= 1) { this.cineMove = null; this.wantTarget.copy(this.ovTarget); this.wantDist = this.ovDist; this.overview = true; }
+    }
     if (dt > 0 && (Math.abs(this.yawOff) > 1e-4 || Math.abs(this.pitchOff) > 1e-4 || this.swayAmp)) {
       this.yawOff = damp(this.yawOff, 0, 1.5, dt);
       this.pitchOff = damp(this.pitchOff, 0, 1.5, dt);
       this.updateDir();
     }
-    if (dt > 0) {
+    if (dt > 0 && !cm) {
       this.target.x = damp(this.target.x, this.wantTarget.x, 5, dt);
       this.target.y = damp(this.target.y, this.wantTarget.y, 5, dt);
       this.target.z = damp(this.target.z, this.wantTarget.z, 5, dt);

@@ -68,7 +68,7 @@ export const CATS: CatDef[] = [
     desc: '호기심 대장. 모든 물건을 한 번씩은 건드려 봐야 직성이 풀린다.',
     look: { base: '#fff6e8', belly: '#ffffff', stripe: '#d9732c', ear: '#ff9db0', nose: '#ff9db0', eye: '#4c8a3a', pattern: 'calico', patch: '#f39a4a', patch2: '#3a3346' },
     stats: { power: 1, speed: 1, reach: 0 },
-    perk: { id: 'lucky', name: '행운의 삼색', text: '스테이지 츄르 보상 +30%' },
+    perk: { id: 'lucky', name: '행운의 삼색', text: '스테이지 츄르 보상 +30% · 정찰 물음표 하나를 미리 알려 줌' },
     voice: 1.12, motion: { leap: 0.95, hop: 1.05, wiggle: 1.4, tail: 1.2, idle: ['tail', 'lick', 'stretch'] },
     lines: {
       swat: ['이건 뭐야?', '궁금해!', '톡톡'], heavy: ['안 움직이네?'], chain: ['우와와!', '이것도 떨어진다!'],
@@ -120,7 +120,7 @@ export const CATS: CatDef[] = [
     desc: '고고한 털뭉치 귀족. 비싼 물건만 골라 깨뜨리는 안목이 있다.',
     look: { base: '#f7f4ff', belly: '#ffffff', stripe: '#e6e0f5', ear: '#ffc2d1', nose: '#ff9db0', eye: '#4f9ef0', pattern: 'solid', fluffy: true, size: 1.05 },
     stats: { power: 0.95, speed: 0.95, reach: 0 },
-    perk: { id: 'elegant', name: '고급 안목', text: '깨진 물건 값 +15%' },
+    perk: { id: 'elegant', name: '고급 안목', text: '깨진 물건 값 +15% · 정찰 때 보물이 처음부터 보임' },
     voice: 0.95, motion: { leap: 1.15, hop: 0.9, wiggle: 0.6, tail: 0.7, idle: ['groom', 'loaf', 'yawn'] },
     lines: {
       swat: ['흥.', '천박하긴', '살짝'], heavy: ['무례하게 무겁군'], chain: ['나쁘지 않아', '우아하게'],

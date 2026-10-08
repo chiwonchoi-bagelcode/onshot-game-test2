@@ -66,6 +66,10 @@ export interface Result {
   caught: boolean;
   /** a protected thing that got ruined (the run failed because of it) */
   ruined: string | null;
+  /** a failed run: where the last chain came to a stop (for the 아쉬운 사건 일지) */
+  stopped: { name: string; icon: string; pos: [number, number, number]; chain: string[] } | null;
+  /** goal progress at the end */
+  goal: { done: number; need: number };
   /** goal met while nobody suspected a thing (perfect-crime bonus applied) */
   perfect: boolean;
   /** this run blew up the planet */
@@ -1414,7 +1418,7 @@ export class Game {
     if (this.caught) stars = Math.min(stars, 2);
     this.pendingResult = {
       success, score: this.score, stars, maxChain: this.maxChain, broken: this.brokenCount,
-      pawsLeft: this.paws, pawsUsed: this.maxPaws - this.paws, pawBonus, money: this.money, bonus: this.bonus, heart: this.heart, receipt: this.receipt(), caught: this.caught, ruined: this.ruined?.name ?? null, perfect, finale: this.finale,
+      pawsLeft: this.paws, pawsUsed: this.maxPaws - this.paws, pawBonus, money: this.money, bonus: this.bonus, heart: this.heart, receipt: this.receipt(), caught: this.caught, ruined: this.ruined?.name ?? null, stopped: success ? null : this.stoppedAt(), goal: this.goalProgress(), perfect, finale: this.finale,
       story: this.story(), run: this.run,
       wokeOwner: !!this.owner?.awake, noise: this.noise,
     };
@@ -1429,6 +1433,26 @@ export class Game {
     this.phase = 'done';
     this.emit({ type: 'phase', phase: 'done' });
     if (this.pendingResult) this.emit({ type: 'end', result: this.pendingResult });
+  }
+
+  /** the last thing that moved in the last chain (or the last thing pawed, if nothing followed) */
+  stoppedAt(): Result['stopped'] {
+    const byId = new Map(this.props.map((p) => [p.id, p] as const));
+    for (let i = this.run.chains.length - 1; i >= 0; i--) {
+      const evs = this.run.chains[i];
+      if (!evs.length) continue;
+      const last = evs[evs.length - 1];
+      const p = byId.get(last.id);
+      const c = p ? p.center(new THREE.Vector3()) : new THREE.Vector3();
+      const chain: string[] = [];
+      for (const e of evs) if (chain[chain.length - 1] !== e.icon) chain.push(e.icon);
+      return { name: last.name, icon: last.icon, pos: [c.x, c.y, c.z], chain: chain.slice(-6) };
+    }
+    const s = this.run.swats[this.run.swats.length - 1];
+    const p = s ? byId.get(s.id) : undefined;
+    if (!p) return null;
+    const c = p.center(new THREE.Vector3());
+    return { name: p.name, icon: p.icon, pos: [c.x, c.y, c.z], chain: [] };
   }
 
   /** longest cause → effect path among this level's chains */

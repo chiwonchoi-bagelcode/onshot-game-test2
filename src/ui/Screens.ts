@@ -277,11 +277,24 @@ export class Screens {
       <div class="evalline">장난 평가 <b class="evalv">0</b>점<span class="stamp hidden">신기록!</span></div>
       <div class="best">${s.prevBest > 0 ? `이전 최고 ${Math.round(s.prevBest).toLocaleString('ko-KR')}점` : ''}</div>`;
     const bill = this.receipt(r, s);
-    c.append(bill.el);
     const story = h('div', 'story hidden');
-    if (r.story.length >= 2) story.innerHTML = `<div class="sh">📜 사건 일지 · 최장 연쇄 x${r.maxChain}</div><div class="sr">${['🐾', ...r.story.map((x) => x.icon)].map((i, k) => `<span style="animation-delay:${k * 0.08}s">${i}</span>`).join('<b>→</b>')}</div>`;
+    const st = r.stopped;
+    if (!r.success && st) {
+      // 아쉬운 사건 일지: where it stopped, and how far from the goal
+      const g = r.goal;
+      const prog = level.goal.kind === 'score' ? `${Math.floor((g.done / Math.max(1, g.need)) * 100)}%` : `${g.done}/${g.need}`;
+      story.classList.add('fail');
+      story.innerHTML = `<div class="sh">📜 아쉬운 사건 일지 · 목표 ${prog}</div>
+        <div class="sr">${['🐾', ...st.chain].map((i, k) => `<span style="animation-delay:${k * 0.08}s">${i}</span>`).join('<b>→</b>')}<b>→</b><span class="stopx">✋</span></div>
+        <div class="stopline">${st.chain.length ? `연쇄는 <b>${esc(st.icon)} ${esc(st.name)}</b>에서 멈췄어요. 그 다음엔 뭐가 있었을까?` : `<b>${esc(st.icon)} ${esc(st.name)}</b>을(를) 쳤지만 아무것도 이어지지 않았어요.`}</div>`;
+      c.append(story);
+      bill.el.classList.add('mini');
+    }
+    c.append(bill.el);
+    if (story.classList.contains('fail')) { /* already placed above the bill */ }
+    else if (r.story.length >= 2) story.innerHTML = `<div class="sh">📜 사건 일지 · 최장 연쇄 x${r.maxChain}</div><div class="sr">${['🐾', ...r.story.map((x) => x.icon)].map((i, k) => `<span style="animation-delay:${k * 0.08}s">${i}</span>`).join('<b>→</b>')}</div>`;
     else story.innerHTML = `<div class="sh">📜 사건 일지</div><div class="sr small">깨뜨린 물건 ${r.broken}개 · 최대 연쇄 x${r.maxChain}</div>`;
-    c.append(story);
+    if (!story.classList.contains('fail')) c.append(story);
     const chl = h('div', 'chlist hidden');
     chl.innerHTML = s.challenges.map((x) => `<div class="chrow${x.done || x.before ? ' done' : ''}${x.isNew ? ' new' : ''}"><span class="chi">${x.icon}</span><span class="cht2">${esc(x.text)}</span><span class="chk">${x.isNew ? `<em>NEW</em>` : x.done || x.before ? '✔' : ''}</span></div>`).join('');
     c.append(chl);

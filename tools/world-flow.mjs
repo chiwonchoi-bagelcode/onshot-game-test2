@@ -40,7 +40,11 @@ const base = { v: 2, churu: 500, cats: ['cheese'], cat: 'cheese', skins: [], ski
   await shot('03-door-story');
   await page.waitForTimeout(6500);
   await shot('04-door-story-end');
-  await click('.storyscr .btn-big', 1500);
+  await click('.storyscr .btn-big', 1200);
+  await shot('05a-door-open');
+  await page.waitForTimeout(2600);
+  await shot('05b-door-pullback');
+  await page.waitForTimeout(2400);
   await shot('05-chapter7-title');
   await page.waitForTimeout(5200);
   await shot('06-intro-7-1');

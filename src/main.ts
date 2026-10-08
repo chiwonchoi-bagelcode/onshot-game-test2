@@ -12,11 +12,13 @@ import { CatRoom } from './ui/CatRoom';
 import { Finale } from './ui/Finale';
 import { BY_CHAPTER, CHAPTERS, LEVELS, REMIXES, levelById } from './levels/index';
 import { freePlay } from './levels/remix';
+import { Scout } from './ui/Scout';
+import { OrbitView } from './ui/Orbit';
 import { THEME_STYLE } from './levels/rooms';
 import type { LevelDef, TutorialStep } from './game/types';
 import { PreludePlayer } from './game/Prelude';
 import type { Prop } from './game/Prop';
-import { loadProfile, peekRec, resetProfile, saveProfile, stat, type Profile } from './meta/profile';
+import { addStat, loadProfile, peekRec, resetProfile, saveProfile, stat, type Profile } from './meta/profile';
 import { CATS, catById, withSkin } from './meta/cats';
 import { challengeDone, challengeIcon, challengeText } from './meta/challenges';
 import { DISCOVERIES, OBJECTS, discoveryById } from './meta/dex';
@@ -46,6 +48,11 @@ class App {
   mapChapter = 1;
   private last = performance.now();
   private tut: { steps: TutorialStep[]; i: number; waitSettle: boolean; t: number } | null = null;
+  /** 정찰: question marks over a wide place before the first paw (once per stage per session) */
+  private scout: Scout | null = null;
+  /** after the end of the world: the outside map is the Earth in pieces, seen from orbit */
+  private orbit!: OrbitView;
+  private scouted = new Set<string>();
   private loadedId = '';
   private hintShown = false;
   /** the tutorial / hint hand, anchored to an object every frame */
@@ -78,6 +85,7 @@ class App {
     };
     this.screens = new Screens(this.ui.overlay, this.ui.top, snd);
     this.catRoom = new CatRoom(this.stage, snd);
+    this.orbit = new OrbitView(this.stage);
     this.input = new Input(this.stage, this.game, this.sfx);
     this.applyCat();
     this.wire();
@@ -196,6 +204,7 @@ class App {
     this.level = level;
     if (!force && this.loadedId === level.id && this.game.phase === 'intro') { this.stage.setFocus(null); return; }
     this.loadedId = level.id;
+    this.scout?.dispose(); this.scout = null;
     this.applyCat(level);
     this.game.trick = this.trickFor(level);
     this.game.load(level);
@@ -249,6 +258,7 @@ class App {
     this.clearHint();
     this.pointer = null;
     if (this.catRoom.active) this.catRoom.close();
+    this.orbit.close();
     this.ui.hideHud();
     this.ui.hand(null);
     this.stage.swayAmp = 0;
@@ -342,6 +352,10 @@ class App {
       settings: () => this.toSettings(() => this.toMap()),
       title: () => { this.sfx.click(); this.toTitle(); },
     });
+    if (region === 'world' && p.worldEnd) {
+      const places = CHAPTERS.filter((c) => c.outside).map((c) => ({ id: c.id, icon: c.icon, name: c.name, open: chapterOpen(p, c.id), cleared: chapterCleared(p, c.id) }));
+      this.orbit.open(places, this.ui.top, (id) => { this.sfx.click(); this.toMap(id); });
+    }
     requestAnimationFrame(() => {
       const sheet = document.querySelector('.mapsheet') as HTMLElement | null;
       const head = document.querySelector('.maptools') as HTMLElement | null;
@@ -363,7 +377,8 @@ class App {
       const c = CHAPTERS[level.chapter - 1];
       this.screens.clear();
       this.setInsets(80, 80);
-      this.stage.flyIn(2.8, 1.3, 0.45);
+      if (!this.noFly) this.stage.flyIn(2.8, 1.3, 0.45);
+      this.noFly = false;
       this.sfx.reveal();
       await this.screens.chapterTitle(c.id, c.name, c.icon, c.intro);
       if (this.mode !== 'intro' || this.level !== level) return;
@@ -465,6 +480,37 @@ class App {
       this.tut = { steps: level.tutorial, i: 0, waitSettle: false, t: 0 };
       setTimeout(() => this.showTutStep(), 700);
     } else this.tut = null;
+    this.startScout(level);
+  }
+
+  /** wide places outside: look around first (taps on the question marks reveal what they are) */
+  private startScout(level: LevelDef) {
+    const rec = peekRec(this.profile, level.id);
+    const stuck = (rec?.streak ?? 0) >= 3;
+    const key = level.id + (stuck ? '!' : '');
+    if (!CHAPTERS[level.chapter - 1]?.outside || level.free || this.tut || this.scouted.has(key)) return;
+    this.scouted.add(key);
+    this.scouted.add(level.id);
+    this.stage.showOverview(true);
+    this.ui.setViewActive(true);
+    const g = this.game;
+    this.scout = new Scout(g, (p) => this.stage.toScreen(p), this.ui.top, level, {
+      lucky: g.perk === 'lucky', eye: g.perk === 'elegant', preview: stuck,
+      onTap: () => this.sfx.discover(),
+      onDone: () => {
+        const taps = this.scout?.taps ?? 0;
+        this.scout = null;
+        addStat(this.profile, 'scouts', 1);
+        if (taps >= 2) addStat(this.profile, 'scouts2', 1);
+        this.save();
+        this.sfx.click();
+        this.stage.showOverview(false);
+        this.ui.setViewActive(false);
+        const s = level.start ? new THREE.Vector3(level.start[0], 0, level.start[1]) : g.catHome.clone();
+        this.stage.lookAtPoint(s);
+      },
+    });
+    if (!this.scout.count) { this.scout.dispose(); this.scout = null; this.stage.showOverview(false); }
   }
 
   /* ------------------------------------------------------------------ */
@@ -584,7 +630,7 @@ class App {
     this.sfx.click();
     this.input.cancel();
     const g = this.game;
-    const fake = { success: g.goalComplete, score: g.score, stars: 0, maxChain: g.maxChain, broken: g.brokenCount, pawsLeft: g.paws, pawsUsed: g.maxPaws - g.paws, pawBonus: 0, money: g.money, bonus: g.bonus, heart: g.heart, receipt: [], caught: false, ruined: null, perfect: false, finale: false, story: [], run: g.run, wokeOwner: !!g.owner?.awake, noise: g.noise } as Result;
+    const fake = { success: g.goalComplete, score: g.score, stars: 0, maxChain: g.maxChain, broken: g.brokenCount, pawsLeft: g.paws, pawsUsed: g.maxPaws - g.paws, pawBonus: 0, money: g.money, bonus: g.bonus, heart: g.heart, receipt: [], caught: false, ruined: null, stopped: null, goal: g.goalProgress(), perfect: false, finale: false, story: [], run: g.run, wokeOwner: !!g.owner?.awake, noise: g.noise } as Result;
     const rec = peekRec(this.profile, this.level.id);
     this.screens.pause({
       goal: this.level.goal.text,
@@ -619,6 +665,12 @@ class App {
     }
     const next = nextLevel(level, p);
     const hasNext = !!next && stageOpen(p, next) && !s.doorOpened;
+    // a failed run: look at where the chain stopped
+    if (!r.success && r.stopped) {
+      const v = new THREE.Vector3(...r.stopped.pos);
+      if (this.stage.roomy) { this.stage.showOverview(false); this.stage.lookAtPoint(v); } else this.stage.setFocus(v, 0.3);
+      this.game.glowBurst(v, '#ffb3c6', 16);
+    }
     await this.screens.result(level, r, s, hasNext, {
       retry: () => { this.sfx.click(); this.retry(); },
       next: () => { this.sfx.click(); if (next) void this.toIntro(next); },
@@ -681,8 +733,36 @@ class App {
       '이 집은… 너무 작다냥.',
     ], '🚪 현관문이 열렸다!', 'door');
     const first = BY_CHAPTER[HOME_CHAPTERS]?.[0];
-    if (first) await this.toIntro(first);
-    else this.toMap(1);
+    if (first) {
+      await this.doorZoom(first);
+      this.noFly = true;
+      await this.toIntro(first);
+    } else this.toMap(1);
+  }
+
+  private noFly = false;
+
+  /** the door swings open on bright daylight; the camera pulls back from the cat to the whole street */
+  private async doorZoom(level: LevelDef) {
+    this.mode = 'intro';
+    this.loadLevel(level, true);
+    this.screens.clear();
+    this.ui.hideHud();
+    this.setInsets(60, 60);
+    this.stage.swayAmp = 0;
+    const e = document.createElement('div');
+    e.className = 'doorcine clickable';
+    e.innerHTML = '<div class="dflash"></div><div class="dcap">바깥이다…!</div>';
+    this.ui.top.append(e);
+    this.stage.pullBack(this.game.catHome.clone().setY(0.6), 3.2, 2.2, 5.2);
+    this.sfx.reveal();
+    this.game.cat.cheer();
+    await new Promise<void>((res) => {
+      const t = setTimeout(res, 5600);
+      e.onclick = () => { clearTimeout(t); res(); };
+    });
+    e.classList.add('out');
+    setTimeout(() => e.remove(), 400);
   }
 
   private async finale() {
@@ -799,6 +879,8 @@ class App {
     }
     this.catRoom.update(dt);
     this.fin?.update(dt);
+    this.scout?.update();
+    this.orbit.update(dt);
     this.stage.update(dt);
     this.stage.render();
     this.ui.update(dt);
