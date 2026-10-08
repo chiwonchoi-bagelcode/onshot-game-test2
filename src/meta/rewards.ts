@@ -114,6 +114,8 @@ export function grantTricks(p: Profile): UnlockItem[] {
   const add = (id: TrickId) => { if (p.tricks.includes(id)) return; p.tricks.push(id); out.push({ kind: 'trick', id, name: TRICKS[id].name, icon: TRICKS[id].icon }); if (!p.trick) p.trick = id; };
   if (chapterOpen(p, HOME_CHAPTERS + 2)) add('hairball');
   if (chapterOpen(p, HOME_CHAPTERS + 3)) add('knead');
+  if (chapterOpen(p, HOME_CHAPTERS + 4)) add('meow');
+  if (chapterOpen(p, HOME_CHAPTERS + 5)) add('zoomies');
   return out;
 }
 

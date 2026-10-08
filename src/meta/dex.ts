@@ -84,6 +84,11 @@ export const OBJECTS: Record<string, ObjInfo> = {
   // ---- the outside world
   auto: { icon: '🚗', tip: '앞발로는 흠집뿐. 경사 위에서 고임목을 빼면…?' },
   chock: { icon: '🔺', tip: '바퀴를 붙잡는 쐐기. 빼면 차가 굴러가요.' },
+  paintCan: { icon: '🪣', tip: '넘어지면 쏟아져요. 페인트 웅덩이 위에서는 무거운 것도 쭉 미끄러져요.' },
+  kitModel: { icon: '🚢', tip: '받침대가 무거워 앞발로는 꿈쩍. 미끄러운 곳에서 밀면…' },
+  smallKit: { icon: '✈️', tip: '진열장째 넘어지면 와르르.' },
+  toolbox: { icon: '🧰', tip: '무거운 공구함. 미끄러운 곳에선 좋은 망치가 돼요.' },
+  spray: { icon: '🧴', tip: '가벼운 스프레이 캔.' },
   gate: { icon: '🚪', tip: '툭 치면 열려요. 길을 열지 막을지 골라요.' },
   gnome: { icon: '🧙', tip: '정원 난쟁이. 작고 잘 깨져요.' },
   mailbox: { icon: '📮', tip: '기둥이 가늘어 잘 넘어가요.' },
@@ -169,6 +174,9 @@ export const DISCOVERIES: Discovery[] = [
   { id: 'carry', icon: '🛒', name: '실어 보내기', desc: '바퀴 달린 것 위에 실린 물건은 함께 실려 가요.' },
   { id: 'hairball', icon: '🌀', name: '헤어볼', desc: '헤어볼 웅덩이 위에서는 무엇이든 미끄러져요.' },
   { id: 'knead', icon: '🍑', name: '꾹꾹이', desc: '고양이 무게로 시소·레버·저울을 눌러요.' },
+  { id: 'meow', icon: '📢', name: '야옹', desc: '부르면 사람들이 그쪽을 보러 가요. 시선이 비는 틈!' },
+  { id: 'painted', icon: '🎨', name: '페인트 범벅', desc: '소중한 물건에 페인트가 쏟아지면 값이 반토막. 깨뜨린 것만 못해요.' },
+  { id: 'zoomies', icon: '🛹', name: '우다다', desc: '온몸 돌진은 무거운 것도 밀어 버려요. 대신 시끄러워요.' },
   { id: 'caught', icon: '👀', name: '현행범', desc: '사람이 보는 앞에서 사고를 치면 들켜요.' },
   { id: 'perfect', icon: '😇', name: '완전 범죄', desc: '아무도 못 봤어요. 장난 점수가 1.3배.' },
 ];

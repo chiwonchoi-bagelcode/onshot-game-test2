@@ -2,7 +2,12 @@ import * as C3 from '../game/catalog3';
 import type { LevelDef } from '../game/types';
 import type { Builder } from './Builder';
 import { building, buildLot, deliveryTruck, fence, flowerBed, hedge, houseFront, roadLines, shopFront, slab, steps, streetLamp, tree } from './outdoor';
-import { waterZone } from './rooms';
+import { rect, waterZone } from './rooms';
+import * as C from '../game/catalog';
+import * as C4 from '../game/catalog4';
+import { paintAround } from '../game/specials4';
+import { buildHouse } from './house';
+import { M, cyl, mesh } from '../render/kit';
 
 /* ================================================================== */
 /* Chapter 7 — 우리 동네. The front door is open: the leverage lesson   */
@@ -202,7 +207,7 @@ const S7_2: LevelDef = {
     tree(b, -10, -6, 0.75);
     hedge(b, { x: 0, z: 6.3, w: 21, d: 0.8, h: 1.1 });
     b.actor('할머니', GRANDMA, -6.5, 0.8, -3.2, 0, [1.4, -2.2]);
-    b.watcher('할머니', { range: 10, half: 0.55, cycle: [[3.2, 1.15], [3.0, 0.15], [3.4, Math.PI]] });
+    b.watcher('할머니', { range: 10, half: 0.55, cycle: [[3.2, 1.15], [3.0, 0.15], [3.4, Math.PI]], stays: true });
     b.cat(-1.5, 0, 0.5);
   },
 };
@@ -387,4 +392,74 @@ const S7_5: LevelDef = {
   },
 };
 
-export const CH7: LevelDef[] = [S7_1, S7_2, S7_3, S7_5];
+/* ================================================================== */
+/* 7-4  아저씨의 프라모델 — paint makes the bench slippery              */
+/* ================================================================== */
+
+const UNCLE = { shirt: '#7fb8ff', pants: '#5b5f73', hair: '#3b2a24', glasses: true, apron: '#5bb98c' };
+/** the bench top */
+const BENCH = { x0: -5.6, x1: 2.25, z: -3.55, d: 1.7, h: 1.5 };
+
+const S7_4: LevelDef = {
+  id: '7-4', chapter: 7, theme: 'street', title: '아저씨의 프라모델', subtitle: '석 달 걸린 전함, 안테나 하나만 남았다',
+  paws: 4,
+  goal: { kind: 'break', text: '완성 직전 프라모델을 망가뜨려라', short: '프라모델 망가뜨리기' },
+  stars: [1800000, 4500000],
+  challenges: [
+    { type: 'stat', key: 'spills', min: 3, text: '페인트 통 3개 쏟기' },
+    { type: 'count', kind: 'smallKit', n: 3, text: '완성 프라모델 3개도 깨기' },
+    { type: 'discover', id: 'perfect', text: '아저씨 몰래 (완전 범죄)' },
+  ],
+  tip: '받침대가 무거워 앞발로는 조금밖에 안 밀려요. 그런데 작업대가 미끄러우면…? 페인트가 프라모델에 직접 쏟아지면 값이 반토막!',
+  hints: [
+    '페인트 통을 넘어뜨리면 그 자리에 미끄러운 웅덩이가 생겨요.',
+    '노란 페인트 통을 벽 쪽으로 툭 — 프라모델 바로 옆이 미끄러워져요. 프라모델 위에 쏟으면 페인트 범벅(반값)!',
+    '웅덩이 쪽으로 프라모델을 밀면 작업대 끝까지 쭉. 아저씨가 커피 타러 간 사이에!',
+  ],
+  hintMove: { prop: 'paintCan', near: [1.9, 1.5, -3.6], dir: [0, -1] },
+  start: [0, -1],
+  ownerLine: '내 전함… 석 달이…!!',
+  reactor: '아저씨',
+  prelude: (k) => {
+    const a = k.actor('아저씨');
+    k.cam('kitModel', 0.6);
+    a.walkTo(0.6, -2.1).turnTo(0.6, -3.6).do('work', 2.2).do('admire', 1.4).walkTo(0.9, -1.1).turnTo(0.9, -3.6);
+    k.at(0.6, () => k.glint('kitModel', '#ff9fc0'));
+    k.at(2.4, () => { k.say('아저씨', '마지막 안테나… 됐다!', 1.8); k.glint('kitModel', '#ff9fc0'); });
+    k.at(4.6, () => k.say('아저씨', '석 달 걸렸네. 커피 한 잔 해야지~', 2));
+    return 7;
+  },
+  build(b) {
+    buildHouse(b, { rooms: [rect('garage', '차고 작업실', 0, 0, 15, 9, 'concrete', 'garage')], base: '#6f7f8f' });
+    b.game.view.playWidth = 13;
+    C4.workbench(b, { ...BENCH, wallZ: -4.5 });
+    const y = BENCH.h;
+    const kits = (p: { kind: string }) => p.kind === 'kitModel' || p.kind === 'smallKit';
+    const spill = (game: import('../game/Game').Game, at: import('three').Vector3, by: import('../game/Prop').Prop) => paintAround(game, at, 1.25, by, kits);
+    C4.paintCan(b, { at: [-4.9, y, -3.7], color: '#ff6b8a', name: '분홍 페인트', onSpill: spill });
+    C4.paintCan(b, { at: [-4.25, y, -3.4], color: '#4f86c6', name: '파랑 페인트', onSpill: spill });
+    C4.paintCan(b, { at: [2.0, y, -3.55], color: '#ffd23f', name: '노랑 페인트', onSpill: spill });
+    C4.modelKit(b, { at: [0.6, y, -3.6], target: true });
+    C4.toolbox(b, { at: [-2.5, y, -3.6] });
+    C4.sprayCan(b, { at: [-1.3, y, -3.1], color: '#5ec4c9' });
+    C4.sprayCan(b, { at: [-1.0, y, -3.9], color: '#ff9f43' });
+    C.deskLamp(b, { at: [-3.4, y, -4.0] });
+    // the finished ones, in the display cabinet by the bench
+    const vit = C3.vitrine(b, { at: [5.1, 0, -3.4], w: 1.7, h: 3.8, d: 1.0, shelves: 3, color: '#8e95a8', name: '완성품 진열장', value: 450000 });
+    const types = ['plane', 'tank', 'robot'] as const;
+    vit.shelfY.forEach((sy, i) => {
+      C4.smallKit(b, { at: [4.75, sy, -3.4], type: types[i % 3], color: ['#7fb8ff', '#9bc48a', '#ff8fa3'][i % 3] });
+      C4.smallKit(b, { at: [5.45, sy, -3.4], type: types[(i + 1) % 3], color: ['#ffd23f', '#c9a0dc', '#5ec4c9'][i % 3] });
+    });
+    // the garage itself: the car, a paint can on the floor, the stool
+    C3.car(b, { at: [-3.4, 0, 2.2], parked: true, color: '#9bc48a', name: '아저씨 차', value: 21000000, worth: { owner: '옆집 아저씨' } });
+    C4.paintCan(b, { at: [4.6, 0, 0.6], color: '#5bb98c', name: '초록 페인트', onSpill: spill });
+    C3.bucket(b, { at: [6.2, 0, -1.2] });
+    b.solid(mesh(cyl(0.35, 0.3, 1.0, 10), M('#e05a5a')), [{ shape: 'cyl', r: 0.35, hh: 0.5, at: [0, 0.5, 0] }], [0.9, 0, -0.6]);
+    b.actor('아저씨', UNCLE, 0.9, 0, -1.1, Math.PI, [0.6, -2.2]);
+    b.watcher('아저씨', { range: 9, half: 0.6, cycle: [[3.5, 0], [2.5, 0.4]], patrol: [[0.9, -1.1, 6], [6.4, 3.8, 6, 1]] });
+    b.cat(-1.5, 0, 1.6);
+  },
+};
+
+export const CH7: LevelDef[] = [S7_1, S7_2, S7_3, S7_4, S7_5];

@@ -7,6 +7,10 @@ import type { Builder } from './Builder';
 import { M, box, cyl, mesh } from '../render/kit';
 import { buildHouse, doorOn, posterOn, table, windowOn } from './house';
 import { rect } from './rooms';
+import * as C4 from '../game/catalog4';
+import { latch, unlatch } from '../game/specials4';
+import type { Prop } from '../game/Prop';
+import { buildLot, roadLines, shopFront, streetLamp, tree } from './outdoor';
 
 /* ================================================================== */
 /* Chapter 8 — 상점가. Shops and offices: carriers, wheeled things,     */
@@ -178,4 +182,179 @@ const S8_2: LevelDef = {
   },
 };
 
-export const CH8: LevelDef[] = [S8_1, S8_2];
+/* ================================================================== */
+/* 8-3  마트 카트 대행진 — a line of carts on a latch                   */
+/* ================================================================== */
+
+const MART_CLERK = { shirt: '#5ec4c9', pants: '#3b3f63', hair: '#2a1c14', apron: '#ff9f43', hat: 'cap' as const, hatColor: '#ff9f43' };
+const LANE_Z = -3.9;
+
+const S8_3: LevelDef = {
+  id: '8-3', chapter: 8, theme: 'shops', title: '마트 카트 대행진', subtitle: '점원이 세 시간 쌓은 특가 통조림 탑',
+  paws: 3,
+  goal: { kind: 'floor', count: 15, text: '통조림 탑을 무너뜨려라 (15개)', short: '통조림 15개' },
+  stars: [600000, 900000],
+  challenges: [
+    { type: 'count', kind: 'bottle', n: 3, text: '와인 3병도 깨기' },
+    { type: 'stat', key: 'cansDown', min: 24, text: '통조림 24개 이상' },
+    { type: 'discover', id: 'perfect', text: '점원 몰래 (완전 범죄)' },
+  ],
+  tip: '통조림은 앞발로 몇 개씩밖에 못 떨어뜨려요. 2층 카트 보관대의 카트들은 고리 하나로 묶여 있어요.',
+  hints: [
+    '카트 고리를 툭 — 카트 세 대가 무빙워크를 타고 줄줄이 내려가요.',
+    '맨 앞 카트에는 수박이 실려 있어요. 카트가 멈추면 짐은 계속 날아가요!',
+    '점원은 통로를 왔다 갔다 해요. 등을 돌렸을 때 고리를 풀어요.',
+  ],
+  hintMove: { prop: 'lever', dir: [1, 0] },
+  start: [-1, -1.5],
+  ownerLine: '내 세 시간이…!! 누가 카트를 풀었어?!',
+  reactor: '점원',
+  prelude: (k) => {
+    const a = k.actor('점원');
+    k.cam('can', 0.55);
+    a.walkTo(4.2, -2.6).turnTo(5.5, LANE_Z).do('work', 2.0).do('admire', 1.4).walkTo(2.0, -1.6);
+    k.at(0.6, () => k.glint('can', '#ffe680'));
+    k.at(2.2, () => k.say('점원', '마지막 한 캔… 완성! 세 시간 걸렸다~', 2.0));
+    k.at(4.8, () => k.say('점원', '특가 행사 시작합니다~!', 1.6));
+    return 7;
+  },
+  build(b) {
+    buildHouse(b, { rooms: [rect('mart', '마트', 0, 0, 20, 11, 'marttile', 'mart')], base: '#7f9fc4' });
+    b.game.view.playWidth = 17;
+    // upstairs cart bay and the moving walkway down
+    C4.platform(b, { x0: -10, x1: -4.5, z0: -5.5, z1: -1.0, y: 2.0, rail: ['z1'] });
+    b.invisible([{ shape: 'box', hx: 0.05, hy: 0.6, hz: 0.9, at: [-4.5, 2.6, -1.9] }], [0, 0, 0]);
+    C4.rampX(b, { x0: -4.5, x1: 0.5, y0: 2.0, y1: 0, z0: -5.0, z1: -2.8 });
+    const carts: Prop[] = [];
+    for (let i = 0; i < 3; i++) carts.push(C3.shoppingCart(b, { at: [-5.4 - i * 1.85, 2.0, LANE_Z] }));
+    const melons = [C3.watermelon(b, { at: [-5.1, 2.86, LANE_Z - 0.28], r: 0.32 }), C3.watermelon(b, { at: [-5.1, 2.86, LANE_Z + 0.3], r: 0.32 })];
+    for (const c of carts) latch(c);
+    for (const m of melons) { latch(m); m.spec.angDamp = 0.9; m.body.setAngularDamping(0.9); }
+    C3.lever(b, {
+      at: [-4.9, 2.0, -2.25], label: '카트 고리 풀기', word: '철컥! 우르르', rot: Math.PI / 2,
+      action: (game, self) => {
+        carts.forEach((c) => unlatch(game, c, self, new THREE.Vector3(2.2, 0, 0)));
+        for (const m of melons) unlatch(game, m, carts[0], new THREE.Vector3(2.2, 0, 0));
+        game.discover('trigger', self.center(new THREE.Vector3()));
+      },
+    });
+    // the special-offer tower
+    const disp = C4.displayTable(b, { at: [6.0, 0, LANE_Z], w: 1.0, d: 3.4, h: 0.95 });
+    const cans = C4.canPyramid(b, { x: 6.0, y: disp.top, z: LANE_Z, rows: 7, target: true, along: 'z' });
+    b.game.addUpdater(() => {
+      // a can knocked over counts as the tower coming down
+      for (const c of cans) if (!c.onFloor && (c.toppled || c.fell)) c.onFloor = true;
+      const n = cans.filter((c) => c.onFloor || c.damaged || !c.alive).length;
+      b.game.best('cansDown', n);
+    });
+    // eggs and wine just past it
+    const et = C4.displayTable(b, { at: [8.6, 0, LANE_Z], w: 1.8, d: 2.8, h: 1.0, color: '#ffffff', name: '달걀·와인 매대' });
+    C.eggCarton(b, { at: [8.1, et.top, LANE_Z - 0.7] });
+    C.eggCarton(b, { at: [8.1, et.top, LANE_Z + 0.6] });
+    for (let i = 0; i < 4; i++) C.bottle(b, { at: [9.15, et.top, LANE_Z - 1.0 + i * 0.65] });
+    // aisles and odds and ends
+    C4.gondola(b, { x0: -4.5, x1: 5.5, z: 0.4 });
+    C4.gondola(b, { x0: -4.5, x1: 5.5, z: 3.4 });
+    C3.fruitCrate(b, { at: [2.2, 0, -1.6], n: 6 });
+    C3.waterPack(b, { at: [-1.6, 0, -1.4] });
+    C3.bucket(b, { at: [0.9, 0, -2.2] });
+    b.actor('점원', MART_CLERK, 2.0, 0, -1.6, Math.PI / 2, [5, -2.4]);
+    b.watcher('점원', { range: 9, half: 0.55, cycle: [[3, 0], [2.5, -1.2], [2.5, 0.4]], patrol: [[2.0, -1.6, 5], [7.4, -1.4, 5]] });
+    b.cat(-2.5, 0, -1.6);
+  },
+};
+
+/* ================================================================== */
+/* 8-4  상점가 대참사 — three shops, one puddle, one extension cord     */
+/* ================================================================== */
+
+const FLORIST = { shirt: '#ffb3c6', pants: '#5b8c6a', hair: '#7a4a2e', apron: '#5bb98c', tool: 'waterCan' as const };
+
+const S8_4: LevelDef = {
+  id: '8-4', chapter: 8, theme: 'shops', title: '상점가 대참사', subtitle: '빵집, 꽃집, 전자상가가 나란히',
+  paws: 3,
+  goal: { kind: 'score', amount: 6000000, text: '상점가 피해 ₩600만 만들기', short: '₩600만' },
+  stars: [10000000, 13500000],
+  challenges: [
+    { type: 'count', kind: 'tv', n: 3, text: '세일 TV 3대 전부 망가뜨리기' },
+    { type: 'cause', victim: 'auto', culprit: 'sign', text: '떨어진 간판으로 불법 주차 차 찌그러뜨리기' },
+    { type: 'discover', id: 'perfect', text: '꽃집 사장님 몰래 (완전 범죄)' },
+  ],
+  tip: '세 가게는 이어져 있어요. 꽃 양동이의 물은 어디까지 흐를까요? 인도 위 멀티탭에는 전자상가 전부가 꽂혀 있어요.',
+  hints: [
+    '꽃 양동이는 울타리 안이라 앞발이 안 닿아요. 무언가 크게 넘어져 덮친다면…?',
+    '전자상가 간판도 같은 멀티탭에 연결돼 있어요. 합선되면 간판 아래 차는…',
+    '빵집 진열장은 위쪽을 두 번 연달아 밀면 넘어가요. 꽃 양동이 쪽으로!',
+  ],
+  hintMove: { prop: 'vitrine', dir: [1, 0] },
+  start: [0, -1],
+  ownerLine: '아니, 이게 다 무슨 일이야?!',
+  reactor: '꽃집 사장',
+  prelude: (k) => {
+    const a = k.actor('꽃집 사장');
+    k.cam('flowerBucket', 0.6);
+    a.walkTo(-1.4, -2.8).turnTo(-1.4, -3.9).do('water', 2.0).walkTo(1.8, -2.6).turnTo(4.0, -3.6);
+    k.at(0.6, () => k.glint('tv', '#ffe680'));
+    k.at(2.2, () => k.say('꽃집 사장', '전자상가 연장선이 또 우리 가게 앞이네…', 2.2));
+    k.at(4.8, () => k.say('꽃집 사장', '물 조심해야지~', 1.4));
+    return 6.6;
+  },
+  build(b) {
+    buildLot(b, {
+      bounds: { minX: -14, maxX: 14, minZ: -8, maxZ: 7 },
+      patches: [
+        { x0: -14, x1: 14, z0: -8, z1: -5, kind: 'paving' },
+        { x0: -14, x1: 14, z0: -5, z1: -1.4, kind: 'paving' },
+        { x0: -14, x1: 14, z0: -1.4, z1: 4.6, kind: 'asphalt' },
+        { x0: -14, x1: 14, z0: 4.6, z1: 7, kind: 'paving' },
+      ],
+      base: '#7d7f9a',
+      height: 7,
+      labels: [{ name: '구름빵집', x: -9.5, z: -2 }, { name: '꽃다발', x: 0, z: -2 }, { name: '반짝전자', x: 9.5, z: -2 }],
+    });
+    b.game.view.playWidth = 19;
+    roadLines(b, { x0: -14, x1: 14, z: 1.6 });
+    shopFront(b, { x: -9.5, z: -6, w: 8.6, color: '#fff1d6', sign: '#ff9f43', awning: '#ffcf5c' });
+    shopFront(b, { x: 0, z: -6, w: 8.6, color: '#f4fff4', sign: '#5bb98c', awning: '#ff8fa3' });
+    shopFront(b, { x: 9.5, z: -6, w: 8.6, color: '#eef3ff', sign: '#4f86c6', awning: '#7fb8ff' });
+    // bakery: the glass cake tower by the door
+    const vit = C3.vitrine(b, { at: [-5.0, 0, -4.1], w: 1.5, h: 4.2, d: 1.0, shelves: 3, color: '#c98a5a', name: '케이크 진열장', value: 1600000 });
+    vit.shelfY.forEach((y, i) => C.cake(b, { at: [-5.0, y, -4.1], name: i === 2 ? '웨딩 케이크' : '생크림 케이크', value: i === 2 ? 450000 : 60000 }));
+    // florist: buckets of flowers, pots on a stand
+    for (const [x, c] of [[-3.4, '#7fb8d8'], [-2.6, '#c9a0dc'], [-1.8, '#7fb8d8']] as const) C4.flowerBucket(b, { at: [x, 0, -3.9], color: c, interactable: false });
+    // a low picket keeps paws (not falling cabinets) away from the buckets
+    const pk = new THREE.Group();
+    for (let i = 0; i < 9; i++) pk.add(mesh(box(0.08, 0.55, 0.08, 0.01), M('#ffffff'), { pos: [-3.85 + i * 0.3, 0.27, 0] }));
+    pk.add(mesh(box(2.6, 0.06, 0.06, 0.01), M('#ffffff'), { pos: [-2.6, 0.42, 0] }));
+    b.deco(pk);
+    pk.position.z = -3.15;
+    const sh = C4.saleStand(b, { x0: 1.0, x1: 3.0, z: -4.2, d: 1.0, h: 0.6, color: '#c98a5a' });
+    for (let i = 0; i < 3; i++) C3.flowerPot(b, { at: [1.3 + i * 0.7, sh, -4.2], rot: i });
+    // the electronics shop's sidewalk sale, all on one extension cord
+    const strip = C3.powerStrip(b, { at: [-0.7, 0, -3.0], rot: 0.2 });
+    const tvh = C4.saleStand(b, { x0: 5.4, x1: 13.2, z: -4.4, d: 1.1, h: 0.7, color: '#ff6b6b' });
+    const tvs = [6.6, 9.3, 12.0].map((x) => C.tv(b, { at: [x, tvh, -4.4], name: '세일 TV', value: 1200000 }));
+    strip.strip.plugged.push(...tvs);
+    // the illegally parked boss's car, under the neon sign
+    C3.car(b, { at: [9.0, 0, -2.3], parked: true, color: '#2f3142', name: '사장님 차', value: 18000000, worth: { owner: '전자상가 사장님' } });
+    const sign = C4.neonSign(b, { at: [9.0, 4.6, -2.3], text: '반짝', name: '반짝전자 네온 간판' });
+    strip.strip.onShort = (game, by) => {
+      // the neon is on the same cord: it sparks, and the old bracket gives
+      sign.cause = by; sign.causeCat = false; sign.activeSwat = game.swatIndex;
+      game.unpin(sign);
+      game.emit({ type: 'word', text: '끼익… 간판이!', pos: sign.center(new THREE.Vector3()).add(new THREE.Vector3(0, 1, 0)), size: 1.1, color: '#ffd23f' });
+    };
+    // street furniture
+    streetLamp(b, -12.5, -1.8);
+    streetLamp(b, 5.0, 5.6);
+    tree(b, -12.6, 5.8, 0.7);
+    tree(b, 12.6, 5.8, 0.7);
+    C3.wheelieBin(b, { at: [-12.4, 0, -2.6] });
+    C3.cone3(b, { at: [4.4, 0, -1.8] });
+    b.actor('꽃집 사장', FLORIST, 1.8, 0, -2.6, -Math.PI / 2, [0, -1]);
+    b.watcher('꽃집 사장', { range: 9, half: 0.55, cycle: [[3, 0], [2.5, -1.4], [2.5, 0.6]], patrol: [[1.8, -2.6, 6], [0.2, -5.4, 5, 1]] });
+    b.cat(-6, 0, 0.5);
+  },
+};
+
+export const CH8: LevelDef[] = [S8_1, S8_2, S8_3, S8_4];

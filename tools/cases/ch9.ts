@@ -31,3 +31,12 @@ CASES.push(
   { level: '9-4', name: 'crane, then the truck into the right tower', expect: 'win', challenges: [0, 1, 2], plan: [wait(2), hit('lever', [1, 0], 0.5, 1, CRANE94), hit('chock', [-1, 0], 0.8, 10)] },
   { level: '9-4', name: 'only the right tower (truck + ball)', expect: 'lose', plan: [hit('lever', [-1, 0], 0.5, 3, BALL94), hit('chock', [-1, 0], 0.8, 10)] },
 );
+
+const wait9 = (s: number): Action => ({ pick: 'wait', dir: [0, 0], power: 0, wait: s });
+CASES.push(
+  // 9-2 출근길 사거리
+  { level: '9-2', name: 'green just as the float enters (3★, pile-up)', expect: 'win', minStars: 3, challenges: [0, 1, 2], plan: [wait9(1), hit('button', [1, 0], 0.5, 8)] },
+  { level: '9-2', name: 'second float, a little late (2★)', expect: 'win', minStars: 2, challenges: [1], plan: [wait9(7), hit('button', [1, 0], 0.5, 8)] },
+  { level: '9-2', name: 'green between floats: the cars just go', expect: 'lose', plan: [wait9(4), hit('button', [1, 0], 0.5, 8)] },
+  { level: '9-2', name: 'pawing the float itself', expect: 'lose', plan: [wait9(2), hit('float', [1, 0], 1, 3), hit('float', [1, 0], 1, 3)] },
+);

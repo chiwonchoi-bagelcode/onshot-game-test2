@@ -91,7 +91,8 @@ export function runPlan(level: LevelDef, plan: Action[], verbose = false): SimOu
   let guard = 0;
   while (g.phase === 'ready' && guard++ < 60 * 25) {
     g.simulate(1 / 60);
-    if (g.goalComplete && g.paws > 0 && !g.busy()) g.requestEnd();
+    // the player taps 시치미 once things settle (or once nothing new has happened for a long while)
+    if (g.goalComplete && g.paws > 0 && (!g.busy() || g.time - g.lastActionTime > 14)) g.requestEnd();
   }
   g.simulate(0.2);
   for (const p of g.props) if ((p.broken || p.damaged) && !startBroken.has(p.id)) broken.push(p.name);

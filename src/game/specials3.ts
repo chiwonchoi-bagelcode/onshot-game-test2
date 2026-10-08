@@ -5,6 +5,7 @@ import type { Special } from './types';
 import type { Loop } from '../audio/Sfx';
 import { clamp, rand, srand } from '../core/util';
 import { GRAVITY as GRAV } from '../core/constants';
+import type { Driver } from './specials4';
 
 /* ------------------------------------------------------------------ */
 /* Outside-world gadgets. The paw never gets stronger: it pulls a      */
@@ -65,14 +66,20 @@ export class CarSpecial implements Special {
   held = false;
   /** on a gentle slope: don't brake before it has had a chance to get going */
   gentle = false;
+  /** traffic: someone is at the wheel (until it hits something) */
+  driver: Driver | null = null;
   constructor(private parts: CarParts, private glassMat: THREE.MeshLambertMaterial, private crackedMat: THREE.Material) {}
   busy() { return false; }
 
   /** rolling resistance: free-wheeling while fast, brakes to a stop when slow or wrecked */
   private damp = -1;
   private peak = 0;
-  step(_g: Game, p: Prop) {
+  step(_g: Game, p: Prop, h: number) {
     if (this.held) return;
+    if (this.driver && !this.driver.crashed) {
+      this.driver.step(_g, p, h);
+      if (!this.driver.crashed) return;
+    }
     const v = p.body.linvel();
     const sp = v.x * v.x + v.z * v.z;
     this.peak = Math.max(this.peak, sp);
@@ -133,6 +140,7 @@ export class CarSpecial implements Special {
 
   private damage(game: Game, p: Prop, to: CarStage, at: THREE.Vector3) {
     if (to <= this.stage) return;
+    if (to >= 2 && this.driver && !this.driver.crashed) this.driver.crash(game, p);
     const from = this.stage;
     this.stage = to;
     const cost = Math.round(p.value * (STAGE_COST[to] - STAGE_COST[from]));
@@ -342,6 +350,8 @@ export class CableSpecial implements Special {
 /** a power strip on the floor: if water reaches it, everything plugged in dies */
 export class PowerStripSpecial implements Special {
   plugged: Prop[] = [];
+  /** something else on the same circuit (a neon sign letting go) */
+  onShort: ((game: Game, p: Prop) => void) | null = null;
   private dead = false;
   busy() { return false; }
   step(game: Game, p: Prop) {
@@ -362,6 +372,7 @@ export class PowerStripSpecial implements Special {
       game.breakProp(q, 99);
     }
     if (k) game.count('short', k);
+    this.onShort?.(game, p);
   }
 }
 

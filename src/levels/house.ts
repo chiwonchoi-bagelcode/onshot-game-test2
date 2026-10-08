@@ -12,8 +12,8 @@ import type { ColDef } from '../game/types';
 export const T = 0.35; // exterior wall thickness
 export const IT = 0.24; // interior wall thickness
 
-export type FloorKind = 'wood' | 'checker' | 'lilac' | 'tile' | 'playmat' | 'darkwood' | 'herring';
-export type WallKind = 'mint' | 'butter' | 'night' | 'bath' | 'play' | 'hall' | 'study';
+export type FloorKind = 'wood' | 'checker' | 'lilac' | 'tile' | 'playmat' | 'darkwood' | 'herring' | 'concrete' | 'marttile';
+export type WallKind = 'mint' | 'butter' | 'night' | 'bath' | 'play' | 'hall' | 'study' | 'garage' | 'mart' | 'steel';
 
 interface WallStyle { wall: string; paper?: () => THREE.Texture | undefined; wainscot: string; trim: string; inner: string }
 const WALLS: Record<WallKind, WallStyle> = {
@@ -24,6 +24,9 @@ const WALLS: Record<WallKind, WallStyle> = {
   play: { wall: '#ffd6e3', paper: () => starTexture2('#ffd6e3', '#ffeef4', [10, 6]), wainscot: '#c9f2d6', trim: '#ffffff', inner: '#ffe3ec' },
   hall: { wall: '#e9d8c4', paper: () => stripeTexture('#efe1cf', '#e4d1bb', [16, 1]), wainscot: '#b9825a', trim: '#ffffff', inner: '#f2e6d6' },
   study: { wall: '#7fae94', paper: () => stripeTexture('#86b59b', '#79a78d', [12, 1]), wainscot: '#5b3b2b', trim: '#e8d6b5', inner: '#94c0a8' },
+  garage: { wall: '#c9ccd6', paper: () => tileTexture('#cdd0da', '#bfc3ce', [10, 4]), wainscot: '#8e95a8', trim: '#ffd23f', inner: '#d6d9e2' },
+  mart: { wall: '#eaf4ff', paper: () => stripeTexture('#eef6ff', '#e2effc', [20, 1]), wainscot: '#5ec4c9', trim: '#ffffff', inner: '#f4faff' },
+  steel: { wall: '#9aa6bd', paper: () => tileTexture('#a3aec4', '#8f9ab2', [8, 4]), wainscot: '#4a5268', trim: '#ffd23f', inner: '#b3bdd1' },
 };
 
 interface FloorStyle { tex: (w: number, d: number) => THREE.Texture | undefined; color: string; slab: string }
@@ -35,6 +38,8 @@ const FLOORS: Record<FloorKind, FloorStyle> = {
   playmat: { tex: (w, d) => matTexture([w / 2, d / 2]), color: '#ffe08a', slab: '#f2a65a' },
   darkwood: { tex: (w, d) => plankTexture('#a8714a', '#865636', [w / 2.6, d / 2.6]), color: '#a8714a', slab: '#6e452b' },
   herring: { tex: (w, d) => plankTexture('#d9a877', '#b98757', [w / 1.6, d / 2.6]), color: '#d9a877', slab: '#a8774c' },
+  concrete: { tex: (w, d) => tileTexture('#d9d6d0', '#c9c5bd', [w / 3, d / 3]), color: '#d9d6d0', slab: '#a8a49c' },
+  marttile: { tex: (w, d) => checkerTexture('#ffffff', '#e4eef7', [w / 1.4, d / 1.4]), color: '#ffffff', slab: '#9fb8d0' },
 };
 
 export interface RoomDef {

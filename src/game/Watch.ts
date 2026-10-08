@@ -19,6 +19,8 @@ export interface WatchDef {
   cycle: [number, number][];
   /** walks a loop: [x, z, seconds to stand there, 1 = out of sight there (next carriage)] */
   patrol?: ([number, number, number] | [number, number, number, number])[];
+  /** can't leave the spot (behind a window): a meow only turns the head */
+  stays?: boolean;
 }
 
 const _v = new THREE.Vector3();
@@ -30,6 +32,10 @@ export class Watcher {
   private period: number;
   private leg = 0;
   private mat: THREE.MeshBasicMaterial;
+  /** called away by a meow: walking to and staring at a spot */
+  private lured = false;
+  private home: { x: number; z: number; yaw: number } | null = null;
+  private stare: { x: number; z: number; until: number } | null = null;
 
   constructor(readonly actor: Actor, readonly def: WatchDef) {
     this.cone = Actor.visionCone(def.range, def.half, '#ff8f6b');
@@ -55,9 +61,14 @@ export class Watcher {
 
   update(game: Game, dt: number) {
     const a = this.actor;
-    if (game.phase === 'ready' || game.phase === 'intro') a.lookYaw = this.yawAt(game.time);
+    if (this.stare && game.time > this.stare.until) { this.stare = null; this.lured = false; }
+    if (this.stare) {
+      let y = Math.atan2(this.stare.x - a.pos.x, this.stare.z - a.pos.z) - a.group.rotation.y;
+      y = Math.atan2(Math.sin(y), Math.cos(y));
+      a.lookYaw += (y - a.lookYaw) * Math.min(1, dt * 6);
+    } else if (game.phase === 'ready' || game.phase === 'intro') a.lookYaw = this.lured ? 0 : this.yawAt(game.time);
     const pt = this.def.patrol;
-    if (pt && game.phase === 'ready' && !game.caught && !a.busy()) {
+    if (pt && game.phase === 'ready' && !game.caught && !a.busy() && !this.lured) {
       const [x, z, w, hide] = pt[this.leg % pt.length];
       this.leg++;
       a.group.visible = true;
@@ -99,4 +110,25 @@ export class Watcher {
   }
 
   alert() { this.alertT = 0.8; }
+
+  /**
+   * A meow from over there: walk up to (x, z), stare at it for `dur` seconds,
+   * then go back (patrollers just carry on with their round). Too far = no reaction.
+   */
+  lure(game: Game, x: number, z: number, dur: number): boolean {
+    const a = this.actor;
+    if (game.caught || Math.hypot(x - a.pos.x, z - a.pos.z) > 16) return false;
+    if (this.def.stays) { this.stare = { x, z, until: game.time + dur }; this.lured = true; return true; }
+    if (!this.def.patrol && !this.home) this.home = { x: a.pos.x, z: a.pos.z, yaw: a.group.rotation.y };
+    a.clear();
+    a.group.visible = true;
+    const d = Math.hypot(x - a.pos.x, z - a.pos.z);
+    const k = d > 1.6 ? 1 - 1.3 / d : 0;
+    this.lured = true;
+    a.walkTo(a.pos.x + (x - a.pos.x) * k, a.pos.z + (z - a.pos.z) * k).turnTo(x, z).do('look', dur);
+    const h = this.home;
+    if (h) a.walkTo(h.x, h.z).turnTo(h.x + Math.sin(h.yaw), h.z + Math.cos(h.yaw));
+    a.then(() => { this.lured = false; });
+    return true;
+  }
 }

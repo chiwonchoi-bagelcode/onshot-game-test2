@@ -49,6 +49,8 @@ export class Prop {
   cause: Prop | null = null;
   /** was this the object the cat swatted in its chain */
   causeCat = false;
+  /** on paint or oil: friction as low as ice */
+  slick = false;
   /** swat index in which this prop last got involved */
   activeSwat = -1;
   /** ever swatted directly by the cat */

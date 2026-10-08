@@ -35,3 +35,16 @@ CASES.push(
   { level: '7-5', name: 'top and middle at once (wasted paw)', expect: 'lose', plan: [hit('chock', [1, 0], 0.8, 0.3, A75), hit('chock', [1, 0], 0.8, 10, B75)] },
   { level: '7-5', name: 'paw the cars', expect: 'lose', plan: [hit('auto', [1, 0], 1, 2, [-6, 2, -1.7]), hit('auto', [1, 0], 1, 2, [-14, 3, -1.7])] },
 );
+
+const wait7 = (s: number): Action => ({ pick: 'wait', dir: [0, 0], power: 0, wait: s });
+const YELLOW: [number, number, number] = [2, 1.5, -3.55];
+CASES.push(
+  // 7-4 아저씨의 프라모델
+  { level: '7-4', name: 'paint by the wall, glide the model off the bench', expect: 'win', minStars: 2, plan: [hit('paintCan', [0, -1], 0.6, 2.5, YELLOW, 'top'), hit('kitModel', [1, 0], 1, 5)] },
+  { level: '7-4', name: 'paint in front works too', expect: 'win', minStars: 2, plan: [hit('paintCan', [0, 1], 0.4, 2.5, YELLOW, 'top'), hit('kitModel', [1, 0], 1, 5)] },
+  { level: '7-4', name: 'while he makes coffee (perfect crime)', expect: 'win', minStars: 2, challenges: [2], plan: [wait7(4), hit('paintCan', [0, -1], 0.6, 1.5, YELLOW, 'top'), hit('kitModel', [1, 0], 1, 4)] },
+  { level: '7-4', name: 'model off the bench + the display cabinet (3★)', expect: 'win', minStars: 3, challenges: [1, 2], plan: [wait7(4), hit('paintCan', [0, -1], 0.6, 1.5, YELLOW, 'top'), hit('kitModel', [1, 0], 1, 3), hit('vitrine', [0, 1], 1, 0.9, undefined, 0.86), hit('vitrine', [0, 1], 1, 5, undefined, 0.86)] },
+  { level: '7-4', name: 'all three tins on the bench', expect: 'win', challenges: [0], plan: [hit('paintCan', [0, 1], 0.5, 1.5, [-4.9, 1.5, -3.7], 'top'), hit('paintCan', [0, 1], 0.5, 1.5, [-4.25, 1.5, -3.4], 'top'), hit('paintCan', [0, -1], 0.6, 1.5, YELLOW, 'top'), hit('kitModel', [1, 0], 1, 4)] },
+  { level: '7-4', name: 'paint poured on the model (half price, 1★)', expect: 'win', maxStars: 1, plan: [hit('paintCan', [-1, 0], 0.4, 3, YELLOW, 'top')] },
+  { level: '7-4', name: 'shoving the heavy base by paw', expect: 'lose', plan: [hit('kitModel', [1, 0], 1, 3), hit('kitModel', [0, 1], 1, 3), hit('kitModel', [0, 1], 1, 3)] },
+);

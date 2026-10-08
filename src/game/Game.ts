@@ -76,10 +76,12 @@ export interface Result {
 }
 
 /** cat tricks: one equipped per run, used once, costs a paw */
-export type TrickId = 'hairball' | 'knead';
+export type TrickId = 'hairball' | 'knead' | 'meow' | 'zoomies';
 export const TRICKS: Record<TrickId, { icon: string; name: string; desc: string }> = {
   hairball: { icon: '🌀', name: '헤어볼', desc: '고른 물건 아래에 미끄러운 웅덩이를 만들어요.' },
   knead: { icon: '🍑', name: '꾹꾹이', desc: '고른 물건 위에 앉아 4초 동안 무게를 실어요.' },
+  meow: { icon: '📢', name: '야옹', desc: '고른 곳으로 사람을 불러 시선을 돌려요. 대신 의심이 30% 올라요.' },
+  zoomies: { icon: '🛹', name: '우다다', desc: '온몸으로 돌진해 무거운 것도 두 배로 밀어요. 엄청 시끄러워요.' },
 };
 
 export interface WaterZone { x0: number; x1: number; z0: number; z1: number; y0: number; top: number }
@@ -161,7 +163,7 @@ export class Game {
   brokenCount = 0;
   goalComplete = false;
   private goalAnnounced = false;
-  private lastActionTime = -100;
+  lastActionTime = -100;
   private settleTimer = 0;
   private endTimer = -1;
   private acc = 0;
@@ -501,7 +503,8 @@ export class Game {
   /** player committed a swat: the cat leaps and strikes after a short anticipation */
   swat(p: Prop, dir: THREE.Vector3, power: number, hit: THREE.Vector3): boolean {
     if (!this.canAct() || !p.alive) return false;
-    if (!this.reachable(p)) {
+    // a meow reaches anywhere; paws only reach so high
+    if (!this.reachable(p) && !(this.trickArmed && this.trick === 'meow' && !this.trickUsed && p.alive && p.interactable)) {
       this.emit({ type: 'toast', text: '너무 높아서 앞발이 닿지 않아요!' });
       this.sfx.denied();
       return false;
@@ -531,6 +534,15 @@ export class Game {
       this.emit({ type: 'trick', armed: false, used: true });
       this.count('trick:' + kind);
       if (kind === 'knead') strike.y = Math.min(this.reach, t.y + p.localBox.max.y);
+      if (kind === 'meow') {
+        // no leap: the cat stays put and calls out
+        this.doTrick(kind, p, strike);
+        return true;
+      }
+      if (kind === 'zoomies') {
+        this.cat.performSwat(this, p, d, strike, 1, () => { this.witness(strike, 30, 'cat'); this.doTrick(kind, p, strike, d); });
+        return true;
+      }
       this.cat.performSwat(this, p, d, strike, 0.3, () => { this.witness(strike, 10, 'cat'); this.doTrick(kind, p, strike); });
       if (kind === 'knead') this.cat.perch(p, 4, strike);
       return true;
@@ -539,7 +551,7 @@ export class Game {
     return true;
   }
 
-  private doTrick(kind: TrickId, p: Prop, point: THREE.Vector3) {
+  private doTrick(kind: TrickId, p: Prop, point: THREE.Vector3, dir?: THREE.Vector3) {
     this.lastActionTime = this.time;
     if (!p.alive) return;
     p.lastSwatAt = this.time;
@@ -554,6 +566,30 @@ export class Game {
       this.wakeAround(p);
       this.emit({ type: 'word', text: '퉤! 헤어볼', pos: c.clone().add(new THREE.Vector3(0, 0.8, 0)), size: 1.0, color: '#cdb8a8' });
       this.discover('hairball', c.clone());
+    } else if (kind === 'meow') {
+      // everyone in earshot comes to look at the spot; the cat itself is now on their mind
+      const cat = this.cat.group.position.clone();
+      this.sfx.meow('long', this.catDef.voice);
+      this.cat.say(this, '야옹~!', 1.6);
+      this.owner?.hear(this, cat, 26);
+      let came = 0;
+      for (const w of this.watchers) if (w.lure(this, c.x, c.z, 4.5)) came++;
+      if (this.watchers.length && !this.caught) {
+        this.suspicion = Math.min(100, this.suspicion + 30);
+        this.maxSuspicion = Math.max(this.maxSuspicion, this.suspicion);
+        this.emit({ type: 'suspicion', value: this.suspicion, seen: true });
+      }
+      this.emit({ type: 'word', text: came ? '저기 뭐지?' : '야옹~', pos: c.clone().add(new THREE.Vector3(0, 1.0, 0)), size: 0.9, color: '#ffe680' });
+      p.cause = null; p.causeCat = false;
+      this.discover('meow', c.clone());
+    } else if (kind === 'zoomies') {
+      // the whole cat, full tilt: twice the shove on heavy things, and the whole street hears it
+      this.applySwat(p, dir ?? new THREE.Vector3(0, 0, 1), 1, point, 2.2);
+      this.sfx.whoosh(1.2);
+      this.owner?.hear(this, point, 22);
+      this.shake(0.6);
+      this.emit({ type: 'word', text: '우다다다!', pos: point.clone().add(new THREE.Vector3(0, 0.7, 0)), size: 1.1, color: '#ffb36b' });
+      this.discover('zoomies', point.clone());
     } else {
       this.kneading = { p, t: 4, on: false };
       p.body.wakeUp();
@@ -575,7 +611,7 @@ export class Game {
     this.unpin(under);
   }
 
-  applySwat(p: Prop, dir: THREE.Vector3, power: number, point: THREE.Vector3) {
+  applySwat(p: Prop, dir: THREE.Vector3, power: number, point: THREE.Vector3, boost = 1) {
     this.lastActionTime = this.time;
     if (!p.alive) return;
     this.sfx.swat(power);
@@ -592,7 +628,7 @@ export class Game {
     if (!handled && !p.kinematic) {
       const m = body.mass();
       const st = this.catDef.stats;
-      const dv = PAW.vmax * st.speed * power * Math.min(1, (PAW.mref * st.power) / m);
+      const dv = PAW.vmax * st.speed * power * Math.min(boost > 1 ? 1.15 : 1, (PAW.mref * st.power * boost) / m);
       const imp = _v.copy(dir).multiplyScalar(dv * m);
       imp.y += PAW.lift * dv * m;
       body.applyImpulseAtPoint({ x: imp.x, y: imp.y, z: imp.z }, { x: point.x, y: point.y, z: point.z }, true);
@@ -629,7 +665,7 @@ export class Game {
    * for and goes on the receipt; `as: 'bonus'` is prank points (alarms,
    * wake-ups, domino style). The chain bonus is always prank points.
    */
-  addScore(amount: number, pos: THREE.Vector3, opts: { chain?: boolean; prop?: Prop; type?: ChainEvent['type']; as?: 'money' | 'bonus' } = {}) {
+  addScore(amount: number, pos: THREE.Vector3, opts: { chain?: boolean; prop?: Prop; type?: ChainEvent['type']; as?: 'money' | 'bonus'; heartK?: number } = {}) {
     const base = Math.round(amount * (this.perk === 'gold' ? 1.1 : 1));
     let total = base;
     let chainBonus = 0;
@@ -652,7 +688,7 @@ export class Game {
     else {
       this.money += base;
       this.bonus += chainBonus;
-      if (opts.prop) this.ledgerAdd(opts.prop, base, opts.type ?? 'other');
+      if (opts.prop) this.ledgerAdd(opts.prop, base, opts.type ?? 'other', opts.heartK);
     }
     this.emit({ type: 'score', amount: total, total: this.score, pos: pos.clone(), big: total >= 50000, chain: this.chain });
     this.checkGoal();
@@ -661,7 +697,7 @@ export class Game {
   private static WHAT_RANK: Record<LedgerEntry['what'], number> = { other: 0, topple: 1, fall: 2, dunk: 3, damage: 4, break: 5 };
 
   /** record real damage against a victim (one receipt line per prop) */
-  ledgerAdd(p: Prop, money: number, type: ChainEvent['type']) {
+  ledgerAdd(p: Prop, money: number, type: ChainEvent['type'], heartK = 1) {
     let e = this.run.ledger[p.id];
     if (!e) {
       e = { id: p.id, kind: p.kind, name: p.name, icon: p.icon, what: 'other', money: 0, heart: 0, owner: p.spec.worth?.owner, path: [] };
@@ -671,7 +707,7 @@ export class Game {
     const what = type as LedgerEntry['what'];
     if ((Game.WHAT_RANK[what] ?? 0) >= Game.WHAT_RANK[e.what]) e.what = what;
     // a precious thing counts its care once, when it is really ruined
-    const h = p.spec.worth?.heart ?? 0;
+    const h = (p.spec.worth?.heart ?? 0) * heartK;
     if (h && !e.heart && (what === 'break' || what === 'damage' || what === 'dunk')) {
       e.heart = h; this.heart += h;
       // ruining something loved is worth prank points (more for longer care, but gently)
@@ -827,17 +863,30 @@ export class Game {
 
   /** collider friction follows the puddles under each moving prop */
   private slide(p: Prop) {
-    let on = false;
+    let on = false, slick = false;
     if (this.slicks.length) {
       const t = p.body.translation();
       const bottom = t.y + p.localBox.min.y;
       for (const s of this.slicks) {
-        if (Math.abs(bottom - s.y) < 0.45 && (t.x - s.x) ** 2 + (t.z - s.z) ** 2 < s.r * s.r) { on = true; break; }
+        if (Math.abs(bottom - s.y) < 0.45 && (t.x - s.x) ** 2 + (t.z - s.z) ** 2 < s.r * s.r) { on = true; slick = s.kind === 'paint' || s.kind === 'oil'; break; }
       }
     }
-    if (on === p.slippery) return;
+    if (on === p.slippery && slick === p.slick) return;
     p.slippery = on;
-    p.colliderHandles.forEach((h, i) => this.world.getCollider(h)?.setFriction(on ? 0.02 : p.baseFriction[i]));
+    p.slick = on && slick;
+    const R = this.R.CoefficientCombineRule;
+    p.colliderHandles.forEach((h, i) => {
+      const c = this.world.getCollider(h);
+      if (!c) return;
+      c.setFriction(on ? 0.02 : p.baseFriction[i]);
+      // paint and oil: like ice, whatever the surface underneath
+      c.setFrictionCombineRule(p.slick ? R.Min : p.spec.frictionMin ? R.Min : R.Average);
+    });
+    // paint is thick: things glide far, but they do come to rest
+    if (p.spec.mass < 100) {
+      p.body.setLinearDamping(p.slick ? Math.max(0.15, p.spec.linDamp ?? 0.05) : (p.spec.linDamp ?? 0.05));
+      p.body.setAngularDamping(p.slick ? Math.max(1.2, p.spec.angDamp ?? 0.25) : (p.spec.angDamp ?? 0.25));
+    }
   }
 
   fx(kind: FxKind, pos: THREE.Vector3, k: number) {

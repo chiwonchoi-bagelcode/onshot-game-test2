@@ -119,7 +119,8 @@ export class Input {
       this.mode = { kind: 'pan', id: e.pointerId, x: e.clientX, y: e.clientY, x0: e.clientX, y0: e.clientY, moved: false, t0: now };
       return;
     }
-    if (!g.reachable(r.prop)) {
+    const meow = g.trickArmed && g.trick === 'meow' && !g.trickUsed;
+    if (!g.reachable(r.prop) && !meow) {
       g.emit({ type: 'toast', text: '너무 높아서 앞발이 닿지 않아요! 다른 방법을 찾아봐요' });
       this.sfx.denied();
       this.onInspect(r.prop, e.clientX, e.clientY);
