@@ -2,7 +2,7 @@
 import { runPlan } from './sim';
 import { CHAPTERS, LEVELS, REMIXES, levelById } from '../src/levels/index';
 import { freshProfile } from '../src/meta/profile';
-import { settle, chapterOpen, homeDone, stageOpen, totalStars } from '../src/meta/rewards';
+import { buy, settle, chapterOpen, homeDone, stageOpen, totalStars } from '../src/meta/rewards';
 import { INCIDENTS } from '../src/meta/incidents';
 import type { Case } from './cases/types';
 import { CASES as C1 } from './cases/ch1';
@@ -28,6 +28,9 @@ let doors = 0, ends = 0;
 for (const c of cases) {
   const level = levelById(c.level);
   if (!level) continue;
+  // a cat challenge: bring that cat home first (churu), as a player would
+  const want = level.remix?.cat;
+  if (want && !p.cats.includes(want)) check(buy(p, 'cat', want), `could not get ${want} for ${c.level}`);
   if (!stageOpen(p, level)) { check(false, `${c.level} played while still locked`); continue; }
   const r = runPlan(level, c.plan);
   if (!r.result) continue;
@@ -40,7 +43,9 @@ for (const c of cases) {
 check(homeDone(p), 'house done');
 check(doors === 1, `door opened exactly once (${doors})`);
 check(ends === 1, `world ended exactly once (${ends})`);
-check(p.tricks.includes('hairball') && p.tricks.includes('knead'), 'both tricks granted');
+check(['hairball', 'knead', 'meow', 'zoomies'].every((t) => p.tricks.includes(t)), 'all four tricks granted');
+const boardLeft = REMIXES.filter((l) => !p.levels[l.id]?.cleared).map((l) => l.id);
+check(!boardLeft.length, `every request and cat challenge cleared (left: ${boardLeft.join(', ')})`);
 check(CHAPTERS.every((c) => chapterOpen(p, c.id)), 'every chapter open');
 const unsolved = INCIDENTS.filter((x) => !p.cases.includes(x.id)).map((x) => x.id);
 check(!unsolved.length, `every hidden incident solved by some case (missing: ${unsolved.join(', ')})`);

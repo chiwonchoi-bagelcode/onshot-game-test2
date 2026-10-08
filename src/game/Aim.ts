@@ -26,6 +26,7 @@ export class Aim {
   private markers: { prop: Prop; obj: THREE.Group; spin: THREE.Object3D; pop: number }[] = [];
   private markerMat = new THREE.MeshLambertMaterial({ color: 0xff4f6d, emissive: 0x7a0f22, flatShading: true });
   private markerRingMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.85, side: THREE.DoubleSide, depthWrite: false });
+  private guardMat = new THREE.MeshLambertMaterial({ color: 0x4f86c6, emissive: 0x13305a, flatShading: true });
 
   private hints: THREE.Mesh[] = [];
   private hintMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide });
@@ -120,12 +121,15 @@ export class Aim {
 
   /* ---------------------------- target markers ---------------------------- */
 
-  addMarker(p: Prop) {
+  addMarker(p: Prop, kind: 'target' | 'guard' = 'target') {
     const g = new THREE.Group();
-    const pin = new THREE.Mesh(new THREE.ConeGeometry(0.26, 0.55, 4), this.markerMat);
-    pin.rotation.x = Math.PI;
-    const ballM = new THREE.Mesh(new THREE.OctahedronGeometry(0.2, 0), this.markerMat);
-    ballM.position.y = 0.42;
+    const guard = kind === 'guard';
+    // targets: a red pin; protected things: a blue shield
+    const pin = guard ? new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 0.1, 6), this.guardMat) : new THREE.Mesh(new THREE.ConeGeometry(0.26, 0.55, 4), this.markerMat);
+    pin.rotation.x = guard ? Math.PI / 2 : Math.PI;
+    if (guard) pin.position.y = 0.2;
+    const ballM = guard ? new THREE.Mesh(new THREE.OctahedronGeometry(0.12, 0), this.markerRingMat) : new THREE.Mesh(new THREE.OctahedronGeometry(0.2, 0), this.markerMat);
+    ballM.position.set(0, guard ? 0.2 : 0.42, guard ? 0.07 : 0);
     const ring = new THREE.Mesh(new THREE.RingGeometry(0.42, 0.52, 20), this.markerRingMat);
     ring.rotation.x = -Math.PI / 2;
     const spin = new THREE.Group();

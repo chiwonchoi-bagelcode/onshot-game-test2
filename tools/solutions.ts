@@ -17,8 +17,8 @@ import { CASES as CR } from './cases/remix';
 
 const CASES: Case[] = [...C1, ...C2, ...C3, ...C4, ...C5, ...C6, ...C7, ...C8, ...C9, ...C10, ...C11, ...CR];
 const robust = process.argv.includes('--robust');
-const only = process.argv.filter((a) => /^(\d+(-\d)?|R\d*)$/.test(a));
-const pick = (c: Case) => !only.length || only.some((o) => c.level === o || c.level.startsWith(o + '-') || (o === 'R' && c.level.startsWith('R')));
+const only = process.argv.filter((a) => /^(\d+(-\d)?|[RC]\d*)$/.test(a));
+const pick = (c: Case) => !only.length || only.some((o) => c.level === o || c.level.startsWith(o + '-') || ((o === 'R' || o === 'C') && c.level.startsWith(o) && /^[RC]\d+$/.test(c.level)));
 
 if (robust) {
   // jitter power / direction / timing like a real finger would

@@ -138,7 +138,7 @@ export interface LedgerEntry {
   path: string[];
 }
 
-export type GoalKind = 'break' | 'wake' | 'score' | 'floor' | 'dunk' | 'sneak';
+export type GoalKind = 'break' | 'wake' | 'score' | 'floor' | 'dunk' | 'sneak' | 'cause';
 
 export interface GoalDef {
   kind: GoalKind;
@@ -146,6 +146,9 @@ export interface GoalDef {
   count?: number;
   /** for score */
   amount?: number;
+  /** for cause: a \`victim\` kind broken with \`culprit\` somewhere in its chain (count times) */
+  victim?: string;
+  culprit?: string;
   text: string;
   short: string;
 }
@@ -201,8 +204,21 @@ export interface LevelDef {
   reactor?: string;
   /** prank points per paw left over (default 10,000; bigger places pay more for a clean job) */
   pawValue?: number;
-  /** a request-board variation of a home stage (same room, new rules) */
-  remix?: { base: string; trick?: 'hairball' | 'knead'; note: string };
+  /** a request-board variation of a stage (same place, new rules) */
+  remix?: {
+    base: string; trick?: 'hairball' | 'knead' | 'meow' | 'zoomies'; note: string;
+    /** a cat challenge: only this cat may take it (opens after the end of the world) */
+    cat?: string;
+    kind: 'paws' | 'trick' | 'protect' | 'cause' | 'quiet' | 'cat';
+  };
+  /** things that must not break (a protected object ends the run when ruined) */
+  protect?: { kind: string; near?: [number, number, number] }[];
+  /** free play (자유 장난): no goal, no stars, just the receipt */
+  free?: boolean;
+  /** waking the owner fails the run, whatever the goal (소리 없이) */
+  hush?: boolean;
+  /** being caught red-handed fails the run (들키면 실패) */
+  strict?: boolean;
 }
 
 export type RAPIERType = typeof RAPIER;

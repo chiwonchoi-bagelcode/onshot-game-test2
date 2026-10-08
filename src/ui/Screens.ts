@@ -19,7 +19,17 @@ export interface ChapterCard {
   /** hidden incidents solved here / total (outside only) */
   cases?: [number, number];
 }
-export interface StageNode { id: string; title: string; stars: number; ch: boolean[]; chN: number; open: boolean; cleared: boolean; current: boolean; goal: string }
+export interface StageNode { id: string; title: string; stars: number; ch: boolean[]; chN: number; open: boolean; cleared: boolean; current: boolean; goal: string; group?: string }
+
+/** request-board shelves: one chip per kind of rule */
+const BOARD_GROUPS: Record<string, { icon: string; name: string; text: string }> = {
+  paws: { icon: '🐾', name: '한 방', text: '앞발은 더 적게. 어디를 치면 전부 무너질까?' },
+  trick: { icon: '✨', name: '기술', text: '장난 기술 하나로 옛 방에 새 길이 생긴다.' },
+  protect: { icon: '🛡️', name: '지켜라', text: '큰 사고를 노리되, 방패 표시가 붙은 것만은 무사히.' },
+  cause: { icon: '🔗', name: '범인 지정', text: '목표는 같아도, 범인은 정해져 있다.' },
+  quiet: { icon: '🤫', name: '소리 없이', text: '집사가 깨면 실패. 시끄러운 길은 막혀 있다.' },
+  cat: { icon: '🐱', name: '고양이별', text: '그 고양이라서 가능한 장난. 지구 최후의 날 이후에 열려요.' },
+};
 export interface MapData {
   churu: number; stars: number; maxStars: number;
   chapters: ChapterCard[]; sel: number; stages: StageNode[];
@@ -35,8 +45,10 @@ export interface MapData {
 export interface IntroData {
   level: LevelDef; stars: number; best: number; ch: boolean[];
   challenges: { text: string; icon: string }[];
-  cat: { name: string; color: string; perk: string };
+  cat: { name: string; color: string; perk: string; fixed?: boolean };
   first: boolean;
+  /** request rules in a line each (protected things, no noise, named culprit, this cat only) */
+  rules?: string[];
   /** tricks the player can equip (empty: none unlocked yet) and the chosen one; fixed = the stage decides */
   tricks: { id: string; icon: string; name: string; desc: string }[];
   trick: string | null;
@@ -116,7 +128,30 @@ export class Screens {
         <div class="chd">익숙한 방, 새로운 규칙. 앞발은 더 적게, 장난 기술은 더 영리하게.</div><div class="chl">의뢰는 기한도 없고 사라지지 않아요.</div>`;
       sheet.append(info);
       if (!b.open) sheet.append(h('div', 'chlock', `🔒 ${esc(b.lock)}`));
-      else sheet.append(this.stagePath(d.stages, on.stage, true));
+      else {
+        // one shelf at a time: the board has many requests
+        const groups = [...new Set(d.stages.map((s) => s.group ?? 'paws'))];
+        if (!this.boardGroup || !groups.includes(this.boardGroup)) this.boardGroup = groups.find((g) => d.stages.some((s) => s.group === g && s.open && !s.cleared)) ?? groups[0];
+        const chips = h('div', 'bchips');
+        const body = h('div', 'bbody');
+        const show = () => {
+          chips.innerHTML = '';
+          for (const g of groups) {
+            const ss = d.stages.filter((s) => (s.group ?? 'paws') === g);
+            const G = BOARD_GROUPS[g] ?? { icon: '📋', name: g, text: '' };
+            const open = ss.some((s) => s.open);
+            chips.append(btn(`bchip${g === this.boardGroup ? ' sel' : ''}${open ? '' : ' locked'}`, `${open ? G.icon : '🔒'} ${esc(G.name)} <small>${ss.filter((s) => s.cleared).length}/${ss.length}</small>`, () => { this.snd.click(); this.boardGroup = g; show(); }));
+          }
+          body.innerHTML = '';
+          const G = BOARD_GROUPS[this.boardGroup!];
+          if (G) body.append(h('div', 'bnote', esc(G.text)));
+          const ss = d.stages.filter((s) => (s.group ?? 'paws') === this.boardGroup);
+          const why = h('div', 'bwhy');
+          body.append(this.stagePath(ss, on.stage, true, (s) => { why.textContent = `🔒 ${s.title} · ${s.goal}`; }), why);
+        };
+        show();
+        sheet.append(chips, body);
+      }
       e.append(sheet);
       this.show(e);
       return;
@@ -138,12 +173,14 @@ export class Screens {
     this.show(e);
   }
 
-  private stagePath(stages: StageNode[], pick: (id: string) => void, board: boolean): HTMLElement {
+  private boardGroup: string | null = null;
+
+  private stagePath(stages: StageNode[], pick: (id: string) => void, board: boolean, locked?: (s: StageNode) => void): HTMLElement {
     const path = h('div', `stagepath${board ? ' board' : ''}`);
     stages.forEach((s, i) => {
       const n = btn(`snode${s.open ? '' : ' locked'}${s.cleared ? ' cleared' : ''}${s.current ? ' current' : ''}`,
         s.open ? `<span class="sn">${board ? s.id : i + 1}</span><span class="ss">${'★'.repeat(s.stars)}<i>${'★'.repeat(3 - s.stars)}</i></span><span class="sc">${s.ch.map((x) => (x ? '●' : '○')).join('')}</span>` : '<span class="sn">🔒</span>',
-        () => { if (s.open) { this.snd.click(); pick(s.id); } });
+        () => { if (s.open) { this.snd.click(); pick(s.id); } else if (locked) { this.snd.denied(); locked(s); } });
       n.title = s.open ? s.title : s.goal;
       const lab = h('div', 'slabel', esc(s.title));
       const w = h('div', 'snwrap');
@@ -155,7 +192,7 @@ export class Screens {
 
   /* ------------------------------ stage card ------------------------------ */
 
-  intro(d: IntroData, on: { start: () => void; back: () => void; cat: () => void; replay?: () => void; trick?: (id: string | null) => void }) {
+  intro(d: IntroData, on: { start: () => void; back: () => void; cat: () => void; replay?: () => void; trick?: (id: string | null) => void; free?: () => void }) {
     const L = d.level;
     const e = h('div', 'introscr');
     const card = h('div', 'sheet-card');
@@ -166,7 +203,7 @@ export class Screens {
       <div class="goalline"><span class="tgt"></span>${esc(L.goal.text)}</div>
       <div class="pawsline">앞발 장난 <b>${L.paws}번</b> · ⭐⭐ ${pts(L.stars[0])} · ⭐⭐⭐ ${pts(L.stars[1])}</div>
       <div class="chlist">${d.challenges.map((c, i) => `<div class="chrow${d.ch[i] ? ' done' : ''}"><span class="chi">${c.icon}</span><span class="cht2">${esc(c.text)}</span><span class="chk">${d.ch[i] ? '✔' : ''}</span></div>`).join('')}</div>
-      ${L.remix ? `<div class="remixnote">📋 의뢰: ${esc(L.remix.note)}</div>` : ''}
+      ${L.remix ? `<div class="remixnote">📋 의뢰: ${esc(L.remix.note)}${d.rules?.length ? `<div class="rrules">${d.rules.map((r) => `<span>${esc(r)}</span>`).join('')}</div>` : ''}</div>` : ''}
       ${L.tip ? `<div class="tip">💡 ${esc(L.tip)}</div>` : ''}`;
     if (d.tricks.length) {
       const tr = h('div', 'trickrow');
@@ -193,9 +230,10 @@ export class Screens {
     }
     const row = h('div', 'row');
     row.append(btn('btn-round', '←', on.back));
-    const cat = btn('catchip', `<i class="catdot" style="background:${d.cat.color}"></i><span><b>${esc(d.cat.name)}</b><small>${esc(d.cat.perk)}</small></span>`, on.cat);
+    const cat = btn(`catchip${d.cat.fixed ? ' fixed' : ''}`, `<i class="catdot" style="background:${d.cat.color}"></i><span><b>${esc(d.cat.name)}${d.cat.fixed ? ' 전용' : ''}</b><small>${esc(d.cat.perk)}</small></span>`, d.cat.fixed ? () => this.snd.denied() : on.cat);
     row.append(cat);
     if (on.replay) row.append(btn('btn-round replay', '🎬', on.replay));
+    if (on.free) { const f = btn('btn-mid freebtn', '🎈 자유 장난', on.free); f.title = '목표 없이, 앞발 두 배로 마음껏'; row.append(f); }
     card.append(row);
     card.append(btn('btn-big go', d.first ? '장난 개시! 🐾' : '다시 도전! 🐾', on.start));
     e.append(card);
@@ -233,7 +271,7 @@ export class Screens {
     const title = r.success ? (caught ? '현행범 체포!' : r.stars === 3 ? '완전 범죄!' : r.stars === 2 ? '대성공!' : '미션 성공!') : '아직 너무 평화롭다…';
     const sub = r.success
       ? (caught ? '들켜 버렸다… 그래도 피해는 피해다냥.' : level.goal.kind === 'sneak' ? '집사는 아무것도 모른 채 잠들어 있다…' : '범인은 끝내 밝혀지지 않았다…')
-      : level.goal.kind === 'sneak' && r.wokeOwner ? '집사가 깨 버렸다! 더 조용히…' : caught ? '들켜 버렸다! 시선을 피해 다시…' : '목표를 아직 망가뜨리지 못했어요';
+      : r.ruined ? `🛡️ ${r.ruined}만은 지켜야 했는데…` : (level.goal.kind === 'sneak' || level.hush) && r.wokeOwner ? '집사가 깨 버렸다! 더 조용히…' : caught ? '들켜 버렸다! 시선을 피해 다시…' : '목표를 아직 망가뜨리지 못했어요';
     c.innerHTML = `<h2>${title}</h2><div class="sub">${sub}</div>
       <div class="stars"><span class="star">⭐</span><span class="star mid">⭐</span><span class="star">⭐</span></div>
       <div class="evalline">장난 평가 <b class="evalv">0</b>점<span class="stamp hidden">신기록!</span></div>
@@ -278,6 +316,26 @@ export class Screens {
     await pause(250);
     if (s.churu > 0) { rew.classList.remove('hidden'); this.snd.discover(); }
     c.querySelector('.hintline')?.classList.remove('hidden');
+    row.classList.remove('hidden');
+  }
+
+  /** free play ends with the receipt alone: no stars, no rewards, just the bill */
+  async freeResult(r: Result, on: { retry: () => void; map: () => void }) {
+    const e = h('div', 'overlay dim result free');
+    const c = h('div', 'card');
+    c.innerHTML = `<h2>자유 장난 끝!</h2><div class="sub">오늘의 청구서는 이만큼.</div>`;
+    const bill = this.receipt(r, { placeNew: [] } as unknown as Settlement);
+    c.append(bill.el);
+    const row = h('div', 'row hidden');
+    row.append(btn('btn-mid', '🗺️ 지도', on.map), btn('btn-mid', '🎈 한 번 더', on.retry));
+    c.append(row);
+    e.append(c);
+    this.show(e);
+    let fast = false;
+    e.addEventListener('pointerdown', () => { fast = true; }, { once: true });
+    const pause = (ms: number) => (fast ? Promise.resolve() : wait(ms));
+    await pause(250);
+    await bill.play(pause, () => fast);
     row.classList.remove('hidden');
   }
 

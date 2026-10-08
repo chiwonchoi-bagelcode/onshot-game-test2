@@ -55,7 +55,7 @@ export const CATS: CatDef[] = [
     desc: '그림자처럼 조용히 다가와 와장창. 발소리가 거의 없다.',
     look: { base: '#3a3346', belly: '#4a4258', stripe: '#2b2533', ear: '#6b5a7a', nose: '#6b5a7a', eye: '#ffd23f', pattern: 'solid', glowEyes: true },
     stats: { power: 1, speed: 1.08, reach: 0.15 },
-    perk: { id: 'quiet', name: '그림자 걸음', text: '집사가 사고 소리를 40% 덜 들음' },
+    perk: { id: 'quiet', name: '그림자 걸음', text: '집사가 사고 소리도 자명종도 40% 덜 들음' },
     voice: 0.9, motion: { leap: 0.8, hop: 1.1, wiggle: 0.7, tail: 1.4, idle: ['groom', 'tail', 'loaf'] },
     lines: {
       swat: ['…', '스윽', '사뿐'], heavy: ['…무겁군'], chain: ['…훗', '예정대로'],
@@ -159,7 +159,7 @@ export const CATS: CatDef[] = [
     desc: '지구가 사라진 날, 탈출선 창가에서 털을 고르던 그 고양이. 아무것도 모른다.',
     look: { base: '#eeeaff', belly: '#ffffff', stripe: '#c9b8ff', ear: '#ffb3e6', nose: '#ff9db0', eye: '#5b4aa8', pattern: 'point', sparkle: true, fluffy: true },
     stats: { power: 1, speed: 1.05, reach: 0.2 },
-    perk: { id: 'space', name: '무중력 앞발', text: '친 물건이 두 배로 높이 떠올라요 (선반 너머로!)' },
+    perk: { id: 'space', name: '무중력 앞발', text: '친 물건이 높이 포물선을 그리며 날아가요 (선반 위로!)' },
     voice: 1.12, motion: { leap: 0.85, hop: 1.35, wiggle: 0.9, tail: 1.1, idle: ['loaf', 'stretch', 'tail'] },
     lines: {
       swat: ['둥실~', '무중력!', '냥…?'], heavy: ['중력이 아직 남아 있었네'], chain: ['궤도에 올랐다냥', '둥실둥실 연쇄'],

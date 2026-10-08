@@ -435,3 +435,22 @@ export function fuelTank(b: Builder, o: O & { h?: number; r?: number }): Prop {
     breakable: { threshold: 4, mode: 'damage', fx: 'sparks', word: '콰앙!! 연료 탱크', debris: { count: 14, colors: ['#f4f4f8', '#ff6b6b', '#4f86c6'], size: 0.3, flat: true } },
   });
 }
+
+/* ------------------------------ the request board ------------------------------ */
+
+/** the cat's own food bowl: break it and dinner is on the floor (a protected thing on some requests) */
+export function catBowl(b: Builder, o: O): Prop {
+  const c = o.color ?? '#7fd3ff';
+  const grp = g();
+  grp.add(mesh(cyl(0.3, 0.22, 0.16, 14), M(c), { pos: [0, 0.08, 0] }));
+  grp.add(mesh(cyl(0.25, 0.25, 0.02, 14), M('#c98b4a'), { pos: [0, 0.15, 0], shadow: false }));
+  for (const [x, z] of [[0.08, 0.04], [-0.06, 0.09], [0.02, -0.1], [-0.1, -0.04], [0.12, -0.06]]) grp.add(mesh(sphere(0.045, 5, 4), M('#a0622e'), { pos: [x, 0.17, z], shadow: false }));
+  grp.add(mesh(box(0.16, 0.06, 0.01, 0.01), M('#ffffff'), { pos: [0, 0.09, 0.27], shadow: false }));
+  return b.prop({
+    kind: 'catBowl', name: o.name ?? '내 밥그릇', icon: '🥣', group: grp, pos: o.at, rotY: o.rot,
+    colliders: [{ shape: 'cyl', r: 0.29, hh: 0.08, at: [0, 0.08, 0] }],
+    mass: 0.5, mat: 'ceramic', value: o.value ?? 12000, angDamp: 1.2,
+    breakable: { threshold: 4.2, hitForce: 120, mode: 'shatter', fx: 'none', word: '내 밥…!!', debris: { count: 8, colors: [c, '#a0622e'], size: 0.15 } },
+    traits: ['내 밥그릇', '깨지면 저녁도 없다'],
+  });
+}

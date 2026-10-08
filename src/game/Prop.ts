@@ -16,6 +16,8 @@ export class Prop {
   readonly special?: Special;
   readonly spec: PropSpec;
   target: boolean;
+  /** protected: ruining it ends the run (request-board rule) */
+  guard = false;
   interactable: boolean;
 
   body: RAPIER.RigidBody;

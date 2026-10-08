@@ -537,3 +537,15 @@ body { word-break: keep-all; overflow-wrap: anywhere; }
 .chinfo .chrec { font-size: 12px; margin-top: 3px; color: #5b4a6a; background: rgba(255, 255, 255, 0.7); border-radius: 8px; padding: 2px 8px; display: inline-block; margin-right: 4px; }
 .receipt .rplace { margin-top: 6px; font-size: 12px; text-align: center; color: #7a4ac9; background: #f3ecff; border-radius: 8px; padding: 3px 6px; animation: chnew 0.4s backwards; }
 .casehead { font-size: 15px; margin: 12px 4px 6px; color: var(--ink); }
+
+/* request board shelves */
+.bchips { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
+.bchip { padding: 5px 9px; border-radius: 14px; font-size: 12px; background: white; }
+.bchip small { font-size: 10px; opacity: 0.7; }
+.bchip.sel { background: var(--sun); }
+.bchip.locked { background: #e2dbd2; opacity: 0.8; }
+.bnote { font-size: 12px; color: #6a5a7a; margin: 6px 2px 0; }
+.bwhy { font-size: 12px; color: #8a5a6a; min-height: 16px; margin-top: 4px; text-align: center; }
+.rrules { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.rrules span { font-size: 11px; background: #eef4ff; border-radius: 10px; padding: 2px 7px; color: #34508a; }
+.catchip.fixed { background: #fff1b8; }

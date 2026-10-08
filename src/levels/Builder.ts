@@ -44,6 +44,18 @@ export class Builder {
     this.game.scene.add(o.group);
   }
 
+  /** request-board variations: whoever was waiting at the door is napping here instead */
+  ownerAsleepInstead(x: number, y: number, z: number, facing: number) {
+    const g = this.game;
+    if (g.owner) { g.owner.dispose(); g.scene.remove(g.owner.group); g.owner = null; }
+    // whatever was lying where they now lie goes away (a cushion under a sleeper is no puzzle)
+    for (const p of [...g.props]) {
+      const t = p.body.translation();
+      if (Math.abs(t.x - x) < 1.1 && Math.abs(t.z - z) < 1.75 && t.y > y - 0.3 && t.y < y + 1.2) { g.removeProp(p); g.props.splice(g.props.indexOf(p), 1); }
+    }
+    return this.ownerAsleep(x, y, z, facing);
+  }
+
   ownerAsleep(x: number, y: number, z: number, facing: number) {
     const o = new Owner(this.game, 'sleep', new THREE.Vector3(x, y, z), facing);
     this.game.owner = o;
@@ -74,7 +86,8 @@ export class Builder {
   }
 
   finish() {
-    for (const p of this.game.props) if (p.target) this.game.aim.addMarker(p);
+    // free play has nothing to aim for: no target pins
+    if (!this.game.level.free) for (const p of this.game.props) if (p.target) this.game.aim.addMarker(p);
     // static room geometry never moves: merge it into a handful of draw calls
     const statics = new THREE.Group();
     for (const c of [...this.env.children]) {

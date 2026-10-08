@@ -64,6 +64,8 @@ export interface Result {
   receipt: LedgerEntry[];
   /** a watcher saw too much: ended as 현행범 */
   caught: boolean;
+  /** a protected thing that got ruined (the run failed because of it) */
+  ruined: string | null;
   /** goal met while nobody suspected a thing (perfect-crime bonus applied) */
   perfect: boolean;
   /** this run blew up the planet */
@@ -289,6 +291,8 @@ export class Game {
     this.noise = 0;
     this.caughtT = 0;
     this.suspicion = 0; this.maxSuspicion = 0; this.caught = false;
+    this.ruined = null; this.ruinT = 0;
+    this.floaters = [];
     this.trickUsed = false; this.trickArmed = false; this.kneading = null;
     this.finale = false;
     this.lastWake.clear();
@@ -296,11 +300,19 @@ export class Game {
     this.view = { yaw: 0.5, pitch: 0.72, fov: 30 };
     const b = new Builder(this);
     level.build(b);
+    // request-board rule: these must survive (a shield marker floats over each)
+    for (const spec of level.protect ?? []) {
+      const cands = this.props.filter((p) => p.kind === spec.kind && !p.guard && p.alive);
+      if (spec.near) { const n = new THREE.Vector3(...spec.near); cands.sort((x, y) => x.center(_v).distanceTo(n) - y.center(_v2).distanceTo(n)); }
+      const p = cands[0];
+      if (p) { p.guard = true; this.aim.addMarker(p, 'guard'); }
+    }
     b.finish();
     this.cat.reset(this.catHome);
     for (const p of this.props) p.sync();
     this.emit({ type: 'paws', left: this.paws, max: this.maxPaws });
     this.emitGoal();
+    if (level.free) this.goalComplete = true;
   }
 
   unload() {
@@ -631,8 +643,10 @@ export class Game {
       const st = this.catDef.stats;
       const dv = PAW.vmax * st.speed * power * Math.min(boost > 1 ? 1.15 : 1, (PAW.mref * st.power * boost) / m);
       const imp = _v.copy(dir).multiplyScalar(dv * m);
-      // 우주냥: whatever it hits floats up (twice the lift)
-      imp.y += PAW.lift * dv * m * (this.perk === 'space' ? 2 : 1);
+      // 우주냥: whatever it hits floats off nearly weightless, rising (over shelves and walls)
+      const space = this.perk === 'space' && m < 30;
+      imp.y += (space ? 0.75 : PAW.lift) * dv * m;
+      if (space) { body.setGravityScale(0.15, true); this.floaters.push({ p, until: this.time + 1.4 }); }
       body.applyImpulseAtPoint({ x: imp.x, y: imp.y, z: imp.z }, { x: point.x, y: point.y, z: point.z }, true);
       const w = body.angvel();
       const wl = Math.hypot(w.x, w.y, w.z);
@@ -737,6 +751,11 @@ export class Game {
     const g = this.level.goal;
     if (g.kind === 'wake') return { done: this.owner?.awake ? 1 : 0, need: 1 };
     if (g.kind === 'score') return { done: Math.min(this.score, g.amount ?? 0), need: g.amount ?? 0 };
+    if (g.kind === 'cause') {
+      const need = g.count ?? 1;
+      const done = this.run.culprits.filter((x) => x.kind === g.victim && x.by.includes(g.culprit ?? '')).length;
+      return { done: Math.min(done, need), need };
+    }
     if (g.kind === 'dunk') {
       const targets = this.props.filter((p) => p.target);
       const need = g.count ?? targets.length;
@@ -759,6 +778,8 @@ export class Game {
 
   checkGoal() {
     if (!this.level) return;
+    // free play: nothing to reach, the receipt is the point
+    if (this.level.free) { this.goalComplete = true; return; }
     const { done, need } = this.goalProgress();
     this.emit({ type: 'goal', done, need, complete: done >= need });
     if (done >= need && !this.goalComplete) {
@@ -803,6 +824,12 @@ export class Game {
       }
     }
     this.brokenCount++;
+    if (p.guard && !this.ruined) {
+      this.ruined = p;
+      this.count('ruined');
+      this.emit({ type: 'word', text: '안 돼!!', pos: pos.clone().add(new THREE.Vector3(0, 1.1, 0)), size: 1.6, color: '#4f86c6' });
+      this.emit({ type: 'toast', text: `🛡️ ${p.name}만은 지켜야 했는데…` });
+    }
     this.count('break:' + p.kind);
     this.count('break');
     const by: string[] = [];
@@ -1066,6 +1093,7 @@ export class Game {
     if (!this.headless) this.glints(dt);
     this.aim.update(dt);
     for (const u of this.updaters) u(gdt);
+    if (this.floaters.length) this.floaters = this.floaters.filter((f) => { if (this.time < f.until && f.p.alive) return true; if (f.p.alive) f.p.body.setGravityScale(1, true); return false; });
     this.updateFlow(dt);
     return gdt;
   }
@@ -1325,6 +1353,10 @@ export class Game {
     if (this.phase === 'ready' && this.goalComplete) this.endRequested = true;
   }
 
+  ruined: Prop | null = null;
+  /** things the space cat set floating (gravity comes back after a moment) */
+  private floaters: { p: Prop; until: number }[] = [];
+  private ruinT = 0;
   private caughtT = 0;
 
   private updateFlow(dt: number) {
@@ -1333,10 +1365,16 @@ export class Game {
       this.caught = true;
       this.discover('caught', this.cat.group.position.clone());
       for (const w of this.watchers) { w.actor.clear(); w.actor.do('point', 3); }
-      this.beginEnding(this.goalComplete);
+      this.beginEnding(this.goalComplete && !this.level.strict);
       return;
     }
-    if (this.phase === 'ready' && this.level.goal.kind === 'sneak' && this.owner?.awake) {
+    if (this.phase === 'ready' && this.ruined) {
+      // a protected thing broke: the request has failed (give it a moment to sink in)
+      this.ruinT += dt;
+      if (this.ruinT > 1.3) { this.goalComplete = false; this.beginEnding(false); }
+      return;
+    }
+    if (this.phase === 'ready' && (this.level.goal.kind === 'sneak' || this.level.hush) && this.owner?.awake) {
       // sneak missions fail the moment the owner wakes up
       this.caughtT += dt;
       if (this.caughtT > 1.3) { this.goalComplete = false; this.beginEnding(false); }
@@ -1366,17 +1404,17 @@ export class Game {
   private beginEnding(success: boolean) {
     this.phase = 'ending';
     this.emit({ type: 'phase', phase: 'ending' });
-    const pawBonus = success ? this.paws * (this.level.pawValue ?? 10000) * (this.perk === 'bonus2x' ? 2 : 1) : 0;
+    const pawBonus = success && !this.level.free ? this.paws * (this.level.pawValue ?? 10000) * (this.perk === 'bonus2x' ? 2 : 1) : 0;
     if (pawBonus) { this.score += pawBonus; this.bonus += pawBonus; }
     // nobody saw a thing: the perfect crime is worth 30% more
     const perfect = success && this.watchers.length > 0 && !this.caught && this.maxSuspicion < 35;
     if (perfect) { const add = Math.round(this.score * 0.3); this.score += add; this.bonus += add; this.discover('perfect', this.cat.group.position.clone()); }
     const [s2, s3] = this.level.stars;
-    let stars = success ? (this.score >= s3 ? 3 : this.score >= s2 ? 2 : 1) : 0;
+    let stars = success && !this.level.free ? (this.score >= s3 ? 3 : this.score >= s2 ? 2 : 1) : 0;
     if (this.caught) stars = Math.min(stars, 2);
     this.pendingResult = {
       success, score: this.score, stars, maxChain: this.maxChain, broken: this.brokenCount,
-      pawsLeft: this.paws, pawsUsed: this.maxPaws - this.paws, pawBonus, money: this.money, bonus: this.bonus, heart: this.heart, receipt: this.receipt(), caught: this.caught, perfect, finale: this.finale,
+      pawsLeft: this.paws, pawsUsed: this.maxPaws - this.paws, pawBonus, money: this.money, bonus: this.bonus, heart: this.heart, receipt: this.receipt(), caught: this.caught, ruined: this.ruined?.name ?? null, perfect, finale: this.finale,
       story: this.story(), run: this.run,
       wokeOwner: !!this.owner?.awake, noise: this.noise,
     };

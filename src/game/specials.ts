@@ -311,8 +311,9 @@ export class AlarmSpecial implements Special {
     const t = b.translation();
     if (game.owner && game.owner.mode === 'sleep') {
       const d = _v.set(t.x, t.y, t.z).distanceTo(game.owner.headPos);
-      if (d < 4.4) game.owner.disturb(game, 32 * h * clamp(1.45 - d / 4.4, 0.35, 1), null);
-      else if (d < 7.5) game.owner.disturb(game, 6 * h, null);
+      // (a light-footed cat's owner sleeps deeper: the alarm counts as noise too)
+      if (d < 4.4) game.owner.disturb(game, 32 * h * clamp(1.45 - d / 4.4, 0.35, 1) * game.noiseMul, null);
+      else if (d < 7.5) game.owner.disturb(game, 6 * h * game.noiseMul, null);
     }
     if (this.ringing <= 0) { this.loop?.stop(); this.loop = null; }
   }

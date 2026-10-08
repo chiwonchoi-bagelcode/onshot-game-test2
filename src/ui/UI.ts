@@ -12,6 +12,7 @@ export function traitsOf(p: Prop, reachable: boolean): string[] {
   const s = p.spec;
   const t: string[] = [];
   if (p.target) t.push('🎯 목표');
+  if (p.guard) t.push('🛡️ 지켜야 함');
   if (p.special?.label) t.push(`✨ ${p.special.label}`);
   if (p.breakable) t.push(p.breakable.mode === 'shatter' ? '💥 잘 깨짐' : '⚡ 고장 남');
   const m = p.body.mass();
@@ -140,9 +141,10 @@ export class UI {
     this.hud.classList.remove('hidden');
     this.goalLv.textContent = `${level.id} · ${level.title}`;
     this.goalText.textContent = level.goal.short;
-    const sleepy = level.goal.kind === 'wake' || level.goal.kind === 'sneak';
+    const sleepy = level.goal.kind === 'wake' || level.goal.kind === 'sneak' || !!level.hush;
     this.goalEl.classList.toggle('wake', sleepy);
-    this.goalEl.classList.toggle('sneak', level.goal.kind === 'sneak');
+    this.goalEl.classList.toggle('sneak', level.goal.kind === 'sneak' || !!level.hush);
+    this.goalCnt.textContent = level.free ? '∞' : this.goalCnt.textContent;
     this.goalEl.classList.remove('done');
     this.stars = level.stars;
     this.maxScore = level.stars[1] * 1.12;

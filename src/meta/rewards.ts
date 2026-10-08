@@ -85,8 +85,22 @@ export function chapterLock(p: Profile, ch: number): string {
   return `⭐ ${def.needStars}개 필요 (현재 ${totalStars(p)}개)`;
 }
 
+/** why a request is not on the board yet ('' = open) */
+export function remixLock(p: Profile, level: LevelDef): string {
+  const r = level.remix;
+  if (!r) return '';
+  if (!homeDone(p)) return '우리 집 스테이지를 모두 클리어하면 의뢰가 들어와요';
+  if (r.cat) {
+    if (!p.worldEnd) return '지구 최후의 날 이후에 열리는 고양이별 도전이에요';
+    if (!p.cats.includes(r.cat)) return `${CATS.find((c) => c.id === r.cat)?.name ?? r.cat}을(를) 데려와야 해요`;
+  }
+  if (r.trick && !p.tricks.includes(r.trick)) return `장난 기술 '${TRICKS[r.trick as TrickId]?.name ?? r.trick}'을(를) 배우면 들어오는 의뢰예요`;
+  if (!peekRec(p, r.base)?.cleared) return `${r.base} 스테이지를 먼저 클리어하세요`;
+  return '';
+}
+
 export function stageOpen(p: Profile, level: LevelDef): boolean {
-  if (level.remix) return homeDone(p) && !!peekRec(p, level.remix.base)?.cleared;
+  if (level.remix) return !remixLock(p, level);
   if (!chapterOpen(p, level.chapter)) return false;
   const ls = BY_CHAPTER[level.chapter - 1];
   const i = ls.indexOf(level);

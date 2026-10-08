@@ -50,9 +50,12 @@ function findProp(g: Game, a: Action): Prop | null {
   return cands[0];
 }
 
+/** cat challenges are played (and tuned) with their own cat */
+export const catFor = (level: LevelDef) => (level.remix?.cat ? CATS.find((c) => c.id === level.remix!.cat) ?? NEUTRAL_CAT : NEUTRAL_CAT);
+
 export function runPlan(level: LevelDef, plan: Action[], verbose = false): SimOut {
   const g = new Game(RAPIER, noop, { headless: true });
-  g.catDef = NEUTRAL_CAT;
+  g.catDef = catFor(level);
   const log: string[] = [];
   let result: Result | null = null;
   const broken: string[] = [];
@@ -104,7 +107,7 @@ export function runPlan(level: LevelDef, plan: Action[], verbose = false): SimOu
 
 export function listProps(level: LevelDef) {
   const g = new Game(RAPIER, noop, { headless: true });
-  g.catDef = NEUTRAL_CAT;
+  g.catDef = catFor(level);
   g.load(level);
   g.start();
   g.simulate(1.5);

@@ -11,6 +11,7 @@ import { Screens, type ChapterCard, type MapData, type StageNode } from './ui/Sc
 import { CatRoom } from './ui/CatRoom';
 import { Finale } from './ui/Finale';
 import { BY_CHAPTER, CHAPTERS, LEVELS, REMIXES, levelById } from './levels/index';
+import { freePlay } from './levels/remix';
 import { THEME_STYLE } from './levels/rooms';
 import type { LevelDef, TutorialStep } from './game/types';
 import { PreludePlayer } from './game/Prelude';
@@ -20,7 +21,7 @@ import { CATS, catById, withSkin } from './meta/cats';
 import { challengeDone, challengeIcon, challengeText } from './meta/challenges';
 import { DISCOVERIES, OBJECTS, discoveryById } from './meta/dex';
 import { ACHIEVEMENTS } from './meta/achievements';
-import { CHURU, chapterCleared, chapterLock, chapterOpen, checkAchievements, homeDone, nextLevel, settle, stageOpen, totalStars } from './meta/rewards';
+import { CHURU, chapterCleared, chapterLock, chapterOpen, checkAchievements, homeDone, nextLevel, remixLock, settle, stageOpen, totalStars } from './meta/rewards';
 import { HOME_CHAPTERS } from './levels/chapters';
 import { formatHeart, formatWon } from './core/util';
 import { INCIDENTS } from './meta/incidents';
@@ -92,9 +93,10 @@ class App {
 
   private save() { saveProfile(this.profile); }
 
-  private applyCat() {
+  /** the cat in play: the chosen one, or the one a cat challenge calls for */
+  private applyCat(level?: LevelDef) {
     const p = this.profile;
-    const def = catById(p.cat);
+    const def = catById(level?.remix?.cat ?? p.cat);
     this.game.setCat(withSkin(def, p.skinOf[def.id]), p.wear[def.id] ?? []);
   }
 
@@ -119,7 +121,7 @@ class App {
           ui.setPaws(e.left, e.max);
           if (e.left < e.max) this.onSwatUsed();
           break;
-        case 'goal': ui.setGoal(e.done, e.need, e.complete, this.level.goal.kind); break;
+        case 'goal': if (!this.level.free) ui.setGoal(e.done, e.need, e.complete, this.level.goal.kind); break;
         case 'goalReached':
           this.sfx.jingle();
           ui.toast(g.paws > 0 ? '🎯 목표 달성! 더 어지르거나 시치미를 떼세요' : '🎯 목표 달성!', 2400);
@@ -194,7 +196,7 @@ class App {
     this.level = level;
     if (!force && this.loadedId === level.id && this.game.phase === 'intro') { this.stage.setFocus(null); return; }
     this.loadedId = level.id;
-    this.applyCat();
+    this.applyCat(level);
     this.game.trick = this.trickFor(level);
     this.game.load(level);
     this.applyTheme(level);
@@ -314,8 +316,8 @@ class App {
     const stages: StageNode[] = ls.map((l) => {
       const r = peekRec(p, l.id);
       const open = stageOpen(p, l);
-      const why = l.remix && !open ? `${l.remix.base} 스테이지를 먼저 클리어하세요` : l.goal.short;
-      return { id: l.id, title: l.title, stars: r?.stars ?? 0, ch: l.challenges.map((_, i) => !!r?.ch[i]), chN: l.challenges.length, open, cleared: !!r?.cleared, current: l === lv && !r?.cleared, goal: why };
+      const why = l.remix && !open ? remixLock(p, l) : l.goal.short;
+      return { id: l.id, title: l.title, stars: r?.stars ?? 0, ch: l.challenges.map((_, i) => !!r?.ch[i]), chN: l.challenges.length, open, cleared: !!r?.cleared, current: l === lv && !r?.cleared, goal: why, group: l.remix?.kind };
     });
     const def = catById(p.cat);
     const worldOpen = chapterOpen(p, HOME_CHAPTERS + 1);
@@ -367,11 +369,19 @@ class App {
       if (this.mode !== 'intro' || this.level !== level) return;
     }
     const r = peekRec(p, level.id);
-    const def = catById(p.cat);
+    const def = catById(level.remix?.cat ?? p.cat);
+    const g = level.goal;
+    const rules = [
+      ...this.game.props.filter((x) => x.guard).map((x) => `🛡️ ${x.name}만은 지키기`),
+      ...(level.hush ? ['🤫 집사가 깨면 실패'] : []),
+      ...(level.strict ? ['👀 들키면 실패'] : []),
+      ...(g.kind === 'cause' ? [`🔗 ${g.text}`] : []),
+      ...(level.remix?.cat ? [`🐱 ${def.name}만 할 수 있는 도전`] : []),
+    ];
     this.screens.intro({
       level, stars: r?.stars ?? 0, best: r?.best ?? 0, ch: level.challenges.map((_, i) => !!r?.ch[i]),
       challenges: level.challenges.map((c) => ({ text: challengeText(c), icon: challengeIcon(c) })),
-      cat: { name: def.name, color: def.color, perk: def.perk.name }, first: !r?.cleared,
+      cat: { name: def.name, color: def.color, perk: def.perk.name, fixed: !!level.remix?.cat }, first: !r?.cleared, rules,
       tricks: (level.remix?.trick ? [level.remix.trick] : p.tricks).map((id) => ({ id, ...TRICKS[id as TrickId] })),
       trick: level.remix?.trick ?? p.trick, trickFixed: !!level.remix?.trick,
     }, {
@@ -380,6 +390,8 @@ class App {
       back: () => { this.sfx.click(); this.toMap(this.tabOf(level)); },
       cat: () => this.toCats(() => this.toIntro(level)),
       replay: level.prelude && p.preludes.includes(level.id) ? () => { this.sfx.click(); this.forcePrelude = true; this.startPlay(); } : undefined,
+      // a cleared stage can be played just for fun: no goal, more paws, only the receipt
+      free: r?.cleared && !level.remix && !level.free ? () => { this.sfx.click(); this.loadLevel(freePlay(level), true); this.startPlay(); } : undefined,
     });
     // the whole space (with the goal markers) is in view while the card is up
     this.stage.showOverview(true);
@@ -572,7 +584,7 @@ class App {
     this.sfx.click();
     this.input.cancel();
     const g = this.game;
-    const fake = { success: g.goalComplete, score: g.score, stars: 0, maxChain: g.maxChain, broken: g.brokenCount, pawsLeft: g.paws, pawsUsed: g.maxPaws - g.paws, pawBonus: 0, money: g.money, bonus: g.bonus, heart: g.heart, receipt: [], caught: false, perfect: false, finale: false, story: [], run: g.run, wokeOwner: !!g.owner?.awake, noise: g.noise } as Result;
+    const fake = { success: g.goalComplete, score: g.score, stars: 0, maxChain: g.maxChain, broken: g.brokenCount, pawsLeft: g.paws, pawsUsed: g.maxPaws - g.paws, pawBonus: 0, money: g.money, bonus: g.bonus, heart: g.heart, receipt: [], caught: false, ruined: null, perfect: false, finale: false, story: [], run: g.run, wokeOwner: !!g.owner?.awake, noise: g.noise } as Result;
     const rec = peekRec(this.profile, this.level.id);
     this.screens.pause({
       goal: this.level.goal.text,
@@ -589,6 +601,15 @@ class App {
     this.endTutorial(false);
     const level = this.level;
     const p = this.profile;
+    if (level.free) {
+      // nothing is settled: the receipt is the whole reward (what was found is still remembered)
+      this.keepDiscoveries();
+      await this.screens.freeResult(r, {
+        retry: () => { this.sfx.click(); this.retry(); },
+        map: () => { this.sfx.click(); this.toMap(this.tabOf(level)); },
+      });
+      return;
+    }
     const s = settle(p, level, r, this.game.perk);
     this.save();
     // the end of the world: the cinematic comes first, the receipt after
