@@ -255,6 +255,8 @@ export class Cat {
     this.perchOff.set(at.x - c.x, 0, at.z - c.z).applyQuaternion(inv);
     this.perchOff.y = p.localBox.max.y;
   }
+  /** what the cat is sitting on (knead), if anything */
+  perchProp(): Prop | null { return this.state === 'perch' ? this.perchP : null; }
   /** world point the cat is pressing on (knead) */
   perchPoint(out: THREE.Vector3): THREE.Vector3 | null {
     if (this.state !== 'perch' || !this.perchP) return null;

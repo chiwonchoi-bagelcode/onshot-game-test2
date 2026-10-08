@@ -4,7 +4,7 @@ import { mergeByMaterial } from '../render/merge';
 import type { Builder } from '../levels/Builder';
 import type { ColDef, Worth } from './types';
 import type { Prop } from './Prop';
-import { BarrierSpecial, CableSpecial, CarSpecial, CartBrakeSpecial, CraneSpecial, HoseSpecial, PowerStripSpecial, SwingSpecial, TriggerSpecial, WobbleSpecial, WreckingBallSpecial, type CarParts } from './specials3';
+import { BarrierSpecial, CableSpecial, CarSpecial, CartBrakeSpecial, RigSpecial, type Belt, CraneSpecial, HoseSpecial, PowerStripSpecial, SwingSpecial, TriggerSpecial, WobbleSpecial, WreckingBallSpecial, type CarParts } from './specials3';
 import { fruit, type O, type V3 } from './catalog';
 import { screenTexture } from '../render/kit';
 
@@ -769,7 +769,7 @@ export function parkingBarrier(b: Builder, o: { x: number; z0: number; z1: numbe
 }
 
 /** a big friendly push button on a little stand (or on a wall) */
-export function button(b: Builder, o: { at: V3; label: string; word?: string; color?: string; action: (game: import('./Game').Game, self: Prop) => void; once?: boolean }): Prop {
+export function button(b: Builder, o: { at: V3; label: string; word?: string; color?: string; action: (game: import('./Game').Game, self: Prop) => void; once?: boolean; bump?: number; canFire?: (game: import('./Game').Game) => boolean }): Prop {
   const grp = g();
   grp.add(mesh(box(0.5, 0.9, 0.4, 0.05), M('#5b5f73'), { pos: [0, 0.45, 0] }));
   const cap = keep(g());
@@ -777,16 +777,16 @@ export function button(b: Builder, o: { at: V3; label: string; word?: string; co
   cap.position.set(0, 0.96, 0);
   cap.userData.y0 = 0.96;
   grp.add(cap);
-  const trig = new TriggerSpecial({ label: o.label, kind: 'button', word: o.word, handle: cap, action: o.action, once: o.once });
+  const trig = new TriggerSpecial({ label: o.label, kind: 'button', word: o.word, handle: cap, action: o.action, once: o.once, bump: o.bump, canFire: o.canFire });
   return b.prop({
     kind: 'button', name: o.label, icon: '🔴', group: grp, pos: o.at, kinematic: true,
     colliders: [{ shape: 'box', hx: 0.25, hy: 0.5, hz: 0.2, at: [0, 0.5, 0] }],
-    mass: 5, mat: 'metal', value: 0, special: trig, traits: ['방아쇠'],
+    mass: 5, mat: 'metal', value: 0, special: trig, traits: ['방아쇠'], touchForce: o.bump !== undefined ? 1 : undefined,
   });
 }
 
 /** a lever on a post */
-export function lever(b: Builder, o: { at: V3; label: string; word?: string; action: (game: import('./Game').Game, self: Prop) => void; rot?: number }): Prop {
+export function lever(b: Builder, o: { at: V3; label: string; word?: string; action: (game: import('./Game').Game, self: Prop) => void; rot?: number; bump?: number }): Prop {
   const grp = g();
   grp.add(mesh(box(0.5, 1.0, 0.5, 0.05), M('#5b5f73'), { pos: [0, 0.5, 0] }));
   const h = keep(g());
@@ -796,11 +796,11 @@ export function lever(b: Builder, o: { at: V3; label: string; word?: string; act
   h.rotation.z = 0.7;
   h.userData.r0 = 0.7;
   grp.add(h);
-  const trig = new TriggerSpecial({ label: o.label, kind: 'lever', word: o.word ?? '철컥!', handle: h, action: o.action });
+  const trig = new TriggerSpecial({ label: o.label, kind: 'lever', word: o.word ?? '철컥!', handle: h, action: o.action, bump: o.bump });
   return b.prop({
     kind: 'lever', name: o.label, icon: '🕹️', group: grp, pos: o.at, rotY: o.rot, kinematic: true,
-    colliders: [{ shape: 'box', hx: 0.25, hy: 0.5, hz: 0.25, at: [0, 0.5, 0] }],
-    mass: 5, mat: 'metal', value: 0, special: trig, traits: ['방아쇠'],
+    colliders: [{ shape: 'box', hx: 0.25, hy: 0.5, hz: 0.25, at: [0, 0.5, 0] }, ...(o.bump !== undefined ? [{ shape: 'box' as const, hx: 0.4, hy: 0.15, hz: 0.4, at: [0, 1.15, 0] as V3 }] : [])],
+    mass: 5, mat: 'metal', value: 0, special: trig, traits: ['방아쇠'], touchForce: o.bump !== undefined ? 2 : undefined,
   });
 }
 
@@ -863,7 +863,7 @@ export function structure(b: Builder, o: { x: number; z: number; w: number; d: n
 }
 
 /** a tower crane: a mast, a jib, a trolley that shuttles, a hanging load and its lever */
-export function towerCrane(b: Builder, o: { mast: [number, number]; x0: number; x1: number; z: number; h: number; speed: number; hang: number; lever: V3; load?: 'beams' | 'container'; loadName?: string; axis?: 'x' | 'z'; swing?: boolean }): { load: Prop; crane: import('./specials3').CraneSpecial } {
+export function towerCrane(b: Builder, o: { mast: [number, number]; x0: number; x1: number; z: number; h: number; speed: number; hang: number; lever: V3; load?: 'beams' | 'container' | 'weight'; loadName?: string; axis?: 'x' | 'z'; swing?: boolean; leverBump?: number }): { load: Prop; crane: import('./specials3').CraneSpecial } {
   const g0 = g();
   const yel = M('#ffd23f'), dark = M('#5b5f73');
   g0.add(mesh(box(0.8, o.h, 0.8, 0.05), yel, { pos: [o.mast[0], o.h / 2, o.mast[1]] }));
@@ -891,7 +891,12 @@ export function towerCrane(b: Builder, o: { mast: [number, number]; x0: number; 
   const lg = g();
   let cols: ColDef[];
   let mass: number;
-  if (o.load === 'container') {
+  if (o.load === 'weight') {
+    lg.add(mesh(box(1.4, 1.2, 1.4, 0.1), M('#9aa3b8'), { pos: [0, -0.6, 0] }));
+    lg.add(mesh(box(1.42, 0.2, 1.42, 0.02), M('#ffd23f'), { pos: [0, -0.3, 0], shadow: false }));
+    cols = [{ shape: 'box', hx: 0.7, hy: 0.6, hz: 0.7, at: [0, -0.6, 0] }];
+    mass = 40;
+  } else if (o.load === 'container') {
     lg.add(mesh(box(5, 2.4, 2.4, 0.08), M('#ff8f6b'), { pos: [0, -1.2, 0] }));
     for (let i = 0; i < 9; i++) lg.add(mesh(box(0.08, 2.2, 2.42, 0), M('#e8735a'), { pos: [-2.2 + i * 0.55, -1.2, 0], shadow: false }));
     cols = [{ shape: 'box', hx: 2.5, hy: 1.2, hz: 1.2, at: [0, -1.2, 0] }];
@@ -904,11 +909,11 @@ export function towerCrane(b: Builder, o: { mast: [number, number]; x0: number; 
   }
   const crane = new CraneSpecial({ trolley, cable, load: null, x0: o.x0, x1: o.x1, z: o.z, y: o.h - 0.3, speed: o.speed, hang: o.hang, axis: o.axis, swing: o.swing });
   const load = b.prop({
-    kind: o.load === 'container' ? 'container' : 'beams', name: o.loadName ?? (o.load === 'container' ? '컨테이너' : '철골 다발'), icon: o.load === 'container' ? '📦' : '🏗️', group: lg,
+    kind: o.load === 'container' ? 'container' : o.load === 'weight' ? 'weight' : 'beams', name: o.loadName ?? (o.load === 'container' ? '컨테이너' : o.load === 'weight' ? '평형추' : '철골 다발'), icon: o.load === 'container' ? '📦' : o.load === 'weight' ? '⚖️' : '🏗️', group: lg,
     pos: o.axis === 'z' ? [o.z, o.h - 0.3 - o.hang, o.x0] : [o.x0, o.h - 0.3 - o.hang, o.z], rotY: o.axis === 'z' ? Math.PI / 2 : 0, kinematic: true, colliders: cols, mass, mat: 'metal', value: 4000000, interactable: false, special: crane,
   });
   crane.load = load;
-  lever(b, { at: o.lever, label: '크레인 레버', word: '철컥! 툭', action: (game, self) => crane.release(game, self) });
+  lever(b, { at: o.lever, label: '크레인 레버', word: '철컥! 툭', action: (game, self) => crane.release(game, self), bump: o.leverBump });
   return { load, crane };
 }
 
@@ -997,5 +1002,78 @@ export function container(b: Builder, o: O & { len?: number; standing?: boolean 
     colliders: [o.standing ? { shape: 'box', hx: W / 2, hy: L / 2, hz: H / 2, at: [0, L / 2, 0] } : { shape: 'box', hx: L / 2, hy: H / 2, hz: W / 2, at: [0, H / 2, 0] }],
     mass: 30, mat: 'metal', value: o.value ?? 60000000, target: o.target, friction: 0.5, restitution: 0.05, toppleValue: 3000000, floats: false,
     special: o.standing ? new WobbleSpecial({ minHeight: 0.6, kick: 5.5 }) : undefined, touchForce: o.standing ? 40 : undefined,
+  });
+}
+
+/* ------------------------------ the base ------------------------------ */
+
+/** a conveyor belt on a table: off until something starts it */
+export function conveyor(b: Builder, o: { x0: number; x1: number; z: number; y: number; w?: number; speed?: number }): Belt {
+  const w = o.w ?? 1.6, L = o.x1 - o.x0, cx = (o.x0 + o.x1) / 2;
+  const grp = g();
+  grp.add(mesh(box(L, o.y - 0.1, w, 0.05), M('#5b5f73'), { pos: [0, (o.y - 0.1) / 2, 0] }));
+  let tex: THREE.Texture | null = null;
+  if (typeof document !== 'undefined') {
+    const cv = document.createElement('canvas'); cv.width = 64; cv.height = 16;
+    const c = cv.getContext('2d')!; c.fillStyle = '#3a3d4f'; c.fillRect(0, 0, 64, 16); c.fillStyle = '#4c5066'; for (let i = 0; i < 4; i++) c.fillRect(i * 16, 0, 6, 16);
+    tex = new THREE.CanvasTexture(cv); tex.wrapS = THREE.RepeatWrapping; tex.repeat.set(L / 1.2, 1);
+  }
+  const belt = keep(mesh(box(L, 0.1, w - 0.1, 0.02), tex ? new THREE.MeshLambertMaterial({ map: tex }) : M('#3a3d4f'), { pos: [cx, o.y - 0.05, o.z], shadow: false }));
+  b.deco(belt);
+  b.solid(grp, [{ shape: 'box', hx: L / 2, hy: o.y / 2, hz: w / 2, at: [0, o.y / 2, 0] }], [cx, 0, o.z], 0, { friction: 0.8 });
+  const bt: Belt = { x0: o.x0, x1: o.x1 + 0.4, z0: o.z - w / 2, z1: o.z + w / 2, y: o.y, dir: new THREE.Vector3(1, 0, 0), speed: o.speed ?? 2.2, on: false, tex };
+  b.game.belts.push(bt);
+  return bt;
+}
+
+/** an ammo crate (heavy-ish, rides conveyors) */
+export function ammoCrate(b: Builder, o: O): Prop {
+  const grp = g();
+  grp.add(mesh(box(0.9, 0.6, 0.7, 0.05), M(o.color ?? '#6f8f5a'), { pos: [0, 0.3, 0] }));
+  grp.add(mesh(box(0.92, 0.1, 0.72, 0.02), M('#ffd23f'), { pos: [0, 0.45, 0], shadow: false }));
+  return b.prop({
+    kind: 'ammo', name: o.name ?? '탄약 상자', icon: '🧰', group: grp, pos: o.at, rotY: o.rot,
+    colliders: [{ shape: 'box', hx: 0.45, hy: 0.3, hz: 0.35, at: [0, 0.3, 0] }],
+    mass: 3, mat: 'wood', value: 200000, friction: 0.7, batch: 'ammo',
+  });
+}
+
+/** the planetary defence bomb on its tilting rig (pivot at `at`, short arm toward -x) */
+export function bombRig(b: Builder, o: O & { up?: number; down?: number }): { prop: Prop; rig: RigSpecial } {
+  const grp = g();
+  // the arm (pivot at origin): long side +x carries the bomb, short side -x is the counterweight pad
+  grp.add(mesh(box(7.2, 0.4, 1.2, 0.08), M('#5b5f73'), { pos: [1.4, 0, 0] }));
+  grp.add(mesh(box(1.4, 0.3, 1.6, 0.06), M('#ffd23f'), { pos: [-1.7, 0.3, 0] }));
+  for (let i = 0; i < 5; i++) grp.add(mesh(box(0.25, 0.32, 1.62, 0.02), M('#2f3142'), { pos: [-2.2 + i * 0.25, 0.3, 0], shadow: false }));
+  const bomb = keep(g());
+  bomb.add(mesh(cyl(0.55, 0.55, 3.4, 14), M('#e8e8f0'), { rot: [0, 0, Math.PI / 2] }));
+  bomb.add(mesh(cone(0.55, 1.2, 14), M('#ff5a6e'), { pos: [2.3, 0, 0], rot: [0, 0, -Math.PI / 2] }));
+  for (const r of [0, Math.PI / 2, Math.PI, Math.PI * 1.5]) bomb.add(mesh(box(0.7, 0.06, 0.6, 0.02), M('#ff5a6e'), { pos: [-1.6, Math.cos(r) * 0.6, Math.sin(r) * 0.6], rot: [r, 0, 0] }));
+  bomb.add(mesh(box(0.08, 0.5, 1.12, 0.01), M('#ffd23f'), { pos: [0.3, 0, 0], shadow: false }));
+  bomb.position.set(1.2, 0.75, 0);
+  grp.add(bomb);
+  const rig = new RigSpecial({ yaw: o.rot ?? 0, up: o.up ?? 1.05, downA: o.down ?? -0.75, bomb });
+  const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, o.rot ?? 0, o.up ?? 1.05, 'YXZ'));
+  const prop = b.prop({
+    kind: 'rig', name: '행성 방어 폭탄', icon: '💣', group: grp, pos: o.at, quat: q, kinematic: true,
+    colliders: [{ shape: 'box', hx: 3.6, hy: 0.2, hz: 0.6, at: [1.4, 0, 0] }, { shape: 'box', hx: 0.7, hy: 0.3, hz: 0.8, at: [-1.7, 0.3, 0] }],
+    mass: 200, mat: 'metal', value: 0, special: rig, touchForce: 200, traits: ['하늘을 겨눔', '짧은 쪽에 무게가 실리면…?'],
+  });
+  // the stand
+  const st = g();
+  st.add(mesh(box(1.2, o.at[1], 1.6, 0.1), M('#3a3d4f'), { pos: [0, o.at[1] / 2, 0] }));
+  b.solid(st, [{ shape: 'box', hx: 0.6, hy: o.at[1] / 2, hz: 0.8, at: [0, o.at[1] / 2, 0] }], [o.at[0], 0, o.at[2]]);
+  return { prop, rig };
+}
+
+/** something that only exists on the receipt (the Earth, the asteroid) */
+export function phantom(b: Builder, o: { kind: string; name: string; icon: string; value: number; at: V3 }): Prop {
+  const grp = g();
+  // an invisible speck (keeps the bounds sane)
+  grp.add(mesh(box(0.1, 0.1, 0.1, 0), M('#000000', { transparent: true, opacity: 0 }), { shadow: false }));
+  return b.prop({
+    kind: o.kind, name: o.name, icon: o.icon, group: grp, pos: o.at, kinematic: true, target: true, interactable: false,
+    colliders: [{ shape: 'ball', r: 0.05 }], mass: 1, mat: 'glass', value: o.value,
+    breakable: { threshold: 1e9, mode: 'shatter', fx: 'none', word: '', debris: { count: 0, colors: ['#ffffff'], size: 0.1 } },
   });
 }

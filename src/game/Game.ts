@@ -192,6 +192,8 @@ export class Game {
   run!: RunRecord;
   /** loudness the owner heard (used by sneak goals / challenges) */
   noise = 0;
+  /** the last stage: the Earth went (result shows the final receipt) */
+  finale = false;
   /** equipped trick for this run (set before load) */
   trick: TrickId | null = null;
   trickUsed = false;
@@ -286,6 +288,7 @@ export class Game {
     this.caughtT = 0;
     this.suspicion = 0; this.maxSuspicion = 0; this.caught = false;
     this.trickUsed = false; this.trickArmed = false; this.kneading = null;
+    this.finale = false;
     this.lastWake.clear();
     this.run = { swats: [], chains: [], counters: {}, maxes: {}, discovered: [], culprits: [], ledger: {} };
     this.view = { yaw: 0.5, pitch: 0.72, fov: 30 };
@@ -1294,7 +1297,7 @@ export class Game {
     if (this.caught) stars = Math.min(stars, 2);
     this.pendingResult = {
       success, score: this.score, stars, maxChain: this.maxChain, broken: this.brokenCount,
-      pawsLeft: this.paws, pawsUsed: this.maxPaws - this.paws, pawBonus, money: this.money, bonus: this.bonus, heart: this.heart, receipt: this.receipt(), caught: this.caught, perfect, finale: false,
+      pawsLeft: this.paws, pawsUsed: this.maxPaws - this.paws, pawBonus, money: this.money, bonus: this.bonus, heart: this.heart, receipt: this.receipt(), caught: this.caught, perfect, finale: this.finale,
       story: this.story(), run: this.run,
       wokeOwner: !!this.owner?.awake, noise: this.noise,
     };

@@ -511,6 +511,73 @@ export class CartBrakeSpecial implements Special {
   }
 }
 
+/* ------------------------------ the bomb ------------------------------ */
+
+/**
+ * The planetary defence bomb on its tilting rig. It points at the sky; a
+ * heavy weight on the short arm (or a kneading cat) swings it to point at
+ * the ground. The red button fires it whichever way it points.
+ */
+export class RigSpecial implements Special {
+  down = false;
+  fired: 'up' | 'down' | null = null;
+  private a: number;
+  private t = 0;
+  private q = new THREE.Quaternion();
+  onDown: ((game: Game) => void) | null = null;
+  onFire: ((game: Game, dir: 'up' | 'down') => void) | null = null;
+  constructor(private o: { yaw: number; up: number; downA: number; bomb: THREE.Object3D }) { this.a = o.up; }
+  busy() { return this.fired !== null && this.t < 3; }
+  /** what set it pointing down (for the story of the end of the world) */
+  tiltBy: Prop | null = null;
+  tilt(game: Game, p: Prop, by: Prop | null) {
+    if (this.down || this.fired) return;
+    this.down = true;
+    this.tiltBy = by;
+    if (by) blame(game, p, by);
+    game.sfx.clunk();
+    game.sfx.rumble(0.8);
+    game.shake(0.6);
+    game.emit({ type: 'word', text: '끼기긱… 조준 변경?!', pos: p.center(new THREE.Vector3()).add(new THREE.Vector3(0, 3, 0)), size: 1.3, color: '#ff5a6e' });
+    this.onDown?.(game);
+  }
+  onTouch(game: Game, p: Prop, other: Prop) { if (other.body.mass() >= 20) this.tilt(game, p, other); }
+  onSwat(game: Game, p: Prop, _d: THREE.Vector3, _pw: number, point: THREE.Vector3): boolean {
+    game.emit({ type: 'word', text: '꿈쩍도 안 해', pos: point.clone().add(new THREE.Vector3(0, 0.6, 0)), size: 0.9, color: '#ffffff' });
+    return true;
+  }
+  fire(game: Game) {
+    if (this.fired) return;
+    this.fired = this.down ? 'down' : 'up';
+    this.t = 0;
+    this.onFire?.(game, this.fired);
+  }
+  step(game: Game, p: Prop, h: number) {
+    // the cat kneading the short arm counts as a heavy weight
+    if (!this.down && game.cat.perchProp() === p) this.tilt(game, p, null);
+    // anything heavy landing on the short arm's pad (kinematic contacts report no forces)
+    if (!this.down && game.time > 0.8) {
+      const r = p.body.rotation(), t = p.body.translation();
+      const pad = _v2.set(-1.7, 0.6, 0).applyQuaternion(new THREE.Quaternion(r.x, r.y, r.z, r.w)).add(_v.set(t.x, t.y, t.z));
+      for (const q of game.props) {
+        if (q === p || !q.isDynamic() || q.body.mass() < 20) continue;
+        const c = q.body.translation();
+        if ((c.x - pad.x) ** 2 + (c.z - pad.z) ** 2 < 1.4 * 1.4 && c.y - pad.y < 1.6 && c.y - pad.y > -0.6) { this.tilt(game, p, q); break; }
+      }
+    }
+    const want = this.down ? this.o.downA : this.o.up;
+    this.a += Math.sign(want - this.a) * Math.min(Math.abs(want - this.a), h * 1.4);
+    this.q.setFromEuler(new THREE.Euler(0, this.o.yaw, this.a, 'YXZ'));
+    p.body.setNextKinematicRotation({ x: this.q.x, y: this.q.y, z: this.q.z, w: this.q.w });
+    if (this.fired) {
+      this.t += h;
+      // the bomb slides out along the arm: into the sky, or into the ground
+      const b = this.o.bomb;
+      b.position.x = 1.2 + Math.min(this.t, 3) * Math.min(this.t, 3) * 4;
+    }
+  }
+}
+
 /* ------------------------------ triggers ------------------------------ */
 
 export interface TriggerOpts {
@@ -526,6 +593,8 @@ export interface TriggerOpts {
   word?: string;
   /** the moving part to animate */
   handle?: THREE.Object3D | null;
+  /** may it fire right now? (a closed cover blocks the button) */
+  canFire?: (game: Game) => boolean;
 }
 
 /** a lever, a button, a chock: the paw's way to let big things go */
@@ -538,6 +607,11 @@ export class TriggerSpecial implements Special {
 
   fire(game: Game, p: Prop, byCat: boolean) {
     if (this.used && this.o.once !== false) return;
+    if (this.o.canFire && !this.o.canFire(game)) {
+      game.emit({ type: 'word', text: '딱! (막혀 있음)', pos: p.center(new THREE.Vector3()).add(new THREE.Vector3(0, 0.9, 0)), size: 0.9, color: '#ffffff' });
+      game.sfx.denied();
+      return;
+    }
     this.used = true;
     if (byCat) { p.causeCat = true; p.cause = null; p.activeSwat = game.swatIndex; }
     if (this.o.kind === 'button') game.sfx.beep(); else game.sfx.clunk();
@@ -659,9 +733,10 @@ export function runBelts(game: Game, h: number) {
       const bottom = t.y + p.localBox.min.y;
       if (t.x < b.x0 || t.x > b.x1 || t.z < b.z0 || t.z > b.z1 || Math.abs(bottom - b.y) > 0.5) continue;
       const v = p.body.linvel();
-      const k = Math.min(1, h * 8);
+      // the belt drags it along at belt speed (friction against the belt is what moves it)
       p.body.wakeUp();
-      p.body.setLinvel({ x: v.x + (b.dir.x * b.speed - v.x) * k, y: v.y, z: v.z + (b.dir.z * b.speed - v.z) * k }, true);
+      p.body.setLinvel({ x: b.dir.x * b.speed + (v.x - b.dir.x * (v.x * b.dir.x + v.z * b.dir.z)) * 0.5, y: v.y, z: b.dir.z * b.speed + (v.z - b.dir.z * (v.x * b.dir.x + v.z * b.dir.z)) * 0.5 }, true);
+      void h;
       if (b.by) blame(game, p, b.by);
     }
   }

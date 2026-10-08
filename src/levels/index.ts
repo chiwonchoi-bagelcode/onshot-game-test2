@@ -10,8 +10,9 @@ import { CH7 } from './ch7';
 import { CH8 } from './ch8';
 import { CH9 } from './ch9';
 import { CH10 } from './ch10';
+import { CH11 } from './ch11';
 
 export { CHAPTERS };
-export const BY_CHAPTER: LevelDef[][] = [CH1, CH2, CH3, CH4, CH5, CH6, CH7, CH8, CH9, CH10];
+export const BY_CHAPTER: LevelDef[][] = [CH1, CH2, CH3, CH4, CH5, CH6, CH7, CH8, CH9, CH10, CH11];
 export const LEVELS: LevelDef[] = BY_CHAPTER.flat();
 export const levelById = (id: string) => LEVELS.find((l) => l.id === id);
