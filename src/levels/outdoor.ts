@@ -108,7 +108,9 @@ export function buildLot(b: Builder, spec: LotSpec) {
     env.add(mesh(plane(w, d), groundMat(p.kind, w, d), { rot: [-Math.PI / 2, 0, 0], pos: [(p.x0 + p.x1) / 2, y + 0.002, (p.z0 + p.z1) / 2], shadow: false }));
     const h = y + 0.45;
     env.add(mesh(box(w, h, d, 0.01), M(g.side), { pos: [(p.x0 + p.x1) / 2, y - h / 2, (p.z0 + p.z1) / 2], shadow: false }));
-    cols.push({ shape: 'box', hx: w / 2, hy: (y + 1) / 2, hz: d / 2, at: [(p.x0 + p.x1) / 2, (y - 1) / 2, (p.z0 + p.z1) / 2] });
+    // solid from below the base (or 1 unit under a sunken patch) up to the surface
+    const bot = Math.min(y - 1, -1);
+    cols.push({ shape: 'box', hx: w / 2, hy: (y - bot) / 2, hz: d / 2, at: [(p.x0 + p.x1) / 2, (y + bot) / 2, (p.z0 + p.z1) / 2] });
   }
   for (const r of spec.ramps ?? []) {
     const w = r.x1 - r.x0, d = r.z1 - r.z0;

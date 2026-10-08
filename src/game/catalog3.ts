@@ -4,7 +4,7 @@ import { mergeByMaterial } from '../render/merge';
 import type { Builder } from '../levels/Builder';
 import type { ColDef, Worth } from './types';
 import type { Prop } from './Prop';
-import { BarrierSpecial, CableSpecial, CarSpecial, CraneSpecial, HoseSpecial, PowerStripSpecial, SwingSpecial, TriggerSpecial, WobbleSpecial, WreckingBallSpecial, type CarParts } from './specials3';
+import { BarrierSpecial, CableSpecial, CarSpecial, CartBrakeSpecial, CraneSpecial, HoseSpecial, PowerStripSpecial, SwingSpecial, TriggerSpecial, WobbleSpecial, WreckingBallSpecial, type CarParts } from './specials3';
 import { fruit, type O, type V3 } from './catalog';
 import { screenTexture } from '../render/kit';
 
@@ -337,7 +337,7 @@ export function onggi(b: Builder, o: O & { size?: number; worth?: Worth }): Prop
 }
 
 /** a four-wheeled garden cart: give it a shove and it rolls; whatever is in it rides along */
-export function gardenCart(b: Builder, o: O & { slope?: number }): Prop {
+export function gardenCart(b: Builder, o: O & { slope?: number; braked?: boolean }): Prop {
   // open at the front (+x): when it stops, the load keeps going
   const grp = g();
   const c = M(o.color ?? '#ff8f6b');
@@ -355,10 +355,14 @@ export function gardenCart(b: Builder, o: O & { slope?: number }): Prop {
   ];
   for (const [x, z] of wheels) cols.push({ shape: 'ball', r: wr, at: [x, wr, z], friction: 0, massShare: 0.05 });
   const quat = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, o.rot ?? 0, -(o.slope ?? 0), 'YXZ'));
-  return b.prop({
+  const brake = o.braked ? new CartBrakeSpecial() : undefined;
+  const p = b.prop({
     kind: 'cart', name: o.name ?? '정원 수레', icon: '🛒', group: grp, pos: o.at, quat,
-    colliders: cols, mass: 8, mat: 'metal', value: 60000, frictionMin: true, linDamp: 0.15, angDamp: 1.2, noTopple: true, traits: ['굴러감', '실어 나름'],
+    colliders: cols, mass: 8, mat: 'metal', value: 60000, frictionMin: true, linDamp: 0.15, angDamp: 1.2, noTopple: true, traits: o.braked ? ['바퀴 브레이크', '굴러감', '실어 나름'] : ['굴러감', '실어 나름'],
+    special: brake,
   });
+  brake?.hold(p);
+  return p;
 }
 
 /** a brick (load for carts, debris for building sites) */
@@ -859,23 +863,30 @@ export function structure(b: Builder, o: { x: number; z: number; w: number; d: n
 }
 
 /** a tower crane: a mast, a jib, a trolley that shuttles, a hanging load and its lever */
-export function towerCrane(b: Builder, o: { mast: [number, number]; x0: number; x1: number; z: number; h: number; speed: number; hang: number; lever: V3; load?: 'beams' | 'container'; loadName?: string }): { load: Prop; crane: import('./specials3').CraneSpecial } {
+export function towerCrane(b: Builder, o: { mast: [number, number]; x0: number; x1: number; z: number; h: number; speed: number; hang: number; lever: V3; load?: 'beams' | 'container'; loadName?: string; axis?: 'x' | 'z'; swing?: boolean }): { load: Prop; crane: import('./specials3').CraneSpecial } {
   const g0 = g();
   const yel = M('#ffd23f'), dark = M('#5b5f73');
   g0.add(mesh(box(0.8, o.h, 0.8, 0.05), yel, { pos: [o.mast[0], o.h / 2, o.mast[1]] }));
   for (let y = 1; y < o.h; y += 1.2) g0.add(mesh(box(0.9, 0.08, 0.9, 0.01), dark, { pos: [o.mast[0], y, o.mast[1]], shadow: false }));
-  const jl = o.x1 - o.mast[0] + 1;
-  g0.add(mesh(box(jl + 4, 0.5, 0.6, 0.05), yel, { pos: [o.mast[0] + jl / 2 - 2, o.h + 0.25, o.z] }));
-  g0.add(mesh(box(2.2, 1.2, 1.2, 0.1), M('#c9d6ea'), { pos: [o.mast[0] - 3, o.h - 0.4, o.z] }));
-  g0.add(mesh(box(1.4, 1.2, 1.4, 0.1), M('#ffffff'), { pos: [o.mast[0] + 0.9, o.h - 0.8, o.z] }));
+  if (o.axis === 'z') {
+    // a gantry: a beam along z over the rail line, held by the mast
+    const zl = Math.abs(o.x1 - o.x0) + 4, zc = (o.x0 + o.x1) / 2;
+    g0.add(mesh(box(0.6, 0.5, zl, 0.05), yel, { pos: [o.z, o.h + 0.25, zc] }));
+    g0.add(mesh(box(Math.abs(o.mast[0] - o.z) + 0.8, 0.5, 0.6, 0.05), yel, { pos: [(o.mast[0] + o.z) / 2, o.h + 0.25, o.mast[1]] }));
+  } else {
+    const jl = o.x1 - o.mast[0] + 1;
+    g0.add(mesh(box(jl + 4, 0.5, 0.6, 0.05), yel, { pos: [o.mast[0] + jl / 2 - 2, o.h + 0.25, o.z] }));
+    g0.add(mesh(box(2.2, 1.2, 1.2, 0.1), M('#c9d6ea'), { pos: [o.mast[0] - 3, o.h - 0.4, o.z] }));
+    g0.add(mesh(box(1.4, 1.2, 1.4, 0.1), M('#ffffff'), { pos: [o.mast[0] + 0.9, o.h - 0.8, o.z] }));
+  }
   b.solid(g0, [{ shape: 'box', hx: 0.4, hy: o.h / 2, hz: 0.4, at: [o.mast[0], o.h / 2, o.mast[1]] }], [0, 0, 0]);
   const trolley = keep(g());
   trolley.add(mesh(box(0.9, 0.35, 0.9, 0.05), dark));
-  trolley.position.set(o.x0, o.h - 0.15, o.z);
+  if (o.axis === 'z') trolley.position.set(o.z, o.h - 0.15, o.x0); else trolley.position.set(o.x0, o.h - 0.15, o.z);
   b.deco(trolley);
   const cable = keep(g());
   cable.add(mesh(cyl(0.04, 0.04, o.hang, 4), dark, { pos: [0, o.h - o.hang / 2 - 0.3, 0], shadow: false }));
-  cable.position.set(o.x0, 0, o.z);
+  if (o.axis === 'z') cable.position.set(o.z, 0, o.x0); else cable.position.set(o.x0, 0, o.z);
   b.deco(cable);
   const lg = g();
   let cols: ColDef[];
@@ -891,10 +902,10 @@ export function towerCrane(b: Builder, o: { mast: [number, number]; x0: number; 
     cols = [{ shape: 'box', hx: 3, hy: 0.6, hz: 0.75, at: [0, -0.75, 0] }];
     mass = 60;
   }
-  const crane = new CraneSpecial({ trolley, cable, load: null, x0: o.x0, x1: o.x1, z: o.z, y: o.h - 0.3, speed: o.speed, hang: o.hang });
+  const crane = new CraneSpecial({ trolley, cable, load: null, x0: o.x0, x1: o.x1, z: o.z, y: o.h - 0.3, speed: o.speed, hang: o.hang, axis: o.axis, swing: o.swing });
   const load = b.prop({
     kind: o.load === 'container' ? 'container' : 'beams', name: o.loadName ?? (o.load === 'container' ? '컨테이너' : '철골 다발'), icon: o.load === 'container' ? '📦' : '🏗️', group: lg,
-    pos: [o.x0, o.h - 0.3 - o.hang, o.z], kinematic: true, colliders: cols, mass, mat: 'metal', value: 4000000, interactable: false, special: crane,
+    pos: o.axis === 'z' ? [o.z, o.h - 0.3 - o.hang, o.x0] : [o.x0, o.h - 0.3 - o.hang, o.z], rotY: o.axis === 'z' ? Math.PI / 2 : 0, kinematic: true, colliders: cols, mass, mat: 'metal', value: 4000000, interactable: false, special: crane,
   });
   crane.load = load;
   lever(b, { at: o.lever, label: '크레인 레버', word: '철컥! 툭', action: (game, self) => crane.release(game, self) });
@@ -942,5 +953,49 @@ export function portableToilet(b: Builder, o: O): Prop {
     kind: 'toilet', name: o.name ?? '간이 화장실', icon: '🚽', group: grp, pos: o.at, rotY: o.rot,
     colliders: [{ shape: 'box', hx: 0.65, hy: 1.3, hz: 0.65, at: [0, 1.3, 0] }],
     mass: 3, mat: 'plastic', value: o.value ?? 1500000, toppleValue: 400000, friction: 0.7,
+  });
+}
+
+/** a round pedestal table with a tray rim (top-heavy: shove the base and it tips) */
+export function pedestalTable(b: Builder, o: O & { r?: number; h?: number }): number {
+  const r = o.r ?? 1.1, h = o.h ?? 1.4;
+  const grp = g();
+  grp.add(mesh(cyl(r, r, 0.12, 18), M('#fbf7ee'), { pos: [0, h - 0.06, 0] }));
+  grp.add(mesh(torus(r - 0.05, 0.07, 4, 20), M('#e8c46a'), { pos: [0, h + 0.05, 0], rot: [Math.PI / 2, 0, 0] }));
+  grp.add(mesh(cyl(0.12, 0.16, h - 0.1, 8), M('#8e6a5a'), { pos: [0, (h - 0.1) / 2, 0] }));
+  grp.add(mesh(cyl(0.42, 0.45, 0.1, 10), M('#8e6a5a'), { pos: [0, 0.05, 0] }));
+  const cols: ColDef[] = [
+    { shape: 'cyl', hh: 0.06, r, at: [0, h - 0.06, 0], massShare: 0.5 },
+    { shape: 'cyl', hh: (h - 0.1) / 2, r: 0.16, at: [0, (h - 0.1) / 2, 0], massShare: 0.2 },
+    { shape: 'cyl', hh: 0.05, r: 0.45, at: [0, 0.05, 0], massShare: 0.3 },
+  ];
+  // the rim keeps the glasses in place when the train jolts
+  for (let i = 0; i < 12; i++) { const a = (i / 12) * Math.PI * 2; cols.push({ shape: 'box', hx: 0.06, hy: 0.12, hz: r * 0.27, at: [Math.cos(a) * (r - 0.05), h + 0.1, Math.sin(a) * (r - 0.05)], rot: [0, -a, 0], massShare: 0 }); }
+  b.prop({
+    kind: 'ptable', name: o.name ?? '원형 테이블', icon: '🍾', group: grp, pos: o.at, rotY: o.rot, colliders: cols,
+    mass: 4, mat: 'wood', value: 300000, friction: 0.9, toppleValue: 50000,
+  });
+  return o.at[1] + h;
+}
+
+/** a shipping container (heavy; sinks slowly). Standing ones rock and fall like dominoes. */
+export function container(b: Builder, o: O & { len?: number; standing?: boolean }): Prop {
+  const L = o.len ?? 5, W = 2.3, H = 2.3;
+  const c = o.color ?? '#ff8f6b';
+  const grp = g();
+  const dark = M(new THREE.Color(c).multiplyScalar(0.82).getStyle());
+  if (o.standing) {
+    grp.add(mesh(box(W, L, H, 0.06), M(c), { pos: [0, L / 2, 0] }));
+    for (let i = 0; i < Math.round(L / 0.5); i++) grp.add(mesh(box(W + 0.02, 0.08, H - 0.2, 0), dark, { pos: [0, 0.25 + i * 0.5, 0], shadow: false }));
+  } else {
+    grp.add(mesh(box(L, H, W, 0.06), M(c), { pos: [0, H / 2, 0] }));
+    for (let i = 0; i < Math.round(L / 0.5); i++) grp.add(mesh(box(0.08, H - 0.2, W + 0.02, 0), dark, { pos: [-L / 2 + 0.25 + i * 0.5, H / 2, 0], shadow: false }));
+    grp.add(mesh(box(0.06, H - 0.3, W - 0.3, 0.02), M('#ffffff'), { pos: [L / 2 + 0.02, H / 2, 0], shadow: false }));
+  }
+  return b.prop({
+    kind: 'container', name: o.name ?? '컨테이너', icon: '📦', group: grp, pos: o.at, rotY: o.rot,
+    colliders: [o.standing ? { shape: 'box', hx: W / 2, hy: L / 2, hz: H / 2, at: [0, L / 2, 0] } : { shape: 'box', hx: L / 2, hy: H / 2, hz: W / 2, at: [0, H / 2, 0] }],
+    mass: 30, mat: 'metal', value: o.value ?? 60000000, target: o.target, friction: 0.5, restitution: 0.05, toppleValue: 3000000, floats: false,
+    special: o.standing ? new WobbleSpecial({ minHeight: 0.6, kick: 5.5 }) : undefined, touchForce: o.standing ? 40 : undefined,
   });
 }

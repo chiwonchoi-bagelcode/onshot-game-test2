@@ -63,16 +63,22 @@ export class CarSpecial implements Special {
   label = '';
   /** parked on a slope: held in place until its chock goes (or something rams it) */
   held = false;
+  /** on a gentle slope: don't brake before it has had a chance to get going */
+  gentle = false;
   constructor(private parts: CarParts, private glassMat: THREE.MeshLambertMaterial, private crackedMat: THREE.Material) {}
   busy() { return false; }
 
   /** rolling resistance: free-wheeling while fast, brakes to a stop when slow or wrecked */
   private damp = -1;
+  private peak = 0;
   step(_g: Game, p: Prop) {
     if (this.held) return;
     const v = p.body.linvel();
     const sp = v.x * v.x + v.z * v.z;
-    const want = this.stage >= 3 ? 1.4 : this.stage === 2 ? (sp < 1.4 ? 1.2 : 0.5) : sp < 1.4 ? 1.2 : -1;
+    this.peak = Math.max(this.peak, sp);
+    // a gentle slope gets to pick up speed; once it has run, slowing means stopping
+    const slowing = sp < 1.4 && (!this.gentle || this.peak > 6);
+    const want = this.stage >= 3 ? 1.4 : this.stage === 2 ? (slowing ? 1.2 : 0.5) : slowing ? 1.2 : -1;
     if (want !== this.damp) { this.damp = want; p.body.setLinearDamping(want < 0 ? (p.spec.linDamp ?? 0.12) : Math.max(want, p.spec.linDamp ?? 0)); }
   }
 
@@ -250,7 +256,7 @@ export class WobbleSpecial implements Special {
   private firstBy: Prop | null = null;
   private dir = new THREE.Vector3();
   toppled = false;
-  constructor(private o: { window?: number; minHeight?: number } = {}) {}
+  constructor(private o: { window?: number; minHeight?: number; kick?: number } = {}) {}
   busy() { return false; }
 
   hit(game: Game, p: Prop, dir: THREE.Vector3, by: Prop | null) {
@@ -266,7 +272,8 @@ export class WobbleSpecial implements Special {
       const m = p.body.mass();
       const t = p.body.translation();
       p.body.wakeUp();
-      p.body.applyImpulseAtPoint({ x: d.x * m * 2.6, y: 0, z: d.z * m * 2.6 }, { x: t.x, y: t.y + p.height * 0.9, z: t.z }, true);
+      const kick = this.o.kick ?? 2.6;
+      p.body.applyImpulseAtPoint({ x: d.x * m * kick, y: 0, z: d.z * m * kick }, { x: t.x, y: t.y + p.height * 0.9, z: t.z }, true);
       game.emit({ type: 'word', text: '기우뚱…!', pos: p.center(new THREE.Vector3()).add(new THREE.Vector3(0, p.height * 0.5, 0)), size: 1.2, color: '#ffd23f' });
       game.discover('furniture', p.center(new THREE.Vector3()));
       return;
@@ -286,8 +293,13 @@ export class WobbleSpecial implements Special {
   onTouch(game: Game, p: Prop, other: Prop) {
     const v = other.prevV;
     // a real shove from outside (not the vase rattling inside it)
-    if (other.body.mass() < 3.5 || v.x * v.x + v.z * v.z < 0.36) return;
-    this.hit(game, p, _v.set(v.x, 0, v.z), other);
+    if (other.body.mass() < 3.5 || v.x * v.x + v.z * v.z < 0.25) return;
+    const d = new THREE.Vector3(v.x, 0, v.z);
+    this.hit(game, p, d, other);
+    // something really big (a falling container) needs no second shove,
+    // and a toppled neighbour of the same sort knocks it straight over (dominoes)
+    const domino = other.special instanceof WobbleSpecial && other.special.toppled;
+    if (other.body.mass() * Math.hypot(v.x, v.z) > 100 || domino) this.hit(game, p, d, other);
   }
 }
 
@@ -391,23 +403,29 @@ export class BarrierSpecial implements Special {
 export class CraneSpecial implements Special {
   released = false;
   private x = 0;
-  constructor(private o: { trolley: THREE.Object3D; cable: THREE.Object3D; load: Prop | null; x0: number; x1: number; z: number; y: number; speed: number; hang: number }) {}
+  private vel = 0;
+  constructor(private o: { trolley: THREE.Object3D; cable: THREE.Object3D; load: Prop | null; x0: number; x1: number; z: number; y: number; speed: number; hang: number; axis?: 'x' | 'z'; swing?: boolean }) {}
   set load(p: Prop) { this.o.load = p; }
   busy() { return false; }
-  /** trolley x at game time t (ping-pong) */
+  /** trolley position along its rail at game time t (ping-pong) */
   xAt(t: number) {
-    const L = this.o.x1 - this.o.x0;
+    const L = Math.abs(this.o.x1 - this.o.x0), s = Math.sign(this.o.x1 - this.o.x0) || 1;
     const u = (t * this.o.speed) % (2 * L);
-    return this.o.x0 + (u < L ? u : 2 * L - u);
+    return this.o.x0 + s * (u < L ? u : 2 * L - u);
   }
-  step(game: Game) {
-    this.x = this.xAt(game.time);
+  private at(v: number): { x: number; z: number } { return this.o.axis === 'z' ? { x: this.o.z, z: v } : { x: v, z: this.o.z }; }
+  step(game: Game, _p: Prop, h: number) {
+    const nx = this.xAt(game.time);
+    this.vel = (nx - this.x) / Math.max(h, 1e-4);
+    this.x = nx;
     const l = this.o.load;
-    if (!this.released && l && l.alive) l.body.setNextKinematicTranslation({ x: this.x, y: this.o.y - this.o.hang, z: this.o.z });
+    const a = this.at(this.x);
+    if (!this.released && l && l.alive) l.body.setNextKinematicTranslation({ x: a.x, y: this.o.y - this.o.hang, z: a.z });
   }
   frame(game: Game) {
-    this.o.trolley.position.x = this.x;
-    this.o.cable.position.x = this.x;
+    const a = this.at(this.x);
+    this.o.trolley.position.x = a.x; this.o.trolley.position.z = a.z;
+    this.o.cable.position.x = a.x; this.o.cable.position.z = a.z;
     this.o.cable.visible = !this.released;
     void game;
   }
@@ -417,6 +435,11 @@ export class CraneSpecial implements Special {
     this.released = true;
     l.body.setBodyType(game.R.RigidBodyType.Dynamic, true);
     (l as { kinematic: boolean }).kinematic = false;
+    // it keeps the trolley's speed as it falls
+    if (this.o.swing) {
+      const v = Math.abs(this.vel) < 20 ? this.vel : 0;
+      l.body.setLinvel(this.o.axis === 'z' ? { x: 0, y: 0, z: v } : { x: v, y: 0, z: 0 }, true);
+    }
     l.body.wakeUp();
     blame(game, l, by);
     l.graceUntil = game.time + 0.1;
@@ -465,6 +488,26 @@ export class WreckingBallSpecial implements Special {
     c.scale.set(1, v.length(), 1);
     c.quaternion.setFromUnitVectors(new THREE.Vector3(0, -1, 0), v.normalize());
     void game; void this.q;
+  }
+}
+
+/* ------------------------------ parked carts ------------------------------ */
+
+/** a cart with its wheel brake on: the first paw releases the brake (and shoves) */
+export class CartBrakeSpecial implements Special {
+  label = '브레이크 풀기';
+  braked = true;
+  constructor(private free = 0.15, private held = 9) {}
+  busy() { return false; }
+  hold(p: Prop) { p.body.setLinearDamping(this.held); p.body.setAngularDamping(6); }
+  onSwat(game: Game, p: Prop): boolean {
+    if (this.braked) {
+      this.braked = false;
+      p.body.setLinearDamping(this.free);
+      p.body.setAngularDamping(1.2);
+      game.emit({ type: 'word', text: '딸깍', pos: p.center(new THREE.Vector3()).add(new THREE.Vector3(0, 1, 0)), size: 0.8, color: '#ffffff' });
+    }
+    return false;
   }
 }
 

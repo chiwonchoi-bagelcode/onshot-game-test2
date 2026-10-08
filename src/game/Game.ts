@@ -1132,6 +1132,10 @@ export class Game {
       else if (!p.dunked) {
         p.dunked = true;
         this.attribute(p);
+        const by: string[] = [];
+        for (let c = p.cause, n = 0; c && n < 12; c = c.cause, n++) by.push(c.kind);
+        if (p.causeCat) by.unshift('cat');
+        this.run.culprits.push({ kind: p.kind, target: p.target, by });
         this.count('dunk');
         this.count('dunk:' + p.kind);
         this.discover('splash', sp.clone());
@@ -1150,10 +1154,12 @@ export class Game {
     const floats = p.spec.floats ?? ['rubber', 'squeak', 'soft', 'plastic', 'wood'].includes(p.mat);
     const bottom = c.y - p.height * 0.5;
     const depth = clamp((inside.top - bottom) / Math.max(0.2, p.height), 0, 1);
-    const lift = -GRAVITY * (floats ? 1.45 : 0.55) * depth;
+    // big metal things (containers, cars) go down like stones
+    const heavy = !floats && m >= 20;
+    const lift = -GRAVITY * (floats ? 1.45 : heavy ? 0.12 : 0.55) * depth;
     body.applyImpulse({ x: 0, y: m * lift * h, z: 0 }, true);
     const v = body.linvel(), w = body.angvel();
-    const k = 1 - Math.min(0.5, 3.2 * h);
+    const k = 1 - Math.min(heavy ? 0.1 : 0.5, (heavy ? 0.8 : 3.2) * h);
     body.setLinvel({ x: v.x * k, y: v.y * k, z: v.z * k }, true);
     body.setAngvel({ x: w.x * k, y: w.y * k, z: w.z * k }, true);
     p.prevV.set(v.x * k, v.y * k + GRAVITY * h * 0, v.z * k);
