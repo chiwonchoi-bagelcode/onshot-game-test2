@@ -580,3 +580,5 @@ body { word-break: keep-all; overflow-wrap: anywhere; }
 .orbitlab span { font-size: 11px; }
 .orbitlab.cleared { background: #fff1b8; }
 .orbitlab.locked { opacity: 0.6; }
+.chtab { position: relative; }
+.chtab .wreck { position: absolute; top: -8px; right: -6px; font-style: normal; font-size: 10px; background: #fff; border: 2px solid var(--ink); border-radius: 10px; padding: 0 3px; line-height: 14px; transform: rotate(8deg); }

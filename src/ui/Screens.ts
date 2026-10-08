@@ -114,8 +114,11 @@ export class Screens {
       t.style.setProperty('--cc', '#ffe3a8');
       tabs.append(t);
     }
+    // a cleared place outside keeps a trace of its accident on the map
+    const WRECK: Record<number, string> = { 7: '🚗', 8: '🏺', 9: '🏗️', 10: '🚃', 11: '🚀' };
     for (const c of d.chapters) {
-      const t = btn(`chtab${c.id === d.sel ? ' sel' : ''}${c.open ? '' : ' locked'}${c.fresh ? ' badge' : ''}`, `<span class="ci">${c.open ? c.icon : '🔒'}</span><span class="cn">${c.id}</span>`, () => { this.snd.click(); on.chapter(c.id); });
+      const trace = c.cleared && WRECK[c.id] ? `<i class="wreck">${WRECK[c.id]}💥</i>` : '';
+      const t = btn(`chtab${c.id === d.sel ? ' sel' : ''}${c.open ? '' : ' locked'}${c.fresh ? ' badge' : ''}`, `<span class="ci">${c.open ? c.icon : '🔒'}</span><span class="cn">${c.id}</span>${trace}`, () => { this.snd.click(); on.chapter(c.id); });
       t.style.setProperty('--cc', c.color);
       tabs.append(t);
     }
