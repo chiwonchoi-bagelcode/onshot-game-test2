@@ -1,7 +1,7 @@
 import * as C3 from '../game/catalog3';
 import type { LevelDef } from '../game/types';
 import type { Builder } from './Builder';
-import { building, buildLot, deliveryTruck, fence, flowerBed, hedge, houseFront, roadLines, slab, steps, streetLamp, tree } from './outdoor';
+import { building, buildLot, deliveryTruck, fence, flowerBed, hedge, houseFront, roadLines, shopFront, slab, steps, streetLamp, tree } from './outdoor';
 import { waterZone } from './rooms';
 
 /* ================================================================== */
@@ -293,4 +293,98 @@ const S7_3: LevelDef = {
   },
 };
 
-export const CH7: LevelDef[] = [S7_1, S7_2, S7_3];
+
+/* ================================================================== */
+/* 7-5  언덕길 대참사 — which chock first?                              */
+/* ================================================================== */
+
+const HILL = { x0: -18, x1: 6, y0: 3.6, y1: 0 };
+const SLOPE75 = Math.atan2(HILL.y0 - HILL.y1, HILL.x1 - HILL.x0);
+const hillY = (x: number) => (x >= HILL.x1 ? 0 : rampY(x, HILL.x0, HILL.y0, HILL.x1, HILL.y1));
+
+function parkedOnHill(b: Builder, x: number, z: number, o: Partial<C3.CarOpts> & { name: string; value: number; color: string }) {
+  const car = C3.car(b, { at: [x, hillY(x), z], slope: SLOPE75, held: true, ...o });
+  const cx = x + 2.05 * Math.cos(SLOPE75);
+  C3.chock(b, { at: [cx, hillY(cx), z + 1.0 * Math.sign(z || 1)], slope: SLOPE75, car });
+  return car;
+}
+
+const S7_5: LevelDef = {
+  id: '7-5', chapter: 7, theme: 'street', title: '언덕길 대참사', subtitle: '고임목 세 개, 앞발은 두 번',
+  paws: 2,
+  goal: { kind: 'score', amount: 50000000, text: '동네 피해 ₩5,000만을 넘겨라', short: '₩5,000만 피해' },
+  stars: [68000000, 85000000],
+  challenges: [
+    { type: 'count', kind: 'auto', n: 3, text: '차 세 대 모두 망가뜨리기' },
+    { type: 'paws', max: 1, text: '앞발 한 번으로 클리어' },
+    { type: 'count', kind: 'vending', n: 2, text: '자판기 두 대 박살' },
+  ],
+  tip: '앞발은 두 번뿐. 위쪽 차가 아래쪽 차를 들이받으면…?',
+  hints: ['같은 줄에 선 차는 위에서부터 굴리면 두 대가 함께 내려가요.', '맨 위 차의 고임목 하나로 두 대! 가운데 차를 먼저 빼면 힘이 약해져요.', '두 대가 언덕 아래에 쌓인 뒤 다른 줄 고임목을 빼면 대참사.'],
+  hintMove: { prop: 'chock', near: [-11.8, 3, -2.7], dir: [1, 0] },
+  start: [-8, 0],
+  ownerLine: '내 차가… 언덕 아래에…?!',
+  reactor: '청년',
+  prelude: (k) => {
+    const a = k.actor('청년');
+    k.cam([-6, 2, -1.7], 0.5);
+    a.do('admire', 2.2).do('polish', 1.4);
+    k.at(0.6, () => k.glint('auto', '#ffe680'));
+    k.at(1.2, () => k.say('청년', '드디어 뽑았다! 내 첫 차!', 2));
+    k.at(4.0, () => { k.cam([10, 1, 0], 0.35); a.walkTo(-6.5, -6.3); });
+    k.at(4.4, () => k.say('청년', '언덕이라 고임목은 꼭~', 1.6));
+    k.at(6.0, () => k.cam([-12, 3, -1.7], 0.55));
+    return 7.4;
+  },
+  build(b) {
+    buildLot(b, {
+      bounds: { minX: -18, maxX: 16, minZ: -8, maxZ: 7 },
+      patches: [
+        { x0: 6, x1: 16, z0: -8, z1: -4, kind: 'sidewalk' },
+        { x0: 6, x1: 16, z0: -4, z1: 4, kind: 'asphalt' },
+        { x0: 6, x1: 16, z0: 4, z1: 7, kind: 'sidewalk' },
+      ],
+      ramps: [
+        { x0: HILL.x0, x1: HILL.x1, z0: -8, z1: -4, kind: 'sidewalk', y0: HILL.y0, y1: HILL.y1, along: 'x' },
+        { x0: HILL.x0, x1: HILL.x1, z0: -4, z1: 4, kind: 'asphalt', y0: HILL.y0, y1: HILL.y1, along: 'x' },
+        { x0: HILL.x0, x1: HILL.x1, z0: 4, z1: 7, kind: 'sidewalk', y0: HILL.y0, y1: HILL.y1, along: 'x' },
+      ],
+      base: '#8e8aa6',
+      height: 9,
+      labels: [{ name: '언덕 위', x: -15, z: 5.5 }, { name: '편의점', x: 12, z: 5.5 }],
+    });
+    b.game.view.playWidth = 18;
+    roadLines(b, { x0: HILL.x0, x1: 15, z: 0, y: 0.02, color: '#ffe680' });
+    // houses up the hill (their fronts sink into the slope)
+    houseFront(b, { x: -14, z: -6.4, w: 5, d: 2.6, h: 5, y: hillY(-14) - 0.3, wall: '#fff1d6', roof: '#e58b7a' });
+    houseFront(b, { x: -6.5, z: -6.4, w: 5, d: 2.6, h: 5, y: hillY(-6.5) - 0.3, wall: '#e8f4ff', roof: '#7f9fd8' });
+    houseFront(b, { x: 0.5, z: 5.9, w: 5, d: 2.2, h: 4.5, y: hillY(0.5) - 0.3, wall: '#fbe7ef', roof: '#c98ab8', facing: '-z' });
+    // three parked cars, three chocks
+    parkedOnHill(b, -14, -1.7, { name: '언덕 위 SUV', value: 28000000, color: '#9fd8cb' });
+    parkedOnHill(b, -6, -1.7, { name: '청년의 첫 차', value: 34000000, color: '#ffd23f', worth: { owner: '청년', story: '적금 깨서 산 첫 차', showcase: true } });
+    parkedOnHill(b, -9.5, 1.7, { name: '경차', value: 22000000, color: '#ff8fa3' });
+    // the bottom of the hill: corner shop, vending machines, fruit stand
+    shopFront(b, { x: 14.6, z: 0, w: 8, h: 5.5, facing: '-x', sign: '#5bb98c' });
+    C3.shopWindow(b, { at: [13.55, 0, -1.6], rot: Math.PI / 2, w: 2.6, h: 2.6, name: '편의점 유리창' });
+    C3.vendingMachine(b, { at: [12.6, 0, -3.0], rot: -Math.PI / 2 });
+    C3.vendingMachine(b, { at: [12.6, 0, -0.2], rot: -Math.PI / 2, color: '#4f86c6', name: '커피 자판기' });
+    slab(b, { x: 12.4, z: 2.6, w: 1.4, d: 3.2, h: 1.0, color: '#c98a5a', top: '#e8b07a' });
+    C3.fruitCrate(b, { at: [12.4, 1.0, 1.7] });
+    C3.fruitCrate(b, { at: [12.4, 1.0, 2.6] });
+    C3.fruitCrate(b, { at: [12.4, 1.0, 3.5] });
+    C3.fruitCrate(b, { at: [11.2, 0, 2.2], name: '사과 상자' });
+    C3.cone3(b, { at: [7.5, 0, -3.4] });
+    C3.cone3(b, { at: [8.3, 0, 3.4] });
+    C3.wheelieBin(b, { at: [-10, hillY(-10), -4.6] });
+    C3.mailbox(b, { at: [9.5, 0, -5.2] });
+    C3.flowerPot(b, { at: [-12, hillY(-12), -4.6] });
+    C3.flowerPot(b, { at: [-1.5, hillY(-1.5), 4.6] });
+    streetLamp(b, -9, 4.4, hillY(-9));
+    streetLamp(b, 4, -4.4, hillY(4));
+    tree(b, -16.5, 5.4, 0.8, hillY(-16.5));
+    b.actor('청년', { shirt: '#ff8f6b', pants: '#5b5f73', hair: '#2a1c14', tool: 'rag' }, -6, hillY(-6), -4.0, Math.PI, [8, -1.7]);
+    b.cat(-16.2, hillY(-16.2), 2.2);
+  },
+};
+
+export const CH7: LevelDef[] = [S7_1, S7_2, S7_3, S7_5];

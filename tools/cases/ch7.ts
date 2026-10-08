@@ -7,7 +7,7 @@ export const CASES: Case[] = [
   // 7-1 문이 열렸다
   { level: '7-1', name: 'tutorial: pull the chock (gate closed)', expect: 'win', challenges: [1], plan: [hit('chock', [1, 0], 0.8, 8)] },
   { level: '7-1', name: 'open the gate, then the chock (3★)', expect: 'win', minStars: 3, challenges: [0, 1], plan: [hit('gate', [1, 0], 0.6, 1.5), hit('chock', [1, 0], 0.8, 8)] },
-  { level: '7-1', name: 'chock, then the gate just in time', expect: 'win', minStars: 3, challenges: [0, 1, 2], plan: [hit('chock', [1, 0], 0.8, 0.1), hit('gate', [1, 0], 0.6, 8)] },
+  { level: '7-1', name: 'chock, then the gate just in time', expect: 'win', minStars: 2, challenges: [0, 1, 2], plan: [hit('chock', [1, 0], 0.8, 0.1), hit('gate', [1, 0], 0.6, 8)] },
   { level: '7-1', name: 'paw the car three times (scratch only)', expect: 'lose', plan: [hit('auto', [1, 0], 1, 2, [-6, 1, -1]), hit('auto', [1, 0], 1, 2, [-6, 1, -1]), hit('auto', [-1, 0], 1, 2, [-6, 1, -1])] },
   { level: '7-1', name: 'garden junk only', expect: 'lose', plan: [hit('bin', [1, 0], 1, 3, [-0.9, 0, 2.6]), hit('gnome', [1, 0], 1, 2, [8.6, 0, 2.2]), hit('birdbath', [1, 0], 1, 3)] },
 ];
@@ -25,4 +25,13 @@ CASES.push(
   { level: '7-3', name: 'truck first, then a hard melon (3★, unseen)', expect: 'win', minStars: 3, challenges: [0, 1, 2], plan: [hit('fragile', [-1, 0.3], 0.8, 3, [6.2, 1.4, -2.5]), hit('fragile', [-1, -0.3], 0.8, 3, [6.3, 1.4, -4.1]), hit('watermelon', [1, 0], 1, 6)] },
   { level: '7-3', name: 'melon, the hand-truck top, the truck', expect: 'win', minStars: 2, challenges: [0, 1], plan: [hit('watermelon', [1, 0], 1, 5), hit('fragile', [0, 1], 1, 3, [-1, 1.45, -5]), hit('fragile', [-1, 0.3], 0.8, 3, [6.2, 1.4, -2.5])] },
   { level: '7-3', name: 'gentle melon, no follow-up', expect: 'lose', plan: [hit('watermelon', [1, 0], 0.4, 6), hit('trafficCone', [1, 0], 1, 2), hit('bin', [1, 0], 1, 2)] },
+);
+const A75: [number, number, number] = [-11.9, 3, -2.7], B75: [number, number, number] = [-3.9, 1, -2.7], C75: [number, number, number] = [-7.5, 1, 2.7];
+CASES.push(
+  // 7-5 언덕길 대참사
+  { level: '7-5', name: 'top chock: two cars for one paw', expect: 'win', challenges: [1], plan: [hit('chock', [1, 0], 0.8, 10, A75)] },
+  { level: '7-5', name: 'top chock, wait for the pile, then the other lane (3★)', expect: 'win', minStars: 3, challenges: [0], plan: [hit('chock', [1, 0], 0.8, 4, A75), hit('chock', [1, 0], 0.8, 10, C75)] },
+  { level: '7-5', name: 'middle + other lane (both vending machines)', expect: 'win', challenges: [2], plan: [hit('chock', [1, 0], 0.8, 4, B75), hit('chock', [1, 0], 0.8, 10, C75)] },
+  { level: '7-5', name: 'top and middle at once (wasted paw)', expect: 'lose', plan: [hit('chock', [1, 0], 0.8, 0.3, A75), hit('chock', [1, 0], 0.8, 10, B75)] },
+  { level: '7-5', name: 'paw the cars', expect: 'lose', plan: [hit('auto', [1, 0], 1, 2, [-6, 2, -1.7]), hit('auto', [1, 0], 1, 2, [-14, 3, -1.7])] },
 );

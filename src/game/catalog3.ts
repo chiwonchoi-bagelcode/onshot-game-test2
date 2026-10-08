@@ -454,7 +454,7 @@ export function vendingMachine(b: Builder, o: O): Prop {
     kind: 'vending', name: o.name ?? '자판기', icon: '🥤', group: grp, pos: o.at, rotY: o.rot,
     colliders: [{ shape: 'box', hx: 0.8, hy: 1.7, hz: 0.6, at: [0, 1.7, 0] }],
     mass: 30, mat: 'electronic', value: o.value ?? 3500000, target: o.target, friction: 0.7,
-    breakable: { threshold: 3.5, hitForce: 9000, mode: 'damage', fx: 'sparks', word: '와장창! 캔 우르르', debris: { count: 12, colors: ['#ffd23f', '#5bb98c', '#4f86c6', '#ff9f43'], size: 0.18 }, onDamage: (p) => { p.group.rotation.z = 0.04; } },
+    breakable: { threshold: 3.5, hitForce: 4000, mode: 'damage', fx: 'sparks', word: '와장창! 캔 우르르', debris: { count: 12, colors: ['#ffd23f', '#5bb98c', '#4f86c6', '#ff9f43'], size: 0.18 }, onDamage: (p) => { p.group.rotation.z = 0.04; } },
   });
 }
 

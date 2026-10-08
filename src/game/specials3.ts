@@ -65,6 +65,16 @@ export class CarSpecial implements Special {
   constructor(private parts: CarParts, private glassMat: THREE.MeshLambertMaterial, private crackedMat: THREE.Material) {}
   busy() { return false; }
 
+  /** rolling resistance: free-wheeling while fast, brakes to a stop when slow or wrecked */
+  private damp = -1;
+  step(_g: Game, p: Prop) {
+    if (this.held) return;
+    const v = p.body.linvel();
+    const sp = v.x * v.x + v.z * v.z;
+    const want = this.stage >= 3 ? 1.4 : this.stage === 2 ? (sp < 1.4 ? 1.2 : 0.5) : sp < 1.4 ? 1.2 : -1;
+    if (want !== this.damp) { this.damp = want; p.body.setLinearDamping(want < 0 ? (p.spec.linDamp ?? 0.12) : Math.max(want, p.spec.linDamp ?? 0)); }
+  }
+
   /** lock in place (call after the body exists) */
   hold(p: Prop) {
     this.held = true;
