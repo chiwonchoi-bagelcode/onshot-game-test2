@@ -237,6 +237,59 @@ export class SwingSpecial implements Special {
   }
 }
 
+/* ------------------------------ wobbly furniture ------------------------------ */
+
+/**
+ * Tall heavy furniture rocks when hit and tips over on a second hit while
+ * it is still rocking ("흔들릴 때 한 번 더!"). A hit is a paw high up, or
+ * something heavy rolling into it.
+ */
+export class WobbleSpecial implements Special {
+  private lastHit = -10;
+  private firstBy: Prop | null = null;
+  private dir = new THREE.Vector3();
+  toppled = false;
+  constructor(private o: { window?: number; minHeight?: number } = {}) {}
+  busy() { return false; }
+
+  hit(game: Game, p: Prop, dir: THREE.Vector3, by: Prop | null) {
+    if (this.toppled) return;
+    const now = game.time;
+    if (now - this.lastHit < (this.o.window ?? 1.6) && this.lastHit > 0) {
+      // second shove while rocking: over it goes
+      this.toppled = true;
+      const d = this.dir.add(dir).setY(0).normalize();
+      // whatever set it rocking gets the credit in the story
+      const culprit = by ?? this.firstBy;
+      if (culprit) { p.cause = culprit; p.causeCat = false; p.activeSwat = game.swatIndex; }
+      const m = p.body.mass();
+      const t = p.body.translation();
+      p.body.wakeUp();
+      p.body.applyImpulseAtPoint({ x: d.x * m * 2.6, y: 0, z: d.z * m * 2.6 }, { x: t.x, y: t.y + p.height * 0.9, z: t.z }, true);
+      game.emit({ type: 'word', text: '기우뚱…!', pos: p.center(new THREE.Vector3()).add(new THREE.Vector3(0, p.height * 0.5, 0)), size: 1.2, color: '#ffd23f' });
+      game.discover('furniture', p.center(new THREE.Vector3()));
+      return;
+    }
+    this.lastHit = now;
+    this.firstBy = by;
+    this.dir.copy(dir).setY(0).normalize();
+    game.emit({ type: 'word', text: '흔들흔들', pos: p.center(new THREE.Vector3()).add(new THREE.Vector3(0, p.height * 0.5, 0)), size: 0.9, color: '#ffffff' });
+  }
+
+  onSwat(game: Game, p: Prop, dir: THREE.Vector3, _power: number, point: THREE.Vector3): boolean {
+    const t = p.body.translation();
+    if (point.y - t.y >= p.height * (this.o.minHeight ?? 0.55)) this.hit(game, p, dir, null);
+    return false;
+  }
+
+  onTouch(game: Game, p: Prop, other: Prop) {
+    const v = other.prevV;
+    // a real shove from outside (not the vase rattling inside it)
+    if (other.body.mass() < 3.5 || v.x * v.x + v.z * v.z < 0.36) return;
+    this.hit(game, p, _v.set(v.x, 0, v.z), other);
+  }
+}
+
 /* ------------------------------ triggers ------------------------------ */
 
 export interface TriggerOpts {

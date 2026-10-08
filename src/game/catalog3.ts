@@ -4,7 +4,7 @@ import { mergeByMaterial } from '../render/merge';
 import type { Builder } from '../levels/Builder';
 import type { ColDef, Worth } from './types';
 import type { Prop } from './Prop';
-import { CarSpecial, HoseSpecial, SwingSpecial, TriggerSpecial, type CarParts } from './specials3';
+import { CarSpecial, HoseSpecial, SwingSpecial, TriggerSpecial, WobbleSpecial, type CarParts } from './specials3';
 import { fruit, type O, type V3 } from './catalog';
 
 /* ------------------------------------------------------------------ */
@@ -521,5 +521,124 @@ export function watermelon(b: Builder, o: O & { r?: number }): Prop {
     colliders: [{ shape: 'ball', r, at: [0, r, 0] }],
     mass: 3.4, mat: 'food', value: 35000, restitution: 0.12, friction: 0.9, angDamp: 0.05, linDamp: 0.01, noTopple: true,
     breakable: { threshold: 16, mode: 'shatter', fx: 'juice', word: '퍽! 수박 대폭발', debris: { count: 12, colors: ['#ff5a6e', '#3f9f4f', '#ff8fa3'], size: 0.22 } },
+  });
+}
+
+/* ------------------------------ workshop & office ------------------------------ */
+
+/** a free-standing glass display tower (vitrine): heavy, tall, glass all round */
+export function vitrine(b: Builder, o: O & { h?: number; w?: number; d?: number; shelves?: number; mass?: number }): { prop: Prop; shelfY: number[] } {
+  const w = o.w ?? 1.8, h = o.h ?? 5.0, d = o.d ?? 1.2;
+  const wood = M(o.color ?? '#5b3b2b');
+  const glass = M('#d8f3ff', { transparent: true, opacity: 0.32 });
+  const grp = g();
+  grp.add(mesh(box(w, 0.5, d, 0.04), wood, { pos: [0, 0.25, 0] }));
+  grp.add(mesh(box(w + 0.2, 0.36, d + 0.2, 0.06), wood, { pos: [0, h - 0.1, 0] }));
+  for (const [x, z] of [[-1, -1], [1, -1], [-1, 1], [1, 1]] as const) grp.add(mesh(box(0.1, h, 0.1, 0.02), wood, { pos: [x * (w / 2 - 0.05), h / 2, z * (d / 2 - 0.05)] }));
+  for (const z of [-1, 1]) grp.add(mesh(box(w - 0.1, h - 0.7, 0.03, 0), glass, { pos: [0, (h + 0.3) / 2, z * (d / 2 - 0.03)], shadow: false }));
+  for (const x of [-1, 1]) grp.add(mesh(box(0.03, h - 0.7, d - 0.1, 0), glass, { pos: [x * (w / 2 - 0.03), (h + 0.3) / 2, 0], shadow: false }));
+  const n = o.shelves ?? 3;
+  const shelfY: number[] = [];
+  const cols: ColDef[] = [
+    // a heavy carved cornice: top-heavy, so a good shove up high tips it
+    { shape: 'box', hx: w / 2, hy: 0.25, hz: d / 2, at: [0, 0.25, 0], massShare: 0.3 },
+    { shape: 'box', hx: w / 2, hy: 0.1, hz: d / 2, at: [0, h - 0.1, 0], massShare: 0.2 },
+    { shape: 'box', hx: w / 2, hy: (h - 0.7) / 2, hz: 0.03, at: [0, (h + 0.3) / 2, d / 2 - 0.03], massShare: 0.08 },
+    { shape: 'box', hx: w / 2, hy: (h - 0.7) / 2, hz: 0.03, at: [0, (h + 0.3) / 2, -d / 2 + 0.03], massShare: 0.08 },
+    { shape: 'box', hx: 0.03, hy: (h - 0.7) / 2, hz: d / 2, at: [w / 2 - 0.03, (h + 0.3) / 2, 0], massShare: 0.07 },
+    { shape: 'box', hx: 0.03, hy: (h - 0.7) / 2, hz: d / 2, at: [-w / 2 + 0.03, (h + 0.3) / 2, 0], massShare: 0.07 },
+  ];
+  for (let i = 1; i < n; i++) {
+    const y = 0.5 + (i * (h - 0.7)) / n;
+    grp.add(mesh(box(w - 0.1, 0.06, d - 0.1, 0.01), M('#e8f6ff', { transparent: true, opacity: 0.6 }), { pos: [0, y, 0], shadow: false }));
+    cols.push({ shape: 'box', hx: w / 2 - 0.06, hy: 0.03, hz: d / 2 - 0.06, at: [0, y, 0], massShare: 0.2 / (n - 1) });
+    shelfY.push(y + 0.03);
+  }
+  const prop = b.prop({
+    kind: 'vitrine', name: o.name ?? '유리 진열장', icon: '🗄️', group: grp, pos: o.at, rotY: o.rot, colliders: cols,
+    mass: o.mass ?? 15, mat: 'glass', value: o.value ?? 1200000, friction: 0.7, traits: ['무거움', '키가 큼', '흔들릴 때 한 번 더'],
+    special: new WobbleSpecial(), touchForce: 100,
+    breakable: { threshold: 6.5, mode: 'damage', fx: 'glass', word: '와장창!! 유리장', debris: { count: 18, colors: ['#e8fbff', '#bfe8ff'], size: 0.3, flat: true } },
+  });
+  return { prop, shelfY: [0.5, ...shelfY].map((y) => y + o.at[1]) };
+}
+
+/** a moon jar (달항아리): big, white, and three months of someone's life */
+export function moonJar(b: Builder, o: O & { worth?: Worth; interactable?: boolean }): Prop {
+  const s = o.scale ?? 1;
+  const prof: [number, number][] = [[0, 0], [0.3 * s, 0], [0.62 * s, 0.35 * s], [0.68 * s, 0.62 * s], [0.6 * s, 0.95 * s], [0.34 * s, 1.18 * s], [0.36 * s, 1.26 * s]];
+  const grp = g();
+  grp.add(mesh(lathe(prof, 14), M('#fbf7ee')));
+  return b.prop({
+    kind: 'moonJar', name: o.name ?? '달항아리', icon: '🏺', group: grp, pos: o.at, rotY: o.rot,
+    colliders: [hull(prof.slice(1), 10)],
+    mass: 2.4 * s, mat: 'ceramic', value: o.value ?? 8000000, target: o.target, worth: o.worth, interactable: o.interactable,
+    breakable: { threshold: 4.2, mode: 'shatter', fx: 'none', word: '쨍… 와장창!!', debris: { count: 16, colors: ['#fbf7ee', '#ffffff', '#efe6d4'], size: 0.24 * s } },
+  });
+}
+
+/** a tall drying rack on casters, loaded with unfired pots */
+export function dryingRack(b: Builder, o: O & { h?: number }): { prop: Prop; shelfY: number[] } {
+  const h = o.h ?? 4.2, w = 1.6, d = 0.9, wr = 0.2;
+  const grp = g();
+  const wood = M('#c9a27a');
+  for (const [x, z] of [[-1, -1], [1, -1], [-1, 1], [1, 1]] as const) {
+    grp.add(mesh(box(0.08, h - wr * 2, 0.08, 0.02), wood, { pos: [x * (w / 2 - 0.04), wr * 2 + (h - wr * 2) / 2, z * (d / 2 - 0.04)] }));
+    grp.add(mesh(sphere(wr, 7, 5), M('#3a3a48'), { pos: [x * (w / 2 - 0.1), wr, z * (d / 2 - 0.1)] }));
+  }
+  const shelfY: number[] = [];
+  const cols: ColDef[] = [];
+  for (let i = 0; i < 4; i++) {
+    const y = wr * 2 + 0.1 + i * ((h - wr * 2 - 0.2) / 3);
+    grp.add(mesh(box(w, 0.06, d, 0.01), wood, { pos: [0, y, 0] }));
+    cols.push({ shape: 'box', hx: w / 2, hy: 0.03, hz: d / 2, at: [0, y, 0], massShare: 0.16 });
+    shelfY.push(y + 0.03);
+  }
+  for (const [x, z] of [[-1, -1], [1, -1], [-1, 1], [1, 1]] as const) cols.push({ shape: 'ball', r: wr, at: [x * (w / 2 - 0.1), wr, z * (d / 2 - 0.1)], friction: 0, massShare: 0.04 });
+  for (const [x, z] of [[-1, -1], [1, 1]] as const) cols.push({ shape: 'box', hx: 0.04, hy: (h - wr * 2) / 2, hz: 0.04, at: [x * (w / 2 - 0.04), wr * 2 + (h - wr * 2) / 2, z * (d / 2 - 0.04)], massShare: 0.0 });
+  const prop = b.prop({
+    kind: 'rack', name: o.name ?? '건조대', icon: '🛒', group: grp, pos: o.at, rotY: o.rot, colliders: cols,
+    mass: 5, mat: 'wood', value: 80000, frictionMin: true, linDamp: 0.1, angDamp: 0.6, traits: ['바퀴', '키가 큼', '실어 나름'],
+  });
+  return { prop, shelfY: shelfY.map((y) => y + o.at[1]) };
+}
+
+/** an unfired pot (greenware): cheap, very fragile */
+export function greenware(b: Builder, o: O): Prop {
+  const s = o.scale ?? 1;
+  const prof: [number, number][] = [[0, 0], [0.2 * s, 0], [0.28 * s, 0.25 * s], [0.22 * s, 0.5 * s], [0.25 * s, 0.56 * s]];
+  const grp = g();
+  grp.add(mesh(lathe(prof, 9), M(o.color ?? '#d9c4a8')));
+  return b.prop({
+    kind: 'greenware', name: o.name ?? '초벌 그릇', icon: '🏺', group: grp, pos: o.at, rotY: o.rot,
+    colliders: [hull(prof.slice(1), 7)], mass: 0.5 * s, mat: 'ceramic', value: o.value ?? 60000, batch: 'greenware',
+    breakable: { threshold: 3.6, hitForce: 120, mode: 'shatter', fx: 'dirt', debris: { count: 6, colors: [o.color ?? '#d9c4a8', '#c4ab8c'], size: 0.15 * s } },
+  });
+}
+
+/** a heavy wrapped block of clay */
+export function clayBlock(b: Builder, o: O): Prop {
+  const grp = g();
+  grp.add(mesh(box(1.0, 0.6, 0.7, 0.12), M('#a88c6e'), { pos: [0, 0.3, 0] }));
+  grp.add(mesh(box(1.02, 0.08, 0.72, 0.02), M('#7fb8d8', { transparent: true, opacity: 0.6 }), { pos: [0, 0.45, 0], shadow: false }));
+  return b.prop({
+    kind: 'clay', name: o.name ?? '점토 덩어리', icon: '🟫', group: grp, pos: o.at, rotY: o.rot,
+    colliders: [{ shape: 'box', hx: 0.5, hy: 0.3, hz: 0.35, at: [0, 0.3, 0], round: 0.08 }],
+    mass: 6, mat: 'soft', value: 30000, friction: 0.35, restitution: 0.05,
+  });
+}
+
+/** a slim porcelain bottle (매병): tall, narrow foot, wide shoulder — falls like a domino */
+export function maebyeong(b: Builder, o: O): Prop {
+  const s = o.scale ?? 1;
+  const prof: [number, number][] = [[0, 0], [0.16 * s, 0], [0.2 * s, 0.4 * s], [0.34 * s, 1.05 * s], [0.3 * s, 1.3 * s], [0.12 * s, 1.45 * s], [0.14 * s, 1.55 * s]];
+  const grp = g();
+  const c = o.color ?? '#8fc3b8';
+  grp.add(mesh(lathe(prof, 10), M(c)));
+  grp.add(mesh(cyl(0.345 * s, 0.345 * s, 0.07 * s, 10), M('#ffffff'), { pos: [0, 1.0 * s, 0], shadow: false }));
+  return b.prop({
+    kind: 'maebyeong', name: o.name ?? '매병', icon: '🏺', group: grp, pos: o.at, rotY: o.rot,
+    colliders: [hull(prof.slice(1), 8)], mass: 0.9 * s, mat: 'ceramic', value: o.value ?? 260000, target: o.target, batch: 'maebyeong', toppleValue: 8000,
+    breakable: { threshold: 3.0, mode: 'shatter', fx: 'none', debris: { count: 8, colors: [c, '#ffffff'], size: 0.18 * s } },
   });
 }
