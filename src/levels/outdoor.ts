@@ -302,3 +302,60 @@ export function flowerBed(b: Builder, x: number, z: number, w: number, d: number
   }
   b.solid(g, [{ shape: 'box', hx: w / 2, hy: 0.2, hz: d / 2, at: [0, 0.2, 0] }], [x, y, z]);
 }
+
+/** a flight of outdoor steps going down along +x (or -x) from a landing at height h */
+export function steps(b: Builder, o: { x: number; z: number; w: number; n: number; rise: number; run: number; dir?: 1 | -1; color?: string; edge?: string }) {
+  const g = new THREE.Group();
+  const cols: ColDef[] = [];
+  const d = o.dir ?? 1;
+  // n steps down from a landing at rise * n: the last one is the ground itself
+  for (let i = 0; i < o.n - 1; i++) {
+    const top = o.rise * (o.n - i - 1);
+    const cx = o.x + d * (i + 0.5) * o.run;
+    g.add(mesh(box(o.run, top, o.w, 0.03), M(o.color ?? '#e8e2d8'), { pos: [cx, top / 2, o.z] }));
+    g.add(mesh(box(0.08, 0.04, o.w, 0.01), M(o.edge ?? '#ffd23f'), { pos: [cx - d * (o.run / 2 - 0.06), top + 0.01, o.z], shadow: false }));
+    cols.push({ shape: 'box', hx: o.run / 2, hy: top / 2, hz: o.w / 2, at: [cx, top / 2, o.z] });
+  }
+  b.solid(g, cols, [0, 0, 0], 0, { friction: 0.6, restitution: 0.15 });
+}
+
+/** a parked delivery truck with its back open (solid scenery: floor, walls, cab) */
+export function deliveryTruck(b: Builder, o: { x: number; z: number; rot?: number; color?: string; floor?: number }) {
+  const g = new THREE.Group();
+  const c = M(o.color ?? '#ffffff'), stripe = M('#4f86c6');
+  const fl = o.floor ?? 1.3;
+  const L = 6, W = 3, H = 3.2;
+  // cargo box (open toward -x)
+  g.add(mesh(box(L, 0.2, W, 0.04), M('#b9b3a8'), { pos: [0, fl, 0] }));
+  g.add(mesh(box(L, H, 0.12, 0.04), c, { pos: [0, fl + H / 2, W / 2] }));
+  g.add(mesh(box(L, H, 0.12, 0.04), c, { pos: [0, fl + H / 2, -W / 2] }));
+  g.add(mesh(box(0.12, H, W, 0.04), c, { pos: [L / 2, fl + H / 2, 0] }));
+  g.add(mesh(box(L, 0.12, W, 0.04), c, { pos: [0, fl + H, 0] }));
+  g.add(mesh(box(L * 0.9, 0.45, 0.02, 0), stripe, { pos: [0, fl + 1.4, W / 2 + 0.07], shadow: false }));
+  // cab
+  g.add(mesh(box(2.2, 2.6, W, 0.2), M('#4f86c6'), { pos: [L / 2 + 1.2, 1.7, 0] }));
+  g.add(mesh(box(0.08, 1.0, W - 0.5, 0.02), M('#bfe8ff'), { pos: [L / 2 + 2.31, 2.3, 0], shadow: false }));
+  for (const [x, z] of [[-L / 2 + 1, W / 2], [-L / 2 + 1, -W / 2], [L / 2 + 1.2, W / 2], [L / 2 + 1.2, -W / 2]] as const) g.add(mesh(cyl(0.55, 0.55, 0.4, 12), M('#3a3a48'), { pos: [x, 0.55, z], rot: [Math.PI / 2, 0, 0] }));
+  const cols: ColDef[] = [
+    { shape: 'box', hx: L / 2, hy: (fl + 0.1) / 2, hz: W / 2, at: [0, (fl + 0.1) / 2, 0] },
+    { shape: 'box', hx: L / 2, hy: H / 2, hz: 0.06, at: [0, fl + H / 2, W / 2] },
+    { shape: 'box', hx: L / 2, hy: H / 2, hz: 0.06, at: [0, fl + H / 2, -W / 2] },
+    { shape: 'box', hx: 0.06, hy: H / 2, hz: W / 2, at: [L / 2, fl + H / 2, 0] },
+    { shape: 'box', hx: L / 2, hy: 0.06, hz: W / 2, at: [0, fl + H, 0] },
+    { shape: 'box', hx: 1.1, hy: 1.3, hz: W / 2, at: [L / 2 + 1.2, 1.7, 0] },
+  ];
+  b.solid(g, cols, [o.x, 0, o.z], o.rot ?? 0, { friction: 0.6, restitution: 0.15 });
+}
+
+/** a corner shop front: wall with sign and awning (glass is a separate prop) */
+export function shopFront(b: Builder, o: { x: number; z: number; w: number; h?: number; color?: string; sign?: string; awning?: string; facing?: 'x' | '-x' | 'z' }) {
+  const g = new THREE.Group();
+  const h = o.h ?? 5;
+  g.add(mesh(box(o.w, h, 2, 0.06), M(o.color ?? '#fff1d6'), { pos: [0, h / 2, 0] }));
+  g.add(mesh(box(o.w - 0.4, 0.9, 0.2, 0.05), M(o.sign ?? '#5bb98c'), { pos: [0, h - 0.8, 1.05] }));
+  const aw = M(o.awning ?? '#ff8fa3'), aw2 = M('#ffffff');
+  const n = Math.round(o.w / 0.8);
+  for (let i = 0; i < n; i++) g.add(mesh(box(o.w / n, 0.12, 1.4, 0.02), i % 2 ? aw : aw2, { pos: [-o.w / 2 + (i + 0.5) * (o.w / n), h - 1.55, 1.7], rot: [0.35, 0, 0] }));
+  const rotY = o.facing === 'x' ? Math.PI / 2 : o.facing === '-x' ? -Math.PI / 2 : 0;
+  b.solid(g, [{ shape: 'box', hx: o.w / 2, hy: h / 2, hz: 1, at: [0, h / 2, 0] }], [o.x, 0, o.z], rotY, { friction: 0.5, restitution: 0.2 });
+}

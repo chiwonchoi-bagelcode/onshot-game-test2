@@ -4,8 +4,8 @@ import { mergeByMaterial } from '../render/merge';
 import type { Builder } from '../levels/Builder';
 import type { ColDef, Worth } from './types';
 import type { Prop } from './Prop';
-import { CarSpecial, SwingSpecial, TriggerSpecial, type CarParts } from './specials3';
-import type { O, V3 } from './catalog';
+import { CarSpecial, HoseSpecial, SwingSpecial, TriggerSpecial, type CarParts } from './specials3';
+import { fruit, type O, type V3 } from './catalog';
 
 /* ------------------------------------------------------------------ */
 /* Props for the outside world: cars, chocks, gates, garden things.    */
@@ -280,5 +280,246 @@ export function bucket(b: Builder, o: O): Prop {
     colliders: [{ shape: 'cyl', hh: 0.25, r: 0.3, at: [0, 0.25, 0] }],
     mass: 1.2, mat: 'plastic', value: 8000,
     breakable: { threshold: 6, mode: 'damage', fx: 'water', word: '촤악!' },
+  });
+}
+
+/** a garden hose on its reel: swat to turn it on, the stream goes where the paw pointed */
+export function hoseReel(b: Builder, o: O & { dur?: number }): Prop {
+  const grp = g();
+  grp.add(mesh(box(0.9, 0.12, 0.7, 0.04), M('#5bb98c'), { pos: [0, 0.06, 0] }));
+  for (const z of [-0.28, 0.28]) grp.add(mesh(cyl(0.45, 0.45, 0.08, 12), M('#5bb98c'), { pos: [0, 0.6, z], rot: [Math.PI / 2, 0, 0] }));
+  grp.add(mesh(cyl(0.36, 0.36, 0.48, 12), M('#ffd23f'), { pos: [0, 0.6, 0], rot: [Math.PI / 2, 0, 0] }));
+  const nozzle = keep(g());
+  nozzle.add(mesh(cyl(0.06, 0.09, 0.5, 6), M('#ff6b6b'), { rot: [Math.PI / 2, 0, 0], pos: [0, 0, 0.25] }));
+  nozzle.position.set(0, 1.15, 0);
+  grp.add(nozzle);
+  return b.prop({
+    kind: 'hose', name: o.name ?? '정원 호스', icon: '🚿', group: grp, pos: o.at, rotY: o.rot,
+    colliders: [{ shape: 'box', hx: 0.45, hy: 0.55, hz: 0.35, at: [0, 0.55, 0] }],
+    mass: 14, mat: 'plastic', value: 40000, special: new HoseSpecial(nozzle, o.dur ?? 4), traits: ['물줄기', '방향'],
+  });
+}
+
+/** grandma's pine bonsai in a shallow glazed pot */
+export function bonsai(b: Builder, o: O & { worth?: Worth }): Prop {
+  const grp = g();
+  grp.add(mesh(box(1.1, 0.3, 0.75, 0.08), M('#4f86c6'), { pos: [0, 0.15, 0] }));
+  grp.add(mesh(box(1.0, 0.04, 0.65, 0.02), M('#6b4a33'), { pos: [0, 0.31, 0] }));
+  const bark = M('#7a5a40');
+  grp.add(mesh(cyl(0.09, 0.14, 0.6, 6), bark, { pos: [-0.1, 0.6, 0], rot: [0, 0, 0.35] }));
+  grp.add(mesh(cyl(0.06, 0.09, 0.55, 6), bark, { pos: [0.12, 1.0, 0], rot: [0, 0, -0.6] }));
+  grp.add(mesh(cyl(0.05, 0.07, 0.5, 6), bark, { pos: [-0.25, 1.05, 0.05], rot: [0.2, 0, 0.9] }));
+  const leaf = M('#3f8f5a');
+  for (const [x, y, z, r] of [[0.38, 1.25, 0, 0.32], [-0.48, 1.25, 0.05, 0.28], [0, 1.5, -0.05, 0.3], [0.1, 1.05, 0.25, 0.2]] as const) grp.add(mesh(sphere(r, 7, 5), leaf, { pos: [x, y, z], scale: [1.3, 0.55, 1] }));
+  return b.prop({
+    kind: 'bonsai', name: o.name ?? '소나무 분재', icon: '🌳', group: grp, pos: o.at, rotY: o.rot,
+    colliders: [{ shape: 'box', hx: 0.55, hy: 0.16, hz: 0.38, at: [0, 0.16, 0], massShare: 0.8 }, { shape: 'box', hx: 0.5, hy: 0.4, hz: 0.3, at: [0, 1.1, 0], massShare: 0.2 }],
+    mass: 2.2, mat: 'ceramic', value: o.value ?? 3200000, target: o.target, worth: o.worth,
+    breakable: { threshold: 4.5, mode: 'shatter', fx: 'dirt', word: '와장창! 분재가…', debris: { count: 10, colors: ['#4f86c6', '#3f8f5a', '#7a5a40'], size: 0.2 } },
+  });
+}
+
+/** an onggi jar (soy sauce, bean paste) — heavy glazed earthenware */
+export function onggi(b: Builder, o: O & { size?: number; worth?: Worth }): Prop {
+  const s = o.size ?? 1;
+  const prof: [number, number][] = [[0, 0], [0.32 * s, 0], [0.55 * s, 0.35 * s], [0.6 * s, 0.6 * s], [0.5 * s, 0.95 * s], [0.36 * s, 1.08 * s], [0.38 * s, 1.14 * s]];
+  const grp = g();
+  grp.add(mesh(lathe(prof, 10), M('#7a4a2a')));
+  grp.add(mesh(cyl(0.61 * s, 0.61 * s, 0.05 * s, 10), M('#5e3a22'), { pos: [0, 0.62 * s, 0] }));
+  grp.add(mesh(lathe([[0, 0.2 * s], [0.42 * s, 0], [0.44 * s, 0.03 * s], [0, 0.26 * s]], 10), M('#6e4328'), { pos: [0, 1.12 * s, 0] }));
+  return b.prop({
+    kind: 'onggi', name: o.name ?? '장독', icon: '🏺', group: grp, pos: o.at, rotY: o.rot,
+    colliders: [hull(prof.slice(1), 8)],
+    mass: 4 * s * s, mat: 'ceramic', value: o.value ?? Math.round(180000 * s), target: o.target, worth: o.worth,
+    breakable: { threshold: 4.8, hitForce: 260 * s, mode: 'shatter', fx: 'coffee', word: '쩍! 간장 콸콸', debris: { count: 10, colors: ['#7a4a2a', '#5e3a22'], size: 0.24 * s } },
+  });
+}
+
+/** a four-wheeled garden cart: give it a shove and it rolls; whatever is in it rides along */
+export function gardenCart(b: Builder, o: O & { slope?: number }): Prop {
+  // open at the front (+x): when it stops, the load keeps going
+  const grp = g();
+  const c = M(o.color ?? '#ff8f6b');
+  const wr = 0.34, bed = 0.78;
+  grp.add(mesh(box(1.8, 0.1, 1.2, 0.03), c, { pos: [0, bed, 0] }));
+  for (const [x, z, w, d] of [[0, 0.58, 1.8, 0.08], [0, -0.58, 1.8, 0.08], [-0.88, 0, 0.08, 1.2]] as const) grp.add(mesh(box(w, 0.5, d, 0.02), c, { pos: [x, bed + 0.26, z] }));
+  grp.add(mesh(cyl(0.04, 0.04, 1.4, 5), M('#5b5f73'), { pos: [-1.4, bed + 0.5, 0], rot: [0, 0, 1.1] }));
+  const wheels: [number, number][] = [[0.6, 0.5], [0.6, -0.5], [-0.6, 0.5], [-0.6, -0.5]];
+  for (const [x, z] of wheels) grp.add(mesh(cyl(wr, wr, 0.12, 10), M('#3a3a48'), { pos: [x, wr, z], rot: [Math.PI / 2, 0, 0] }));
+  const cols: ColDef[] = [
+    { shape: 'box', hx: 0.9, hy: 0.05, hz: 0.6, at: [0, bed, 0], massShare: 0.45 },
+    { shape: 'box', hx: 0.9, hy: 0.25, hz: 0.04, at: [0, bed + 0.26, 0.58], massShare: 0.12 },
+    { shape: 'box', hx: 0.9, hy: 0.25, hz: 0.04, at: [0, bed + 0.26, -0.58], massShare: 0.12 },
+    { shape: 'box', hx: 0.04, hy: 0.25, hz: 0.6, at: [-0.88, bed + 0.26, 0], massShare: 0.11 },
+  ];
+  for (const [x, z] of wheels) cols.push({ shape: 'ball', r: wr, at: [x, wr, z], friction: 0, massShare: 0.05 });
+  const quat = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, o.rot ?? 0, -(o.slope ?? 0), 'YXZ'));
+  return b.prop({
+    kind: 'cart', name: o.name ?? '정원 수레', icon: '🛒', group: grp, pos: o.at, quat,
+    colliders: cols, mass: 8, mat: 'metal', value: 60000, frictionMin: true, linDamp: 0.15, angDamp: 1.2, noTopple: true, traits: ['굴러감', '실어 나름'],
+  });
+}
+
+/** a brick (load for carts, debris for building sites) */
+export function brick(b: Builder, o: O): Prop {
+  const grp = g();
+  grp.add(mesh(box(0.5, 0.22, 0.26, 0.03), M(o.color ?? '#d9765a')));
+  grp.position.y = 0.11;
+  const inner = g(); inner.add(grp);
+  return b.prop({
+    kind: 'brick', name: '벽돌', icon: '🧱', group: inner, pos: o.at, rotY: o.rot,
+    colliders: [{ shape: 'box', hx: 0.25, hy: 0.11, hz: 0.13, at: [0, 0.11, 0] }],
+    mass: 1.2, mat: 'wood', value: 0, batch: 'brick', scoreMoves: false,
+  });
+}
+
+/** a stone garden lantern (heavy, topples like a tree) */
+export function stoneLantern(b: Builder, o: O): Prop {
+  const grp = g();
+  const st = M('#c9c3b8');
+  grp.add(mesh(box(0.7, 0.2, 0.7, 0.05), st, { pos: [0, 0.1, 0] }));
+  grp.add(mesh(cyl(0.16, 0.2, 1.1, 6), st, { pos: [0, 0.75, 0] }));
+  grp.add(mesh(box(0.7, 0.55, 0.7, 0.06), st, { pos: [0, 1.55, 0] }));
+  grp.add(mesh(box(0.34, 0.3, 0.72, 0.02), M('#ffe9a8'), { pos: [0, 1.55, 0] }));
+  grp.add(mesh(cone(0.6, 0.45, 4), st, { pos: [0, 2.05, 0], rot: [0, Math.PI / 4, 0] }));
+  return b.prop({
+    kind: 'lantern', name: o.name ?? '석등', icon: '🏮', group: grp, pos: o.at, rotY: o.rot,
+    colliders: [{ shape: 'box', hx: 0.35, hy: 0.1, hz: 0.35, at: [0, 0.1, 0], massShare: 0.3 }, { shape: 'cyl', hh: 0.55, r: 0.2, at: [0, 0.75, 0], massShare: 0.2 }, { shape: 'box', hx: 0.35, hy: 0.45, hz: 0.35, at: [0, 1.75, 0], massShare: 0.5 }],
+    mass: 9, mat: 'marble', value: o.value ?? 450000, target: o.target,
+    breakable: { threshold: 6, hitForce: 3000, mode: 'shatter', fx: 'none', word: '쿵! 와르르', debris: { count: 10, colors: ['#c9c3b8', '#b3ada2'], size: 0.28 } },
+  });
+}
+
+/** a watering can (spills a slippery puddle when knocked over) */
+export function wateringCan(b: Builder, o: O): Prop {
+  const grp = g();
+  grp.add(mesh(cyl(0.3, 0.34, 0.6, 10), M(o.color ?? '#5ec4c9'), { pos: [0, 0.3, 0] }));
+  grp.add(mesh(cyl(0.04, 0.07, 0.7, 6), M(o.color ?? '#5ec4c9'), { pos: [0.45, 0.5, 0], rot: [0, 0, -0.9] }));
+  grp.add(mesh(torus(0.22, 0.04, 4, 10, Math.PI), M(o.color ?? '#5ec4c9'), { pos: [-0.1, 0.62, 0], rot: [0, 0, 0] }));
+  return b.prop({
+    kind: 'wateringCan', name: '물뿌리개', icon: '🪣', group: grp, pos: o.at, rotY: o.rot,
+    colliders: [{ shape: 'cyl', hh: 0.3, r: 0.32, at: [0, 0.3, 0] }],
+    mass: 1.1, mat: 'plastic', value: 15000,
+    breakable: { threshold: 5.5, mode: 'damage', fx: 'water', word: '촤르륵' },
+  });
+}
+
+/* ------------------------------ parcels & shops ------------------------------ */
+
+/** a delivery box; fragile ones ("깨지기 쉬움") break when they land hard */
+export function parcel(b: Builder, o: O & { size?: [number, number, number]; fragile?: boolean; content?: 'glass' | 'ceramic' | 'electronic' }): Prop {
+  const [w, h, d] = o.size ?? [0.9, 0.7, 0.7];
+  const grp = g();
+  const c = o.color ?? (o.fragile ? '#f2c38b' : '#d9a86c');
+  grp.add(mesh(box(w, h, d, 0.04), M(c), { pos: [0, h / 2, 0] }));
+  grp.add(mesh(box(w + 0.01, 0.1, 0.18, 0), M('#c99a5e'), { pos: [0, h, 0], shadow: false }));
+  if (o.fragile) {
+    grp.add(mesh(box(w * 0.55, h * 0.4, 0.02, 0), M('#ff5a6e'), { pos: [0, h * 0.5, d / 2 + 0.01], shadow: false }));
+    grp.add(mesh(box(w * 0.3, h * 0.12, 0.03, 0), M('#ffffff'), { pos: [0, h * 0.5, d / 2 + 0.02], shadow: false }));
+  }
+  const ct = o.content ?? 'ceramic';
+  return b.prop({
+    kind: o.fragile ? 'fragile' : 'parcel', name: o.name ?? (o.fragile ? '깨지기 쉬운 택배' : '택배 상자'), icon: '📦', group: grp, pos: o.at, rotY: o.rot,
+    colliders: [{ shape: 'box', hx: w / 2, hy: h / 2, hz: d / 2, at: [0, h / 2, 0], round: 0.03 }],
+    mass: o.fragile ? 1.2 : 1.6 * w * h * d * 4, mat: 'paper', value: o.value ?? (o.fragile ? 280000 : 30000), target: o.target, friction: 0.55,
+    breakable: o.fragile ? { threshold: 4.6, hitForce: 220, mode: 'damage', fx: ct === 'electronic' ? 'sparks' : 'glass', word: ct === 'electronic' ? '퍽! 지지직' : '쨍그랑… (안에서)', onDamage: (p) => { p.group.scale.set(1.04, 0.86, 1.04); } } : undefined,
+  });
+}
+
+/** a heavy pack of bottled water: the battering ram of the parcel world */
+export function waterPack(b: Builder, o: O): Prop {
+  const grp = g();
+  for (let i = 0; i < 3; i++) for (let j = 0; j < 2; j++) {
+    grp.add(mesh(cyl(0.16, 0.16, 0.75, 8), M('#bfeaff', { transparent: true, opacity: 0.85 }), { pos: [-0.34 + i * 0.34, 0.4, -0.17 + j * 0.34] }));
+    grp.add(mesh(cyl(0.07, 0.07, 0.08, 6), M('#4f86c6'), { pos: [-0.34 + i * 0.34, 0.82, -0.17 + j * 0.34] }));
+  }
+  grp.add(mesh(box(1.04, 0.32, 0.7, 0.02), M('#4f86c6'), { pos: [0, 0.42, 0], shadow: false }));
+  return b.prop({
+    kind: 'waterPack', name: '생수 묶음', icon: '💧', group: grp, pos: o.at, rotY: o.rot,
+    colliders: [{ shape: 'box', hx: 0.52, hy: 0.42, hz: 0.35, at: [0, 0.42, 0], round: 0.06 }],
+    mass: 3.2, mat: 'plastic', value: 12000, friction: 0.5, restitution: 0.25,
+    breakable: { threshold: 9, mode: 'damage', fx: 'water', word: '퍽! 촤악' },
+  });
+}
+
+/** a drinks vending machine: heavy, expensive, sparks and cans when wrecked */
+export function vendingMachine(b: Builder, o: O): Prop {
+  const grp = g();
+  const c = o.color ?? '#ff6b6b';
+  grp.add(mesh(box(1.6, 3.4, 1.2, 0.08), M(c), { pos: [0, 1.7, 0] }));
+  grp.add(mesh(box(1.2, 1.8, 0.05, 0.02), M('#e8f6ff'), { pos: [-0.1, 2.2, 0.61], shadow: false }));
+  for (let r = 0; r < 3; r++) for (let k = 0; k < 4; k++) grp.add(mesh(cyl(0.09, 0.09, 0.3, 6), M(['#ffd23f', '#5bb98c', '#4f86c6', '#ff9f43'][(r + k) % 4]), { pos: [-0.5 + k * 0.27, 1.6 + r * 0.55, 0.55], shadow: false }));
+  grp.add(mesh(box(0.9, 0.3, 0.06, 0.02), M('#2f3142'), { pos: [-0.1, 0.5, 0.61], shadow: false }));
+  return b.prop({
+    kind: 'vending', name: o.name ?? '자판기', icon: '🥤', group: grp, pos: o.at, rotY: o.rot,
+    colliders: [{ shape: 'box', hx: 0.8, hy: 1.7, hz: 0.6, at: [0, 1.7, 0] }],
+    mass: 30, mat: 'electronic', value: o.value ?? 3500000, target: o.target, friction: 0.7,
+    breakable: { threshold: 3.5, hitForce: 9000, mode: 'damage', fx: 'sparks', word: '와장창! 캔 우르르', debris: { count: 12, colors: ['#ffd23f', '#5bb98c', '#4f86c6', '#ff9f43'], size: 0.18 }, onDamage: (p) => { p.group.rotation.z = 0.04; } },
+  });
+}
+
+/** a big shop window pane (pinned until something hits it) */
+export function shopWindow(b: Builder, o: O & { w: number; h: number }): Prop {
+  const grp = g();
+  grp.add(mesh(box(o.w, o.h, 0.1, 0.02), M('#bfe8ff', { transparent: true, opacity: 0.55 }), { pos: [0, o.h / 2, 0], shadow: false }));
+  grp.add(mesh(box(o.w + 0.1, 0.12, 0.14, 0.02), M('#ffffff'), { pos: [0, o.h, 0] }));
+  return b.prop({
+    kind: 'window', name: o.name ?? '쇼윈도', icon: '🪟', group: grp, pos: o.at, rotY: o.rot,
+    colliders: [{ shape: 'box', hx: o.w / 2, hy: o.h / 2, hz: 0.06, at: [0, o.h / 2, 0] }],
+    mass: 6, mat: 'glass', value: o.value ?? 1800000, target: o.target, pinned: 1e9, interactable: false,
+    breakable: { threshold: 3, hitForce: 1500, mode: 'shatter', fx: 'glass', word: '와장창!!', debris: { count: 16, colors: ['#e8fbff', '#bfe8ff'], size: 0.3, flat: true } },
+  });
+}
+
+/** a traffic cone (light, topples, rolls) */
+export function cone3(b: Builder, o: O): Prop {
+  const grp = g();
+  grp.add(mesh(box(0.6, 0.08, 0.6, 0.02), M('#ff7a3a'), { pos: [0, 0.04, 0] }));
+  grp.add(mesh(cone(0.24, 0.9, 10), M('#ff7a3a'), { pos: [0, 0.5, 0] }));
+  grp.add(mesh(cyl(0.13, 0.17, 0.16, 10), M('#ffffff'), { pos: [0, 0.5, 0] }));
+  return b.prop({
+    kind: 'trafficCone', name: '라바콘', icon: '🚧', group: grp, pos: o.at, rotY: o.rot,
+    colliders: [{ shape: 'cone', hh: 0.47, r: 0.28, at: [0, 0.47, 0] }],
+    mass: 0.6, mat: 'rubber', value: 5000, restitution: 0.3, batch: 'cone',
+  });
+}
+
+/** a fruit crate full of oranges (they spill and roll) */
+export function fruitCrate(b: Builder, o: O & { n?: number }): Prop {
+  const grp = g();
+  grp.add(mesh(box(1.0, 0.45, 0.7, 0.03), M('#c98a5a'), { pos: [0, 0.22, 0] }));
+  for (let i = 0; i < 6; i++) grp.add(mesh(sphere(0.16, 7, 5), M('#ff9a2e'), { pos: [-0.3 + (i % 3) * 0.3, 0.5, -0.15 + Math.floor(i / 3) * 0.3], shadow: false }));
+  return b.prop({
+    kind: 'crate', name: o.name ?? '귤 상자', icon: '🍊', group: grp, pos: o.at, rotY: o.rot,
+    colliders: [{ shape: 'box', hx: 0.5, hy: 0.3, hz: 0.35, at: [0, 0.3, 0] }],
+    mass: 2.4, mat: 'wood', value: o.value ?? 45000,
+    breakable: {
+      threshold: 5, mode: 'shatter', fx: 'none', word: '와르르 데굴데굴', debris: { count: 6, colors: ['#c98a5a'], size: 0.2 },
+      after: (game, _p, pos) => {
+        // the oranges get away
+        const bb = game.builder;
+        if (!bb) return;
+        for (let i = 0; i < (o.n ?? 6); i++) {
+          const f = fruit(bb, { at: [pos.x + (i % 3 - 1) * 0.3, pos.y + 0.3 + Math.floor(i / 3) * 0.3, pos.z + (i % 2 - 0.5) * 0.3], kind: 'orange' });
+          f.body.setLinvel({ x: (i % 3 - 1) * 2, y: 2, z: (i % 2 - 0.5) * 3 }, true);
+          f.cause = _p; f.activeSwat = game.swatIndex;
+        }
+      },
+    },
+  });
+}
+
+/** a watermelon (delivered): rolls down anything, splats at the end */
+export function watermelon(b: Builder, o: O & { r?: number }): Prop {
+  const r = o.r ?? 0.5;
+  const grp = g();
+  grp.add(mesh(sphere(r, 12, 9), M('#3f9f4f'), { pos: [0, r, 0], scale: [1.08, 1, 1] }));
+  for (let i = 0; i < 6; i++) grp.add(mesh(torus(r * 1.005, 0.025, 3, 18, Math.PI), M('#2a6b35'), { pos: [0, r, 0], rot: [0, (i / 6) * Math.PI, Math.PI / 2], shadow: false }));
+  grp.add(mesh(cyl(0.03, 0.04, 0.14, 5), M('#7a5a40'), { pos: [0, 2 * r + 0.05, 0] }));
+  return b.prop({
+    kind: 'watermelon', name: o.name ?? '수박', icon: '🍉', group: grp, pos: o.at, rotY: o.rot,
+    colliders: [{ shape: 'ball', r, at: [0, r, 0] }],
+    mass: 3.4, mat: 'food', value: 35000, restitution: 0.12, friction: 0.9, angDamp: 0.05, linDamp: 0.01, noTopple: true,
+    breakable: { threshold: 16, mode: 'shatter', fx: 'juice', word: '퍽! 수박 대폭발', debris: { count: 12, colors: ['#ff5a6e', '#3f9f4f', '#ff8fa3'], size: 0.22 } },
   });
 }

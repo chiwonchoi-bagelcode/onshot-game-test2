@@ -214,7 +214,7 @@ export class Screens {
     const line = (x: LedgerEntry) => `<div class="rl"><span class="ri">${x.icon}</span><span class="rn">${esc(x.owner ? `${x.owner}의 ${x.name}` : x.name)} <small>${what(x)}</small>`
       + `${x.heart ? `<em class="rh">💗 정성 ${formatHeart(x.heart)}</em>` : ''}<span class="rp">${x.path.map((i) => `← ${i}`).join(' ')}</span></span>`
       + `<b>${x.money > 0 ? formatWon(x.money) : '값을 매길 수 없음'}</b></div>`;
-    const bonusBits = [r.maxChain >= 3 ? `연쇄 x${r.maxChain}` : '', r.pawBonus ? '남은 앞발' : '', r.perfect ? '완전범죄' : '', r.run.swats.length && r.run.swats.every((x) => !x.target) ? '간접 공략' : ''].filter(Boolean).join(' · ');
+    const bonusBits = [r.heart ? '정성 보너스' : '', r.maxChain >= 3 ? `연쇄 x${r.maxChain}` : '', r.pawBonus ? '남은 앞발' : '', r.perfect ? '완전범죄' : '', r.run.swats.length && r.run.swats.every((x) => !x.target) ? '간접 공략' : ''].filter(Boolean).join(' · ');
     el.innerHTML = `<div class="rtitle">손해배상 청구서</div>
       <div class="rlines2">${top.map(line).join('')}${rest.length ? `<div class="rl more"><span class="ri">…</span><span class="rn">그 외 ${rest.length}건</span><b>${formatWon(rest.reduce((a, x) => a + x.money, 0))}</b></div>` : ''}${!top.length ? '<div class="rl more"><span class="rn">아무것도 망가지지 않았다…</span></div>' : ''}</div>
       <div class="rsum"><span>실제 손해</span><b class="rmoney">₩0</b></div>

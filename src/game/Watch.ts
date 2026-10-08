@@ -17,6 +17,8 @@ export interface WatchDef {
   half: number;
   /** routine: [seconds, head yaw offset from the body] — loops */
   cycle: [number, number][];
+  /** walks a loop: [x, z, seconds to stand there] (the gaze follows the walk) */
+  patrol?: [number, number, number][];
 }
 
 const _v = new THREE.Vector3();
@@ -26,6 +28,7 @@ export class Watcher {
   readonly holder = new THREE.Group();
   private alertT = 0;
   private period: number;
+  private leg = 0;
   private mat: THREE.MeshBasicMaterial;
 
   constructor(readonly actor: Actor, readonly def: WatchDef) {
@@ -53,6 +56,12 @@ export class Watcher {
   update(game: Game, dt: number) {
     const a = this.actor;
     if (game.phase === 'ready' || game.phase === 'intro') a.lookYaw = this.yawAt(game.time);
+    const pt = this.def.patrol;
+    if (pt && game.phase === 'ready' && !game.caught && !a.busy() && a.group.visible) {
+      const [x, z, w] = pt[this.leg % pt.length];
+      this.leg++;
+      a.walkTo(x, z).wait(w);
+    }
     const yaw = a.group.rotation.y + a.lookYaw;
     this.holder.position.set(a.pos.x, a.pos.y + 0.05, a.pos.z);
     this.holder.rotation.y = yaw + Math.PI;

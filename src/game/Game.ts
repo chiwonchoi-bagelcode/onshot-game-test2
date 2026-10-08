@@ -653,7 +653,12 @@ export class Game {
     if ((Game.WHAT_RANK[what] ?? 0) >= Game.WHAT_RANK[e.what]) e.what = what;
     // a precious thing counts its care once, when it is really ruined
     const h = p.spec.worth?.heart ?? 0;
-    if (h && !e.heart && (what === 'break' || what === 'damage' || what === 'dunk')) { e.heart = h; this.heart += h; }
+    if (h && !e.heart && (what === 'break' || what === 'damage' || what === 'dunk')) {
+      e.heart = h; this.heart += h;
+      // ruining something loved is worth prank points (more for longer care, but gently)
+      const add = Math.round(300000 * Math.log2(1 + h / 24));
+      this.score += add; this.bonus += add;
+    }
     // who did it: nearest causes first, ending at the paw
     const path: string[] = [];
     const seen = new Set<number>([p.id]);
@@ -748,7 +753,7 @@ export class Game {
     if (p.causeCat) by.unshift('cat');
     this.run.culprits.push({ kind: p.kind, target: p.target, by });
     this.owner?.hear(this, pos, clamp(p.value / 5000, 6, 30));
-    this.witness(pos, clamp(6 + Math.log10(Math.max(10, p.value)) * 3, 10, 34));
+    this.witness(pos, clamp(6 + Math.log10(Math.max(10, p.value)) * 3, 10, 34) * (p.target ? 1.6 : 1));
     this.sfx.shatter(p.mat, k, pan);
     this.fx(b.fx ?? 'none', pos, k);
     const fd = FX_DISCOVERY[b.fx ?? 'none'];

@@ -110,7 +110,7 @@ export interface PropSpec {
 }
 
 export interface Worth {
-  /** hours of someone's care (a model kit: 300, grandma's bonsai: 30 years ≈ 2600) */
+  /** how long someone has cared for it, in hours (a model kit: three months ≈ 2,200; grandma's bonsai: 30 years ≈ 262,800) */
   heart?: number;
   /** whose it is (집사, 이웃 할머니 …) */
   owner?: string;

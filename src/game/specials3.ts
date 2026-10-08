@@ -324,9 +324,10 @@ export class HoseSpecial implements Special {
       const along = dx * this.dir.x + dz * this.dir.z;
       if (along < 0.3 || along > range) continue;
       const side = Math.abs(dx * this.dir.z - dz * this.dir.x);
-      if (side > 0.45 + along * 0.12 || c.y > 3.2) continue;
+      // the stream arcs up: it reaches high shelves a few steps away
+      if (side > 0.6 + along * 0.18 || c.y > o.y + 1.5 + along * 0.8 || c.y < o.y - 2.5) continue;
       const m = q.body.mass();
-      const push = clamp(26 / Math.max(0.4, m), 0, 30) * (1 - along / range * 0.6);
+      const push = clamp(60 / Math.max(0.4, m), 0, 40) * (1 - along / range * 0.6);
       q.body.wakeUp();
       q.body.applyImpulse({ x: this.dir.x * push * m * h, y: push * m * h * 0.25, z: this.dir.z * push * m * h }, true);
       blame(game, q, p);

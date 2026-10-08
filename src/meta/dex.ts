@@ -96,6 +96,11 @@ export const OBJECTS: Record<string, ObjInfo> = {
   parcel: { icon: '📦', tip: '"깨지기 쉬움" 상자. 높이 쌓여 있어요.' },
   handTruck: { icon: '🛒', tip: '바퀴 달린 운반 수레. 위에 실린 걸 함께 싣고 가요.' },
   lever: { icon: '🕹️', tip: '툭 치면 큰 장치가 움직여요.' },
+  onggi: { icon: '🏺', tip: '무거운 장독. 앞발로는 꿈쩍, 떨어지면 간장이 콸콸.' },
+  cart: { icon: '🛒', tip: '바퀴 달린 수레. 실린 짐은 수레가 멈출 때 앞으로 날아가요.' },
+  brick: { icon: '🧱', tip: '무겁고 단단해요. 수레에 실려 날아가면 무기가 돼요.' },
+  lantern: { icon: '🏮', tip: '돌로 된 석등. 넘어지면 아래 것을 부숴요.' },
+  bucket: { icon: '🪣', tip: '엎어지면 물이 쏟아져 미끄러워요.' },
   button: { icon: '🔴', tip: '누르면 무언가 시작돼요.' },
 };
 
