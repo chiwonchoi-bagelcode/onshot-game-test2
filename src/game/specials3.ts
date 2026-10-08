@@ -391,7 +391,8 @@ export class BarrierSpecial implements Special {
 export class CraneSpecial implements Special {
   released = false;
   private x = 0;
-  constructor(private o: { trolley: THREE.Object3D; cable: THREE.Object3D; load: Prop; x0: number; x1: number; z: number; y: number; speed: number; hang: number }) {}
+  constructor(private o: { trolley: THREE.Object3D; cable: THREE.Object3D; load: Prop | null; x0: number; x1: number; z: number; y: number; speed: number; hang: number }) {}
+  set load(p: Prop) { this.o.load = p; }
   busy() { return false; }
   /** trolley x at game time t (ping-pong) */
   xAt(t: number) {
@@ -402,7 +403,7 @@ export class CraneSpecial implements Special {
   step(game: Game) {
     this.x = this.xAt(game.time);
     const l = this.o.load;
-    if (!this.released && l.alive) l.body.setNextKinematicTranslation({ x: this.x, y: this.o.y - this.o.hang, z: this.o.z });
+    if (!this.released && l && l.alive) l.body.setNextKinematicTranslation({ x: this.x, y: this.o.y - this.o.hang, z: this.o.z });
   }
   frame(game: Game) {
     this.o.trolley.position.x = this.x;
@@ -411,9 +412,9 @@ export class CraneSpecial implements Special {
     void game;
   }
   release(game: Game, by: Prop) {
-    if (this.released) return;
-    this.released = true;
     const l = this.o.load;
+    if (this.released || !l) return;
+    this.released = true;
     l.body.setBodyType(game.R.RigidBodyType.Dynamic, true);
     (l as { kinematic: boolean }).kinematic = false;
     l.body.wakeUp();

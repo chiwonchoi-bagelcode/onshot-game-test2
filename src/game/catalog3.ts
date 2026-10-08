@@ -4,7 +4,7 @@ import { mergeByMaterial } from '../render/merge';
 import type { Builder } from '../levels/Builder';
 import type { ColDef, Worth } from './types';
 import type { Prop } from './Prop';
-import { BarrierSpecial, CableSpecial, CarSpecial, HoseSpecial, PowerStripSpecial, SwingSpecial, TriggerSpecial, WobbleSpecial, type CarParts } from './specials3';
+import { BarrierSpecial, CableSpecial, CarSpecial, CraneSpecial, HoseSpecial, PowerStripSpecial, SwingSpecial, TriggerSpecial, WobbleSpecial, WreckingBallSpecial, type CarParts } from './specials3';
 import { fruit, type O, type V3 } from './catalog';
 import { screenTexture } from '../render/kit';
 
@@ -803,4 +803,144 @@ export function lever(b: Builder, o: { at: V3; label: string; word?: string; act
 /** a shopping cart (a garden cart in supermarket colours) */
 export function shoppingCart(b: Builder, o: O & { slope?: number }): Prop {
   return gardenCart(b, { ...o, color: o.color ?? '#c9d6ea', name: o.name ?? '쇼핑 카트' });
+}
+
+/* ------------------------------ buildings that fall down ------------------------------ */
+
+export interface StructureParts { slabs: Prop[]; pillars: Prop[]; windows: Prop[]; top: number }
+
+/**
+ * A building made of real stacked pieces: four pillars and a slab per floor,
+ * glass panes on the front. Knock the pillars out (or drop something on it)
+ * and it comes down floor by floor.
+ */
+export function structure(b: Builder, o: { x: number; z: number; w: number; d: number; floors: number; floorH?: number; color?: string; slabColor?: string; name?: string; value?: number; windows?: boolean; targetWindows?: boolean; rot?: number }): StructureParts {
+  const fh = o.floorH ?? 2.6, st = 0.35, pw = 0.45;
+  const out: StructureParts = { slabs: [], pillars: [], windows: [], top: 0 };
+  const v = o.value ?? 400000000;
+  const per = v / (o.floors * 6);
+  let y = 0;
+  for (let f = 0; f < o.floors; f++) {
+    for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]] as const) {
+      const grp = g();
+      grp.add(mesh(box(pw, fh, pw, 0.04), M(o.color ?? '#fff1d6'), { pos: [0, fh / 2, 0] }));
+      out.pillars.push(b.prop({
+        kind: 'pillar', name: '기둥', icon: '🏛️', group: grp, pos: [o.x + sx * (o.w / 2 - pw / 2), y, o.z + sz * (o.d / 2 - pw / 2)],
+        colliders: [{ shape: 'box', hx: pw / 2, hy: fh / 2, hz: pw / 2, at: [0, fh / 2, 0] }],
+        mass: 4, mat: 'marble', value: Math.round(per * 0.3), friction: 0.8, restitution: 0.02, batch: 'pillar',
+      }));
+    }
+    y += fh;
+    const sg = g();
+    sg.add(mesh(box(o.w, st, o.d, 0.05), M(o.slabColor ?? '#e8e2d8'), { pos: [0, st / 2, 0] }));
+    if (f === o.floors - 1) sg.add(mesh(box(o.w + 0.4, 0.25, o.d + 0.4, 0.05), M('#e58b7a'), { pos: [0, st + 0.12, 0] }));
+    out.slabs.push(b.prop({
+      kind: 'slab', name: f === o.floors - 1 ? '지붕' : `${f + 2}층 바닥`, icon: '🏢', group: sg, pos: [o.x, y, o.z],
+      colliders: [{ shape: 'box', hx: o.w / 2, hy: st / 2, hz: o.d / 2, at: [0, st / 2, 0] }],
+      mass: 18, mat: 'marble', value: Math.round(per * 3), friction: 0.8, restitution: 0.02, noTopple: true,
+      breakable: { threshold: 7, mode: 'damage', fx: 'dirt', word: '쿠르릉!', debris: { count: 10, colors: [o.slabColor ?? '#e8e2d8', '#c9c3b8'], size: 0.35 } },
+    }));
+    y += st;
+    if (o.windows !== false) {
+      // a glass pane on the front of the floor below
+      const wg = g();
+      wg.add(mesh(box(o.w - pw * 2 - 0.1, fh - 0.5, 0.08, 0.02), M('#bfe8ff', { transparent: true, opacity: 0.6 }), { pos: [0, (fh - 0.5) / 2, 0], shadow: false }));
+      wg.add(mesh(box(o.w - pw * 2 - 0.1, 0.1, 0.12, 0.02), M('#ffffff'), { pos: [0, fh - 0.5, 0] }));
+      out.windows.push(b.prop({
+        kind: 'pane', name: '통유리창', icon: '🪟', group: wg, pos: [o.x, y - st - fh + 0.25, o.z + o.d / 2 - 0.05],
+        colliders: [{ shape: 'box', hx: (o.w - pw * 2 - 0.1) / 2, hy: (fh - 0.5) / 2, hz: 0.04, at: [0, (fh - 0.5) / 2, 0] }],
+        mass: 2, mat: 'glass', value: Math.round(per * 0.6), target: o.targetWindows, pinned: 60, interactable: false,
+        breakable: { threshold: 2.5, hitForce: 200, mode: 'shatter', fx: 'glass', word: '와장창!', debris: { count: 10, colors: ['#e8fbff', '#bfe8ff'], size: 0.28, flat: true } },
+      }));
+    }
+  }
+  out.top = y;
+  return out;
+}
+
+/** a tower crane: a mast, a jib, a trolley that shuttles, a hanging load and its lever */
+export function towerCrane(b: Builder, o: { mast: [number, number]; x0: number; x1: number; z: number; h: number; speed: number; hang: number; lever: V3; load?: 'beams' | 'container'; loadName?: string }): { load: Prop; crane: import('./specials3').CraneSpecial } {
+  const g0 = g();
+  const yel = M('#ffd23f'), dark = M('#5b5f73');
+  g0.add(mesh(box(0.8, o.h, 0.8, 0.05), yel, { pos: [o.mast[0], o.h / 2, o.mast[1]] }));
+  for (let y = 1; y < o.h; y += 1.2) g0.add(mesh(box(0.9, 0.08, 0.9, 0.01), dark, { pos: [o.mast[0], y, o.mast[1]], shadow: false }));
+  const jl = o.x1 - o.mast[0] + 1;
+  g0.add(mesh(box(jl + 4, 0.5, 0.6, 0.05), yel, { pos: [o.mast[0] + jl / 2 - 2, o.h + 0.25, o.z] }));
+  g0.add(mesh(box(2.2, 1.2, 1.2, 0.1), M('#c9d6ea'), { pos: [o.mast[0] - 3, o.h - 0.4, o.z] }));
+  g0.add(mesh(box(1.4, 1.2, 1.4, 0.1), M('#ffffff'), { pos: [o.mast[0] + 0.9, o.h - 0.8, o.z] }));
+  b.solid(g0, [{ shape: 'box', hx: 0.4, hy: o.h / 2, hz: 0.4, at: [o.mast[0], o.h / 2, o.mast[1]] }], [0, 0, 0]);
+  const trolley = keep(g());
+  trolley.add(mesh(box(0.9, 0.35, 0.9, 0.05), dark));
+  trolley.position.set(o.x0, o.h - 0.15, o.z);
+  b.deco(trolley);
+  const cable = keep(g());
+  cable.add(mesh(cyl(0.04, 0.04, o.hang, 4), dark, { pos: [0, o.h - o.hang / 2 - 0.3, 0], shadow: false }));
+  cable.position.set(o.x0, 0, o.z);
+  b.deco(cable);
+  const lg = g();
+  let cols: ColDef[];
+  let mass: number;
+  if (o.load === 'container') {
+    lg.add(mesh(box(5, 2.4, 2.4, 0.08), M('#ff8f6b'), { pos: [0, -1.2, 0] }));
+    for (let i = 0; i < 9; i++) lg.add(mesh(box(0.08, 2.2, 2.42, 0), M('#e8735a'), { pos: [-2.2 + i * 0.55, -1.2, 0], shadow: false }));
+    cols = [{ shape: 'box', hx: 2.5, hy: 1.2, hz: 1.2, at: [0, -1.2, 0] }];
+    mass = 80;
+  } else {
+    for (let i = 0; i < 3; i++) lg.add(mesh(box(6, 0.4, 0.5, 0.04), M('#c9a0dc'), { pos: [0, -0.3 - i * 0.42, -0.5 + i * 0.5], rot: [0, 0, 0] }));
+    lg.add(mesh(box(6, 0.42, 0.5, 0.04), M('#b38cc4'), { pos: [0, -0.72, 0.5] }));
+    cols = [{ shape: 'box', hx: 3, hy: 0.6, hz: 0.75, at: [0, -0.75, 0] }];
+    mass = 60;
+  }
+  const crane = new CraneSpecial({ trolley, cable, load: null, x0: o.x0, x1: o.x1, z: o.z, y: o.h - 0.3, speed: o.speed, hang: o.hang });
+  const load = b.prop({
+    kind: o.load === 'container' ? 'container' : 'beams', name: o.loadName ?? (o.load === 'container' ? '컨테이너' : '철골 다발'), icon: o.load === 'container' ? '📦' : '🏗️', group: lg,
+    pos: [o.x0, o.h - 0.3 - o.hang, o.z], kinematic: true, colliders: cols, mass, mat: 'metal', value: 4000000, interactable: false, special: crane,
+  });
+  crane.load = load;
+  lever(b, { at: o.lever, label: '크레인 레버', word: '철컥! 툭', action: (game, self) => crane.release(game, self) });
+  return { load, crane };
+}
+
+/** a wrecking ball on an excavator arm: its lever lets it swing */
+export function wreckingBall(b: Builder, o: { pivot: V3; len: number; dir: [number, number]; from: number; lever: V3; base: V3 }): Prop {
+  const pivot = new THREE.Vector3(...o.pivot);
+  const d = new THREE.Vector3(o.dir[0], 0, o.dir[1]).normalize();
+  const chain = keep(g());
+  chain.add(mesh(cyl(0.06, 0.06, 1, 5), M('#5b5f73'), { shadow: false }));
+  b.deco(chain);
+  // the machine: tracks, cab, arm up to the pivot
+  const mg = g();
+  mg.add(mesh(box(3, 1, 2.2, 0.1), M('#3a3d4f'), { pos: [0, 0.5, 0] }));
+  mg.add(mesh(box(2.2, 1.8, 2, 0.15), M('#ffd23f'), { pos: [0, 1.9, 0] }));
+  const arm = new THREE.Vector3(o.pivot[0] - o.base[0], o.pivot[1] - 2.6, o.pivot[2] - o.base[2]);
+  const am = mesh(cyl(0.18, 0.25, arm.length(), 6), M('#ffd23f'));
+  am.position.set(arm.x / 2, 2.6 + arm.y / 2, arm.z / 2);
+  am.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), arm.clone().normalize());
+  mg.add(am);
+  b.solid(mg, [{ shape: 'box', hx: 1.5, hy: 1.4, hz: 1.1, at: [0, 1.4, 0] }], o.base);
+  const spec = new WreckingBallSpecial({ pivot, len: o.len, dir: d, from: o.from, chain });
+  const bg = g();
+  bg.add(mesh(sphere(0.9, 12, 9), M('#3a3d4f')));
+  const a = o.from;
+  const ball = b.prop({
+    kind: 'wreckingBall', name: '철거용 쇠공', icon: '⚫', group: bg,
+    pos: [pivot.x + d.x * Math.sin(a) * o.len, pivot.y - Math.cos(a) * o.len, pivot.z + d.z * Math.sin(a) * o.len],
+    kinematic: true, colliders: [{ shape: 'ball', r: 0.9 }], mass: 200, mat: 'metal', value: 0, interactable: false, special: spec,
+  });
+  lever(b, { at: o.lever, label: '쇠공 레버', word: '철컥! 부웅—', action: (game, self) => spec.release(game, ball, self) });
+  return ball;
+}
+
+/** a portable site toilet (tips over with a very satisfying thud) */
+export function portableToilet(b: Builder, o: O): Prop {
+  const grp = g();
+  grp.add(mesh(box(1.3, 2.6, 1.3, 0.1), M(o.color ?? '#4f86c6'), { pos: [0, 1.3, 0] }));
+  grp.add(mesh(box(1.4, 0.18, 1.4, 0.05), M('#ffffff'), { pos: [0, 2.68, 0] }));
+  grp.add(mesh(box(0.7, 1.9, 0.04, 0.02), M('#5b9fd8'), { pos: [0, 1.15, 0.66] }));
+  grp.add(mesh(cyl(0.12, 0.12, 0.04, 8), M('#ff5a6e'), { pos: [0.25, 1.3, 0.69], rot: [Math.PI / 2, 0, 0] }));
+  return b.prop({
+    kind: 'toilet', name: o.name ?? '간이 화장실', icon: '🚽', group: grp, pos: o.at, rotY: o.rot,
+    colliders: [{ shape: 'box', hx: 0.65, hy: 1.3, hz: 0.65, at: [0, 1.3, 0] }],
+    mass: 3, mat: 'plastic', value: o.value ?? 1500000, toppleValue: 400000, friction: 0.7,
+  });
 }

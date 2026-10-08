@@ -12,3 +12,14 @@ export const CASES: Case[] = [
   { level: '9-1', name: 'chock while the arm is down', expect: 'lose', plan: [hit('chock', [1, 0], 0.8, 8), hit('cart', [1, 0], 1, 6, [-10, 3, -1.2])] },
   { level: '9-1', name: 'paw the supercar (scratch)', expect: 'lose', plan: [hit('auto', [1, 0], 1, 2, [10.4, 0, -1.2]), hit('auto', [-1, 0], 1, 2, [10.4, 0, -1.2])] },
 ];
+const wait = (s: number): Action => ({ pick: 'wait', dir: [0, 0], power: 0, wait: s });
+const CRANE: [number, number, number] = [-9.2, 0, 1.6], BALL: [number, number, number] = [9.6, 0, 4.8];
+CASES.push(
+  // 9-3 공사장 크레인
+  { level: '9-3', name: 'crane dropped right over the house (1 paw, 3★)', expect: 'win', minStars: 3, challenges: [0, 1], plan: [wait(1), hit('lever', [1, 0], 0.5, 8, CRANE)] },
+  { level: '9-3', name: 'crane, the next pass over the house', expect: 'win', minStars: 3, plan: [wait(5), hit('lever', [1, 0], 0.5, 8, CRANE)] },
+  { level: '9-3', name: 'wrecking ball, then the crane to finish (2★)', expect: 'win', minStars: 2, plan: [hit('lever', [-1, 0], 0.5, 6, BALL), wait(2), hit('lever', [1, 0], 0.5, 8, CRANE)] },
+  { level: '9-3', name: 'wrecking ball alone (half a house)', expect: 'lose', plan: [hit('lever', [-1, 0], 0.5, 10, BALL)] },
+  { level: '9-3', name: 'crane dropped on empty ground', expect: 'lose', plan: [wait(4), hit('lever', [1, 0], 0.5, 8, CRANE)] },
+  { level: '9-3', name: 'tip the site toilet as a bonus', expect: 'win', challenges: [0, 2], plan: [wait(1), hit('lever', [1, 0], 0.5, 8, CRANE), hit('toilet', [1, 0], 1, 4, undefined, 'top')] },
+);
