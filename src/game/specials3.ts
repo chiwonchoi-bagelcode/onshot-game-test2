@@ -290,6 +290,68 @@ export class WobbleSpecial implements Special {
   }
 }
 
+/* ------------------------------ cables ------------------------------ */
+
+/**
+ * Plugged-in things are tied together: when one goes over the edge, its
+ * cable yanks its neighbours after it (a domino you can't see coming).
+ */
+export class CableSpecial implements Special {
+  links: Prop[] = [];
+  /** where the cables run to (the power strip on the floor) */
+  anchor: THREE.Vector3 | null = null;
+  /** which way a yanked neighbour goes over the edge (defaults to toward the anchor) */
+  pull: THREE.Vector3 | null = null;
+  private yanked = false;
+  busy() { return false; }
+  step(game: Game, p: Prop) {
+    if (this.yanked || game.time < 0.8) return;
+    const t = p.body.translation();
+    if (p.startPos.y - t.y < 0.45 && !p.broken && !p.damaged) return;
+    this.yanked = true;
+    for (const q of this.links) {
+      if (!q.alive || q.fell || q.broken || q.damaged) continue;
+      const c = q.body.translation();
+      const to = this.anchor ?? new THREE.Vector3(t.x, t.y, t.z);
+      const d = this.pull ? _v.copy(this.pull).setY(0) : _v.set(to.x - c.x, 0, to.z - c.z);
+      if (d.lengthSq() < 1e-4) continue;
+      d.normalize();
+      const m = q.body.mass();
+      q.body.wakeUp();
+      q.body.applyImpulseAtPoint({ x: d.x * m * 4.2, y: m * 1.2, z: d.z * m * 4.2 }, { x: c.x, y: c.y + q.height * 0.35, z: c.z }, true);
+      blame(game, q, p);
+      game.emit({ type: 'word', text: '주르륵!', pos: q.center(new THREE.Vector3()).add(new THREE.Vector3(0, 0.8, 0)), size: 0.9, color: '#ffffff' });
+    }
+    if (this.links.length) game.discover('cable', p.center(new THREE.Vector3()));
+  }
+}
+
+/** a power strip on the floor: if water reaches it, everything plugged in dies */
+export class PowerStripSpecial implements Special {
+  plugged: Prop[] = [];
+  private dead = false;
+  busy() { return false; }
+  step(game: Game, p: Prop) {
+    if (this.dead || !game.slicks.length) return;
+    const t = p.body.translation();
+    const wet = game.slicks.some((s) => s.kind !== 'hair' && Math.abs(s.y - t.y) < 0.6 && (t.x - s.x) ** 2 + (t.z - s.z) ** 2 < s.r * s.r);
+    if (!wet) return;
+    this.dead = true;
+    const c = p.center(new THREE.Vector3());
+    game.fx('sparks', c, 1);
+    game.emit({ type: 'word', text: '파지지직!! 합선', pos: c.clone().add(new THREE.Vector3(0, 0.8, 0)), size: 1.3, color: '#7fe3ff' });
+    game.discover('zap', c.clone());
+    let k = 0;
+    for (const q of this.plugged) {
+      if (!q.alive || q.broken || q.damaged || !q.breakable) continue;
+      k++;
+      blame(game, q, p);
+      game.breakProp(q, 99);
+    }
+    if (k) game.count('short', k);
+  }
+}
+
 /* ------------------------------ triggers ------------------------------ */
 
 export interface TriggerOpts {

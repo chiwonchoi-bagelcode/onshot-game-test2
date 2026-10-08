@@ -4,8 +4,9 @@ import { mergeByMaterial } from '../render/merge';
 import type { Builder } from '../levels/Builder';
 import type { ColDef, Worth } from './types';
 import type { Prop } from './Prop';
-import { CarSpecial, HoseSpecial, SwingSpecial, TriggerSpecial, WobbleSpecial, type CarParts } from './specials3';
+import { CableSpecial, CarSpecial, HoseSpecial, PowerStripSpecial, SwingSpecial, TriggerSpecial, WobbleSpecial, type CarParts } from './specials3';
 import { fruit, type O, type V3 } from './catalog';
+import { screenTexture } from '../render/kit';
 
 /* ------------------------------------------------------------------ */
 /* Props for the outside world: cars, chocks, gates, garden things.    */
@@ -641,4 +642,99 @@ export function maebyeong(b: Builder, o: O): Prop {
     colliders: [hull(prof.slice(1), 8)], mass: 0.9 * s, mat: 'ceramic', value: o.value ?? 260000, target: o.target, batch: 'maebyeong', toppleValue: 8000,
     breakable: { threshold: 3.0, mode: 'shatter', fx: 'none', debris: { count: 8, colors: [c, '#ffffff'], size: 0.18 * s } },
   });
+}
+
+/** a brand-new monitor (still in its film), plugged in to its neighbours */
+export function monitor(b: Builder, o: O): { prop: Prop; cable: CableSpecial } {
+  const grp = g();
+  const scr = new THREE.MeshBasicMaterial({ map: screenTexture('laptop') ?? null, color: screenTexture('laptop') ? 0xffffff : 0xc6d6ff });
+  grp.add(mesh(box(1.7, 1.05, 0.12, 0.04), M('#2f3142'), { pos: [0, 1.0, 0] }));
+  grp.add(mesh(box(1.56, 0.92, 0.02, 0), scr, { pos: [0, 1.0, 0.07], shadow: false }));
+  grp.add(mesh(box(1.6, 0.96, 0.01, 0), M('#e8f6ff', { transparent: true, opacity: 0.35 }), { pos: [0, 1.0, 0.085], shadow: false }));
+  grp.add(mesh(box(0.12, 0.45, 0.1, 0.02), M('#3a3d4f'), { pos: [0, 0.3, -0.02] }));
+  grp.add(mesh(box(0.7, 0.06, 0.45, 0.02), M('#3a3d4f'), { pos: [0, 0.03, 0] }));
+  const cable = new CableSpecial();
+  const prop = b.prop({
+    kind: 'monitor', name: o.name ?? '새 모니터', icon: '🖥️', group: grp, pos: o.at, rotY: o.rot,
+    colliders: [{ shape: 'box', hx: 0.85, hy: 0.52, hz: 0.06, at: [0, 1.0, 0], massShare: 0.6 }, { shape: 'box', hx: 0.35, hy: 0.25, hz: 0.22, at: [0, 0.25, 0], massShare: 0.4 }],
+    mass: 1.8, mat: 'electronic', value: o.value ?? 650000, target: o.target, special: cable, traits: ['전선 연결', '전자제품'],
+    breakable: {
+      threshold: 5.2, hitForce: 260, mode: 'damage', fx: 'sparks', word: '파지직! 액정 박살',
+      onDamage: () => { const t = screenTexture('broken'); if (t) scr.map = t; else scr.color.set('#111'); scr.needsUpdate = true; },
+    },
+  });
+  return { prop, cable };
+}
+
+/** an office desk: heavy but it slides if a chair rams it */
+export function officeDesk(b: Builder, o: O & { w?: number; d?: number; h?: number }): { prop: Prop; top: number } {
+  const w = o.w ?? 2.4, d = o.d ?? 1.2, h = o.h ?? 1.6;
+  const grp = g();
+  const c = M(o.color ?? '#f4efe4'), leg = M('#8a8fa6');
+  grp.add(mesh(box(w, 0.1, d, 0.03), c, { pos: [0, h - 0.05, 0] }));
+  for (const x of [-1, 1]) grp.add(mesh(box(0.08, h - 0.1, d - 0.1, 0.02), leg, { pos: [x * (w / 2 - 0.06), (h - 0.1) / 2, 0] }));
+  grp.add(mesh(box(w - 0.2, 0.5, 0.05, 0.01), leg, { pos: [0, h - 0.4, -d / 2 + 0.06] }));
+  const prop = b.prop({
+    kind: 'desk', name: o.name ?? '사무용 책상', icon: '🗄️', group: grp, pos: o.at, rotY: o.rot,
+    colliders: [
+      { shape: 'box', hx: w / 2, hy: 0.05, hz: d / 2, at: [0, h - 0.05, 0], massShare: 0.5 },
+      { shape: 'box', hx: 0.04, hy: (h - 0.1) / 2, hz: d / 2 - 0.05, at: [-(w / 2 - 0.06), (h - 0.1) / 2, 0], massShare: 0.25 },
+      { shape: 'box', hx: 0.04, hy: (h - 0.1) / 2, hz: d / 2 - 0.05, at: [w / 2 - 0.06, (h - 0.1) / 2, 0], massShare: 0.25 },
+    ],
+    mass: 9, mat: 'wood', value: 250000, friction: 0.35, noTopple: true, toppleValue: 20000,
+  });
+  return { prop, top: o.at[1] + h };
+}
+
+/** a water cooler with its big bottle on top (the bottle is the flood) */
+export function waterCooler(b: Builder, o: O): Prop[] {
+  const grp = g();
+  grp.add(mesh(box(0.9, 2.2, 0.8, 0.08), M('#f4f4f8'), { pos: [0, 1.1, 0] }));
+  grp.add(mesh(box(0.14, 0.14, 0.1, 0.02), M('#4f86c6'), { pos: [-0.2, 1.6, 0.42] }));
+  grp.add(mesh(box(0.14, 0.14, 0.1, 0.02), M('#ff6b6b'), { pos: [0.2, 1.6, 0.42] }));
+  const body = b.prop({
+    kind: 'cooler', name: o.name ?? '정수기', icon: '🚰', group: grp, pos: o.at, rotY: o.rot,
+    colliders: [{ shape: 'box', hx: 0.45, hy: 1.1, hz: 0.4, at: [0, 1.1, 0] }],
+    mass: 5, mat: 'electronic', value: 450000, friction: 0.55,
+    breakable: { threshold: 6, mode: 'damage', fx: 'sparks', word: '지지직' },
+  });
+  const bg = g();
+  bg.add(mesh(cyl(0.42, 0.42, 1.1, 12), M('#7fd4ff', { transparent: true, opacity: 0.6 }), { pos: [0, 0.65, 0] }));
+  bg.add(mesh(cyl(0.18, 0.42, 0.25, 12), M('#7fd4ff', { transparent: true, opacity: 0.6 }), { pos: [0, 0.07, 0] }));
+  const bottle = b.prop({
+    kind: 'waterBottle', name: '생수통', icon: '💧', group: bg, pos: [o.at[0], o.at[1] + 2.2, o.at[2]], rotY: o.rot,
+    colliders: [{ shape: 'cyl', hh: 0.6, r: 0.42, at: [0, 0.6, 0] }],
+    mass: 4, mat: 'plastic', value: 15000,
+    breakable: { threshold: 5.5, mode: 'shatter', fx: 'flood', word: '콸콸콸!', debris: { count: 6, colors: ['#bfeaff'], size: 0.2, flat: true } },
+  });
+  return [body, bottle];
+}
+
+/** an office printer (heavy electronic, paper everywhere when it goes) */
+export function printer(b: Builder, o: O & { special?: import('./types').Special }): Prop {
+  const grp = g();
+  grp.add(mesh(box(1.4, 0.8, 1.0, 0.08), M('#e8e8f0'), { pos: [0, 0.4, 0] }));
+  grp.add(mesh(box(1.0, 0.06, 0.7, 0.02), M('#ffffff'), { pos: [0, 0.83, 0.1] }));
+  grp.add(mesh(box(0.3, 0.1, 0.1, 0.02), M('#5bb98c'), { pos: [0.45, 0.7, 0.51] }));
+  return b.prop({
+    kind: 'printer', name: o.name ?? '복합기', icon: '🖨️', group: grp, pos: o.at, rotY: o.rot,
+    colliders: [{ shape: 'box', hx: 0.7, hy: 0.4, hz: 0.5, at: [0, 0.4, 0] }],
+    mass: 3.5, mat: 'electronic', value: o.value ?? 1800000, target: o.target, special: o.special,
+    breakable: { threshold: 5, hitForce: 600, mode: 'damage', fx: 'paper', word: '우두둑! 종이 폭풍' },
+  });
+}
+
+/** a multi-tap on the floor (water + this = every monitor plugged in) */
+export function powerStrip(b: Builder, o: O): { prop: Prop; strip: PowerStripSpecial } {
+  const grp = g();
+  grp.add(mesh(box(1.0, 0.16, 0.34, 0.05), M('#ffffff'), { pos: [0, 0.08, 0] }));
+  for (let i = 0; i < 4; i++) grp.add(mesh(box(0.12, 0.02, 0.14, 0), M('#3a3d4f'), { pos: [-0.33 + i * 0.22, 0.17, 0], shadow: false }));
+  grp.add(mesh(box(0.1, 0.06, 0.06, 0.02), M('#ff6b6b'), { pos: [0.44, 0.18, 0], shadow: false }));
+  const strip = new PowerStripSpecial();
+  const prop = b.prop({
+    kind: 'strip', name: '멀티탭', icon: '🔌', group: grp, pos: o.at, rotY: o.rot,
+    colliders: [{ shape: 'box', hx: 0.5, hy: 0.08, hz: 0.17, at: [0, 0.08, 0] }],
+    mass: 0.4, mat: 'electronic', value: 15000, special: strip, friction: 0.8, traits: ['젖으면 합선'],
+  });
+  return { prop, strip };
 }

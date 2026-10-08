@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import * as C from '../game/catalog';
 import * as C3 from '../game/catalog3';
+import { CableSpecial } from '../game/specials3';
 import type { LevelDef } from '../game/types';
 import type { Builder } from './Builder';
 import { M, box, cyl, mesh } from '../render/kit';
@@ -84,4 +85,97 @@ const S8_1: LevelDef = {
   },
 };
 
-export const CH8: LevelDef[] = [S8_1];
+
+/* ================================================================== */
+/* 8-2  새 사무실 개업 — cables and a water cooler                       */
+/* ================================================================== */
+
+const CLERK = { shirt: '#ffffff', pants: '#2f3142', hair: '#3a2a22', glasses: true, tool: 'cup' as const };
+
+/** a row of three desks with plugged-in monitors near the front edge, cables to one strip */
+function monitorRow(b: Builder, z: number, names: string[], stripAt: [number, number]) {
+  const mons: import('../game/Prop').Prop[] = [];
+  const cables: import('../game/specials3').CableSpecial[] = [];
+  const top = C3.officeDesk(b, { at: [-5.0, 0, z], w: 2.4, d: 1.4 }).top;
+  C3.officeDesk(b, { at: [-2.5, 0, z], w: 2.4, d: 1.4 });
+  C3.officeDesk(b, { at: [0.0, 0, z], w: 2.4, d: 1.4 });
+  // the partition behind (keeps the monitors from going over the back)
+  const g = new THREE.Group();
+  g.add(mesh(box(7.6, 2.6, 0.12, 0.03), M('#c9d6ea'), { pos: [0, 1.3, 0] }));
+  b.solid(g, [{ shape: 'box', hx: 3.8, hy: 1.3, hz: 0.06, at: [0, 1.3, 0] }], [-2.5, 0, z - 0.8]);
+  for (const [i, x] of [-5.9, -2.5, 0.95].entries()) {
+    const m = C3.monitor(b, { at: [x, top, z + 0.2], target: true, name: names[i] });
+    mons.push(m.prop); cables.push(m.cable);
+  }
+  const strip = C3.powerStrip(b, { at: [stripAt[0], 0, stripAt[1]] });
+  strip.strip.plugged = mons;
+  const anchor = new THREE.Vector3(stripAt[0], 0, stripAt[1]);
+  cables.forEach((c, i) => { c.links = mons.filter((_, j) => j !== i); c.anchor = anchor; c.pull = new THREE.Vector3(0, 0, 1); });
+  // the cables, from each desk edge down to the strip
+  const cg = new THREE.Group();
+  for (const x of [-5.9, -2.5, 0.95]) {
+    const a = new THREE.Vector3(x, 1.55, z + 0.7), e = new THREE.Vector3(stripAt[0], 0.12, stripAt[1]);
+    const len = a.distanceTo(e);
+    const c = mesh(cyl(0.03, 0.03, len, 4), M('#3a3d4f'), { shadow: false });
+    c.position.copy(a).add(e).multiplyScalar(0.5);
+    c.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), e.clone().sub(a).normalize());
+    cg.add(c);
+  }
+  b.deco(cg);
+  return mons;
+}
+
+const S8_2: LevelDef = {
+  id: '8-2', chapter: 8, theme: 'shops', title: '새 사무실 개업', subtitle: '비닐도 안 뗀 새 모니터 여섯 대',
+  paws: 3,
+  goal: { kind: 'break', count: 6, text: '새 모니터 6대를 망가뜨려라', short: '모니터 6대' },
+  stars: [6000000, 8600000],
+  challenges: [
+    { type: 'stat', key: 'short', min: 6, text: '정수기 물로 합선 (모니터 6대 이상)' },
+    { type: 'paws', max: 1, text: '앞발 한 번으로 클리어' },
+    { type: 'count', kind: 'printer', n: 1, text: '복합기까지 박살' },
+  ],
+  tip: '모니터는 책상 뒤 칸막이에 막혀 있어요. 전선은 바닥의 멀티탭으로 모여요. 물과 전기는…?',
+  hints: ['줄 끝의 모니터를 옆으로 떨어뜨리면 전선이 나머지를 끌어당겨요.', '정수기 물통을 통로 쪽으로 떨어뜨리면 바닥이 물바다.', '물이 멀티탭에 닿으면 파지직! 꽂힌 모니터가 전부 고장.'],
+  hintMove: { prop: 'waterBottle', dir: [-1, 0] },
+  start: [-1, 0],
+  ownerLine: '개업 첫날인데…!!',
+  reactor: '직원',
+  prelude: (k) => {
+    const a = k.actor('직원');
+    k.cam('monitor', 0.45);
+    a.walkTo(-2.5, -1.8).turnTo(-2.5, -3).do('work', 1.6).do('admire', 1.4).walkTo(6.6, 3.9);
+    k.at(0.5, () => k.glint('monitor', '#ffe680'));
+    k.at(2.0, () => k.say('직원', '비닐 떼는 맛~ 새 모니터!', 1.8));
+    k.at(4.6, () => k.say('직원', '회의 다녀올게요~', 1.4));
+    return 6.6;
+  },
+  build(b) {
+    buildHouse(b, { rooms: [rect('office', '사무실', 0, 0, 16, 10, 'checker', 'butter')], base: '#6f7fa6' });
+    windowOn(b, { z: -5 }, 4.5, 4.4, 3.2, 2.2, false, '#7fb8d8');
+    posterOn(b, { x: -8 }, 1.5, 4.0, 1.6, 1.2, ['#ffffff', '#4f86c6', '#ffd23f']);
+    doorOn(b, { x: -8 }, -2.6, '#7f9fd8');
+    monitorRow(b, -3.4, ['새 모니터 A1', '새 모니터 A2', '새 모니터 A3'], [-3.6, -2.05]);
+    monitorRow(b, 0.8, ['새 모니터 B1', '새 모니터 B2', '새 모니터 B3'], [-3.6, 0.35]);
+    // the water cooler in the aisle between the rows
+    C3.waterCooler(b, { at: [-2.2, 0, -0.85], rot: Math.PI / 2 });
+    // wheeled chairs
+    C.chair(b, { at: [-5.0, 0, -1.7], wheels: true, color: '#4f86c6' });
+    C.chair(b, { at: [0.2, 0, 2.7], wheels: true, color: '#4f86c6' });
+    C.chair(b, { at: [5.6, 0, 0.0], wheels: true, color: '#ff8f6b', rot: -Math.PI / 2 });
+    // the boss's corner: a printer and a plant
+    const bt = table(b, 5.8, -3.6, 3.0, 1.4, 1.5, '#5b3b2b', '#3a2a22');
+    // the printer and the boss's monitor share a cable
+    const cable = new CableSpecial();
+    cable.pull = new THREE.Vector3(0, 0, 1);
+    C3.printer(b, { at: [4.9, bt, -3.35], special: cable });
+    const boss = C3.monitor(b, { at: [6.5, bt, -3.45], name: '사장님 대형 모니터', value: 2400000 });
+    cable.links = [boss.prop];
+    C.plant(b, { at: [7.6, bt, -3.8] });
+    C.plant(b, { at: [7.2, 0, 4.2] });
+    b.actor('직원', CLERK, -1.2, 0, -1.7, Math.PI, [-2.5, -0.6]);
+    b.cat(6.2, 0, 3.0);
+  },
+};
+
+export const CH8: LevelDef[] = [S8_1, S8_2];
