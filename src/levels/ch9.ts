@@ -154,4 +154,71 @@ const S9_3: LevelDef = {
   },
 };
 
-export const CH9: LevelDef[] = [S9_1, S9_3];
+
+/* ================================================================== */
+/* 9-4  도시 대붕괴 — pick where to start                                */
+/* ================================================================== */
+
+const H94 = { x0: 9, x1: 18, y0: 0, y1: 2.7 };
+const SLOPE94 = Math.atan2(H94.y1 - H94.y0, H94.x1 - H94.x0);
+
+const S9_4: LevelDef = {
+  id: '9-4', chapter: 9, theme: 'city', title: '도시 대붕괴', subtitle: '크레인, 쇠공, 언덕 위 트럭',
+  paws: 3,
+  goal: { kind: 'score', amount: 500000000, text: '도시 피해 ₩5억을 넘겨라', short: '₩5억 피해' },
+  stars: [550000000, 575000000],
+  pawValue: 25000000,
+  challenges: [
+    { type: 'count', kind: 'slab', n: 6, event: 'break', text: '두 건물의 바닥 6장 부수기' },
+    { type: 'paws', max: 2, text: '앞발 두 번으로 두 건물' },
+    { type: 'cause', victim: 'slab', culprit: 'auto', text: '트럭으로 건물 들이받기' },
+  ],
+  tip: '넓은 곳은 먼저 둘러봐요(🔍). 무엇을 먼저 움직일지, 언제 당길지가 전부예요.',
+  hints: ['왼쪽 건물은 크레인 짐이 머리 위에 올 때.', '오른쪽 언덕 위 트럭의 고임목을 빼면 오른쪽 건물 1층으로 돌진해요.', '쇠공은 오른쪽 건물 모서리만 부숴요. 트럭과 함께라면?'],
+  hintMove: { prop: 'chock', dir: [-1, 0] },
+  start: [0, 0],
+  ownerLine: '도시가… 도시가!!',
+  reactor: '시장님',
+  prelude: (k) => {
+    k.cam([-8.5, 4, -3], 0.35);
+    k.at(2.0, () => k.cam([8.5, 4, -3], 0.35));
+    k.at(4.0, () => { k.cam([15, 3, 0.8], 0.5); k.glint('auto', '#ffe680'); });
+    k.at(4.2, () => k.say('시장님', '신도시 준공 기념 리본 커팅을…', 2));
+    return 6.4;
+  },
+  build(b) {
+    buildLot(b, {
+      bounds: { minX: -18, maxX: 18, minZ: -8, maxZ: 7 },
+      patches: [
+        { x0: -18, x1: H94.x0, z0: -8, z1: 7, kind: 'paving' },
+        { x0: H94.x0, x1: 18, z0: -8, z1: -3.0, kind: 'paving' },
+        { x0: H94.x0, x1: 18, z0: 0.2, z1: 7, kind: 'grass' },
+      ],
+      ramps: [{ x0: H94.x0, x1: H94.x1, z0: -3.0, z1: 0.2, kind: 'asphalt', y0: H94.y0, y1: H94.y1, along: 'x' }],
+      base: '#6f7a8f',
+      height: 16,
+      labels: [{ name: '왼쪽 타워', x: -8.5, z: 0.8 }, { name: '오른쪽 타워', x: 4.5, z: 0.8 }],
+    });
+    b.game.view.playWidth = 20;
+    const A = C3.structure(b, { x: -8.5, z: -3.2, w: 5, d: 4, floors: 3, color: '#d6e4ff', slabColor: '#c9d6ea', value: 380000000 });
+    const B = C3.structure(b, { x: 4.5, z: -3.2, w: 5, d: 4, floors: 3, color: '#fbe7ef', slabColor: '#f4dce6', value: 380000000 });
+    void A; void B;
+    C3.towerCrane(b, { mast: [-15, -6.4], x0: -13, x1: 0, z: -3.2, h: 16, speed: 1.5, hang: 2.6, lever: [-14, 0, 1.0], loadName: '철골 다발' });
+    C3.wreckingBall(b, { pivot: [10.2, 9.2, -4.9], len: 6.2, dir: [-1, 0], from: -0.85, lever: [10.6, 0, -6.6], base: [13.4, 0, -6.2] });
+    // a truck parked up the hill, nose toward the right tower
+    const xT = 14.2, yT = H94.y0 + ((xT - H94.x0) / (H94.x1 - H94.x0)) * (H94.y1 - H94.y0);
+    const truck = C3.car(b, { at: [xT, yT, -1.4], rot: Math.PI, slope: SLOPE94, held: true, color: '#5bb98c', name: '언덕 위 트럭', value: 45000000 });
+    const cx = xT - 2.05 * Math.cos(SLOPE94);
+    C3.chock(b, { at: [cx, H94.y0 + ((cx - H94.x0) / (H94.x1 - H94.x0)) * (H94.y1 - H94.y0), -0.4], rot: Math.PI, slope: SLOPE94, car: truck });
+    // the ribbon-cutting stand in between
+    C3.vendingMachine(b, { at: [-1.8, 0, -1.6], name: '기념 조형물', color: '#ffd23f', value: 12000000 });
+    for (let i = 0; i < 6; i++) C3.cone3(b, { at: [-4.5 + i * 1.6, 0, 2.4] });
+    C3.portableToilet(b, { at: [-15.8, 0, 3.6] });
+    building(b, { x: 0, z: -8.6, w: 36, d: 1.2, h: 5, color: '#9aa3b8', solid: false });
+    for (const x of [-16, 16]) streetLamp(b, x, 6.2);
+    b.actor('시장님', { shirt: '#2f3142', pants: '#2f3142', hair: '#d9d4cc', glasses: true, tool: 'scissors' }, -1.5, 0, 4.4, Math.PI, [-1.5, 0]);
+    b.cat(-3, 0, 5.4);
+  },
+};
+
+export const CH9: LevelDef[] = [S9_1, S9_3, S9_4];
