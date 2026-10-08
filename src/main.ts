@@ -12,6 +12,7 @@ import { CatRoom } from './ui/CatRoom';
 import { BY_CHAPTER, CHAPTERS, LEVELS, levelById } from './levels/index';
 import { THEME_STYLE } from './levels/rooms';
 import type { LevelDef, TutorialStep } from './game/types';
+import { PreludePlayer } from './game/Prelude';
 import type { Prop } from './game/Prop';
 import { loadProfile, peekRec, resetProfile, saveProfile, stat, type Profile } from './meta/profile';
 import { CATS, catById, withSkin } from './meta/cats';
@@ -21,7 +22,7 @@ import { ACHIEVEMENTS } from './meta/achievements';
 import { CHURU, chapterCleared, chapterLock, chapterOpen, checkAchievements, nextLevel, settle, stageOpen, totalStars } from './meta/rewards';
 import { formatWon } from './core/util';
 
-type Mode = 'title' | 'map' | 'intro' | 'play' | 'pause' | 'result' | 'cats' | 'panel';
+type Mode = 'title' | 'map' | 'intro' | 'prelude' | 'play' | 'pause' | 'result' | 'cats' | 'panel';
 
 const _v = new THREE.Vector3();
 const _box = new THREE.Box3();
@@ -49,6 +50,9 @@ class App {
   private aiming = false;
   /** the simulation is frozen (pause menu and the settings opened from it) */
   private frozen = false;
+  /** a stage opening is playing */
+  private prelude: PreludePlayer | null = null;
+  private forcePrelude = false;
 
   constructor() {
     this.stage = new Stage(document.getElementById('game') as HTMLCanvasElement);
@@ -320,6 +324,7 @@ class App {
       start: () => { this.sfx.click(); this.startPlay(); },
       back: () => { this.sfx.click(); this.toMap(level.chapter); },
       cat: () => this.toCats(() => this.toIntro(level)),
+      replay: level.prelude && p.preludes.includes(level.id) ? () => { this.sfx.click(); this.forcePrelude = true; this.startPlay(); } : undefined,
     });
     // the whole space (with the goal markers) is in view while the card is up
     this.stage.showOverview(true);
@@ -330,9 +335,41 @@ class App {
   }
 
   startPlay() {
-    this.mode = 'play';
     const level = this.level;
     if (this.game.phase !== 'intro') this.loadLevel(level, true);
+    // the first time: the owner shows us how precious it all is
+    if (level.prelude && (this.forcePrelude || !this.profile.preludes.includes(level.id))) {
+      this.forcePrelude = false;
+      this.playPrelude(level);
+      return;
+    }
+    this.beginPlay();
+  }
+
+  private playPrelude(level: LevelDef) {
+    this.mode = 'prelude';
+    this.leaveOverlayModes();
+    this.setInsets(70, 70);
+    this.stage.showOverview(false);
+    this.music.setMood('calm');
+    this.prelude = new PreludePlayer(this.game, level.prelude!, (p, amt) => {
+      if (p && this.stage.roomy) this.stage.lookAtPoint(p);
+      this.stage.setFocus(p, amt);
+    });
+    this.screens.prelude(level.title, () => this.prelude?.skip());
+  }
+
+  private endPrelude() {
+    const level = this.level;
+    this.prelude = null;
+    if (!this.profile.preludes.includes(level.id)) { this.profile.preludes.push(level.id); this.save(); }
+    this.stage.setFocus(null);
+    this.beginPlay();
+  }
+
+  private beginPlay() {
+    this.mode = 'play';
+    const level = this.level;
     this.screens.clear();
     this.setInsets(140, 82);
     this.ui.showHud(level, { roomy: this.stage.roomy, labels: this.game.roomLabels });
@@ -479,7 +516,7 @@ class App {
     this.sfx.click();
     this.input.cancel();
     const g = this.game;
-    const fake = { success: g.goalComplete, score: g.score, stars: 0, maxChain: g.maxChain, broken: g.brokenCount, pawsLeft: g.paws, pawsUsed: g.maxPaws - g.paws, pawBonus: 0, story: [], run: g.run, wokeOwner: !!g.owner?.awake, noise: g.noise } as Result;
+    const fake = { success: g.goalComplete, score: g.score, stars: 0, maxChain: g.maxChain, broken: g.brokenCount, pawsLeft: g.paws, pawsUsed: g.maxPaws - g.paws, pawBonus: 0, money: g.money, bonus: g.bonus, heart: g.heart, receipt: [], caught: false, perfect: false, finale: false, story: [], run: g.run, wokeOwner: !!g.owner?.awake, noise: g.noise } as Result;
     const rec = peekRec(this.profile, this.level.id);
     this.screens.pause({
       goal: this.level.goal.text,
@@ -618,6 +655,10 @@ class App {
         if (t?.waitSettle && !this.game.busy()) { t.waitSettle = false; this.showTutStep(); }
         this.updatePointer();
       }
+    }
+    if (this.mode === 'prelude' && this.prelude) {
+      this.prelude.update(dt);
+      if (this.prelude.done) this.endPrelude();
     }
     this.catRoom.update(dt);
     this.stage.update(dt);

@@ -179,7 +179,7 @@ export class Owner {
       game.sfx.gasp();
       game.emit({ type: 'bubble', text: '!!?', anchor: () => this.headPos.clone().add(new THREE.Vector3(0, 0.9, 0)), dur: 1.4, style: 'owner' });
       game.discover('wake', this.headPos.clone());
-      if (game.level.goal.kind !== 'sneak') game.addScore(50000, this.headPos.clone(), { chain: false });
+      if (game.level.goal.kind !== 'sneak') game.addScore(50000, this.headPos.clone(), { chain: false, as: 'bonus' });
       game.checkGoal();
     }
   }

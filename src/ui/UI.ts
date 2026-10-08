@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { formatWon } from '../core/util';
+import { formatHeart, formatWon } from '../core/util';
 import type { LevelDef } from '../game/types';
 import type { Prop } from '../game/Prop';
 import { OBJECTS, type Discovery } from '../meta/dex';
@@ -367,8 +367,11 @@ export class UI {
     if (!p) { e.classList.remove('show'); return; }
     const info = OBJECTS[p.kind];
     const chips = traitsOf(p, reachable).map((t) => `<span>${esc(t)}</span>`).join('');
-    e.innerHTML = `<div class="ih"><div class="ii">${p.icon}</div><div><div class="in">${esc(p.name)}</div><div class="iv">${p.value ? formatWon(p.value) : '가격 미상'}</div></div></div>
-      <div class="chips">${chips}</div>${info ? `<div class="itip">💡 ${esc(info.tip)}</div>` : ''}`;
+    const w = p.spec.worth;
+    const owner = w?.owner ? `${esc(w.owner)}의 ` : '';
+    const story = w?.story || w?.heart ? `<div class="istory">${w.heart ? `💗 정성 ${formatHeart(w.heart)} · ` : ''}${esc(w.story ?? '')}</div>` : '';
+    e.innerHTML = `<div class="ih"><div class="ii">${p.icon}</div><div><div class="in">${owner}${esc(p.name)}</div><div class="iv">${p.value ? formatWon(p.value) : '가격 미상'}</div></div></div>
+      ${story}<div class="chips">${chips}</div>${info ? `<div class="itip">💡 ${esc(info.tip)}</div>` : ''}`;
     e.classList.add('show');
   }
 }

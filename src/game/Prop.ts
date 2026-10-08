@@ -21,6 +21,10 @@ export class Prop {
   body: RAPIER.RigidBody;
   group: THREE.Object3D;
   colliderHandles: number[] = [];
+  /** collider frictions as built (restored when leaving a slippery puddle) */
+  baseFriction: number[] = [];
+  /** currently on a slippery puddle */
+  slippery = false;
 
   alive = true;
   broken = false;

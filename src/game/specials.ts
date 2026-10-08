@@ -226,7 +226,7 @@ export class ClothSpecial implements Special {
       p.group.quaternion.identity();
       game.envGroup.add(p.group);
       p.group.position.copy(this.dropFrom);
-      game.addScore(2000, this.dropFrom.clone(), { chain: true });
+      game.addScore(2000, this.dropFrom.clone(), { chain: true, prop: p, type: 'damage' });
     }
   }
   frame(game: Game, p: Prop, dt: number) {
@@ -293,7 +293,7 @@ export class AlarmSpecial implements Special {
     this.loop = game.sfx.ring();
     game.discover('alarm', p.center(new THREE.Vector3()));
     game.emit({ type: 'word', text: '따르르릉!!', pos: p.center(new THREE.Vector3()).add(new THREE.Vector3(0, 0.8, 0)), size: 1.2, color: '#ffd23f' });
-    game.addScore(5000, p.center(new THREE.Vector3()));
+    game.addScore(5000, p.center(new THREE.Vector3()), { as: 'bonus' });
   }
   onImpact(game: Game, p: Prop, impact: number) { if (impact > 4) this.start(game, p); }
   onSwat(): boolean { return false; }
@@ -368,7 +368,7 @@ export class TrailSpecial implements Special {
     if (this.stat === 'tpLen' && this.len - this.scored > 1.5) {
       this.scored = this.len;
       game.sfx.unroll();
-      game.addScore(600, cur.clone().add(new THREE.Vector3(0, 0.4, 0)), { chain: false });
+      game.addScore(600, cur.clone().add(new THREE.Vector3(0, 0.4, 0)), { chain: false, prop: p, type: 'damage' });
     }
     const n = this.pts.length;
     for (let i = Math.max(0, n - 2); i < n; i++) {

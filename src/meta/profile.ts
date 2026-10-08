@@ -46,13 +46,15 @@ export interface Profile {
   finale: boolean;
   /** NEW! badges: 'cats', 'dex', 'ach', 'cat:<id>' … */
   fresh: string[];
+  /** stage openings already watched (retries start right away) */
+  preludes: string[];
 }
 
 export function freshProfile(): Profile {
   return {
     v: 2, churu: 0, levels: {}, cats: ['cheese'], cat: 'cheese', skins: [], skinOf: {}, accs: [], wear: {},
     ach: [], disc: [], seen: [], stats: {}, chapterIntro: [], tutorial: [],
-    settings: { sound: true, music: true, vibrate: true, lowGfx: false }, finale: false, fresh: [],
+    settings: { sound: true, music: true, vibrate: true, lowGfx: false }, finale: false, fresh: [], preludes: [],
   };
 }
 

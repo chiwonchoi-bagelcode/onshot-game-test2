@@ -31,6 +31,17 @@ export function formatWon(n: number): string {
   return '₩' + Math.round(n).toLocaleString('ko-KR');
 }
 
+/** hours of care → 3시간 / 4일 / 석 달 / 30년 */
+export function formatHeart(h: number): string {
+  if (h < 24) return `${Math.round(h)}시간`;
+  const d = h / 24;
+  if (d < 30) return `${Math.round(d)}일`;
+  const m = d / 30;
+  if (m < 12) return m < 1.5 ? '한 달' : m < 2.5 ? '두 달' : m < 3.5 ? '석 달' : `${Math.round(m)}개월`;
+  const y = d / 365;
+  return y >= 1e6 ? `${(y / 1e8).toFixed(0)}억 년` : `${Math.round(y)}년`;
+}
+
 export function damp(current: number, target: number, lambda: number, dt: number) {
   return lerp(current, target, 1 - Math.exp(-lambda * dt));
 }

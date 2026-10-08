@@ -3,6 +3,7 @@ import type { Game } from '../game/Game';
 import type { Prop } from '../game/Prop';
 import type { ColDef, PropSpec } from '../game/types';
 import { Owner } from '../game/Owner';
+import { Actor, type ActorLook } from '../game/Actor';
 import { mergeByMaterial } from '../render/merge';
 
 /** Helper handed to level build functions. */
@@ -47,6 +48,19 @@ export class Builder {
     this.game.owner = o;
     this.game.scene.add(o.group);
     return o;
+  }
+
+  /** a person standing at (x, y, z) facing yaw; scenePos = where they look at the end */
+  actor(name: string, look: ActorLook, x: number, y: number, z: number, yaw: number, scene?: [number, number]): Actor {
+    const a = new Actor(look);
+    a.name = name;
+    a.place(x, y, z, yaw);
+    a.exitPos.set(x, y, z);
+    if (scene) a.scenePos.set(scene[0], y, scene[1]); else a.scenePos.set(x + Math.sin(yaw) * 3, y, z + Math.cos(yaw) * 3);
+    this.game.actors.push(a);
+    this.game.actorMap[name] = a;
+    this.game.scene.add(a.group);
+    return a;
   }
 
   finish() {

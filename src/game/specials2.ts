@@ -245,7 +245,7 @@ export class JackSpecial implements Special {
       o.prevV.set(this.dir.x * k * 0.32, k, this.dir.z * k * 0.32);
     }
     p.body.applyImpulse({ x: 0, y: p.body.mass() * 2, z: 0 }, true);
-    game.addScore(3000, c, { prop: p, type: 'other' });
+    game.addScore(3000, c, { prop: p, type: 'other', as: 'bonus' });
   }
   frame(_g: Game, _p: Prop, dt: number) {
     if (this.popT < 0 || !this.clown) return;

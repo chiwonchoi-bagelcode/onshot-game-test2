@@ -101,6 +101,41 @@ export interface PropSpec {
   frictionMin?: boolean;
   /** instancing key – many identical props share one draw call */
   batch?: string;
+  /**
+   * Why this thing is precious beyond its price: devotion (hours of care
+   * that went into it), whose it is and a one-line story. Shown on the
+   * object card, as a heart glint in the room and on the damage receipt.
+   */
+  worth?: Worth;
+}
+
+export interface Worth {
+  /** hours of someone's care (a model kit: 300, grandma's bonsai: 30 years ≈ 2600) */
+  heart?: number;
+  /** whose it is (집사, 이웃 할머니 …) */
+  owner?: string;
+  /** one line, e.g. "석 달 걸려 조립한 전함" */
+  story?: string;
+  /** show the gold "expensive" glint even if the price is modest */
+  showcase?: boolean;
+}
+
+/** one victim on the damage receipt */
+export interface LedgerEntry {
+  id: number;
+  kind: string;
+  name: string;
+  icon: string;
+  /** worst thing that happened to it */
+  what: 'break' | 'damage' | 'fall' | 'topple' | 'dunk' | 'other';
+  /** overrides the receipt wording (e.g. 전손, 찌그러짐) */
+  label?: string;
+  /** real money lost (repair / replacement) */
+  money: number;
+  heart: number;
+  owner?: string;
+  /** nearest causes first, e.g. ['🚗', '🪵', '🐾'] */
+  path: string[];
 }
 
 export type GoalKind = 'break' | 'wake' | 'score' | 'floor' | 'dunk' | 'sneak';
@@ -160,6 +195,10 @@ export interface LevelDef {
   build(b: import('../levels/Builder').Builder): void;
   /** owner's line when they discover the mess */
   ownerLine?: string;
+  /** stage opening: the precious thing and its owner (plays once, skippable) */
+  prelude?: import('./Prelude').PreludeDef;
+  /** which actor comes back to discover the mess at the end */
+  reactor?: string;
 }
 
 export type RAPIERType = typeof RAPIER;

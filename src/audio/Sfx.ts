@@ -287,6 +287,98 @@ export class Sfx {
     }
   }
 
+  /* ---------------------------- outside world ---------------------------- */
+
+  /** sheet metal folding: cars, mailboxes, containers */
+  crunch(k = 1, pan = 0) {
+    if (!this.ok('crunch', 0.08)) return;
+    const ctx = this.ctx!, t = ctx.currentTime, o = this.out(pan);
+    const v = Math.min(1, 0.35 + k * 0.65);
+    this.noise(t, 0.28, 0.55 * v, 'bandpass', 1400, 500, 2.5, o);
+    this.tone('sawtooth', 180, 70, t, 0.25, 0.18 * v, o);
+    for (let i = 0; i < 5; i++) this.tone('square', 900 + Math.random() * 900, 400, t + Math.random() * 0.15, 0.05, 0.05 * v, o);
+    this.tone('sine', 80, 40, t, 0.3, 0.6 * v, o);
+  }
+
+  /** two-tone car alarm until stopped */
+  carAlarm(): Loop {
+    if (!this.ctx || this.muted) return { stop() {} };
+    const ctx = this.ctx, t = ctx.currentTime;
+    const o = ctx.createOscillator(); o.type = 'square';
+    const g = ctx.createGain(); g.gain.value = 0.045;
+    const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 2200;
+    o.connect(lp); lp.connect(g); g.connect(this.bus);
+    for (let i = 0; i < 60; i++) o.frequency.setValueAtTime(i % 2 ? 880 : 660, t + i * 0.35);
+    o.start(t); o.stop(t + 21);
+    this.voices++;
+    return { stop: () => { const n = ctx.currentTime; g.gain.setTargetAtTime(0.0001, n, 0.05); o.stop(n + 0.3); o.onended = () => { this.voices--; }; } };
+  }
+
+  /** a building or something huge coming down */
+  rumble(k = 1) {
+    if (!this.ok('rumble', 0.25)) return;
+    const ctx = this.ctx!, t = ctx.currentTime;
+    this.noise(t, 1.6 + k, 0.7 * k, 'lowpass', 300, 60, 0.7, this.bus, 0.08);
+    this.tone('sine', 55, 30, t, 1.4, 0.8 * k, this.bus, 0.05);
+    for (let i = 0; i < 8; i++) this.noise(t + Math.random() * 1.2, 0.2, 0.25 * k, 'bandpass', 600, 300, 1.5, this.bus);
+  }
+
+  /** emergency brakes */
+  screech() {
+    if (!this.ok('screech', 0.5)) return;
+    const ctx = this.ctx!, t = ctx.currentTime;
+    this.tone('sawtooth', 2400, 1900, t, 1.4, 0.07, this.bus, 0.02, 'lin');
+    this.tone('square', 3100, 2600, t + 0.05, 1.3, 0.035, this.bus, 0.02, 'lin');
+    this.noise(t, 1.5, 0.22, 'highpass', 3000, 2000, 1, this.bus, 0.04);
+  }
+
+  /** a lever thrown */
+  clunk() {
+    if (!this.ok('clunk', 0.1)) return;
+    const t = this.ctx!.currentTime;
+    this.tone('square', 220, 110, t, 0.08, 0.12, this.bus);
+    this.noise(t, 0.06, 0.4, 'bandpass', 1800, 900, 2, this.bus);
+    this.tone('sine', 90, 60, t + 0.05, 0.12, 0.4, this.bus);
+  }
+
+  /** a button pressed */
+  beep() {
+    if (!this.ok('beep', 0.1)) return;
+    const t = this.ctx!.currentTime;
+    this.tone('square', 1320, 1320, t, 0.09, 0.07, this.bus);
+    this.tone('square', 1760, 1760, t + 0.1, 0.12, 0.07, this.bus);
+  }
+
+  /** water hose / jet until stopped */
+  hose(): Loop {
+    if (!this.ctx || this.muted) return { stop() {} };
+    const ctx = this.ctx, t = ctx.currentTime;
+    const s = ctx.createBufferSource(); s.buffer = this.noiseBuf; s.loop = true;
+    const f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 1800; f.Q.value = 0.7;
+    const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.28, t + 0.1);
+    s.connect(f); f.connect(g); g.connect(this.bus); s.start(t);
+    this.voices++;
+    return { stop: () => { const n = ctx.currentTime; g.gain.setTargetAtTime(0.0001, n, 0.08); s.stop(n + 0.4); s.onended = () => { this.voices--; }; } };
+  }
+
+  /** rocket / missile ignition roar */
+  roar(k = 1) {
+    if (!this.ok('roar', 0.5)) return;
+    const ctx = this.ctx!, t = ctx.currentTime;
+    this.noise(t, 3.5, 0.75 * k, 'lowpass', 900, 200, 0.5, this.bus, 0.3);
+    this.tone('sawtooth', 60, 40, t, 3.2, 0.25 * k, this.bus, 0.3);
+  }
+
+  /** the end of the world */
+  boom() {
+    const ctx = this.ctx;
+    if (!ctx || this.muted) return;
+    const t = ctx.currentTime;
+    this.tone('sine', 70, 18, t, 4.5, 1.0, this.bus, 0.01);
+    this.noise(t, 4.5, 0.9, 'lowpass', 1600, 60, 0.6, this.bus, 0.01);
+    this.noise(t + 0.05, 1.2, 0.5, 'highpass', 2000, 800, 0.7, this.bus);
+  }
+
   /* ---------------------------- actions ---------------------------- */
 
   swat(power: number) {

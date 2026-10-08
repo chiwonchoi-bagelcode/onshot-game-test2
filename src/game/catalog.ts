@@ -826,7 +826,7 @@ export function paperStack(b: Builder, o: O): Prop {
         if (flown || impact < 4) return;
         flown = true;
         game.fx('paper', p.center(new THREE.Vector3()), 1);
-        game.addScore(4000, p.center(new THREE.Vector3()));
+        game.addScore(4000, p.center(new THREE.Vector3()), { prop: p, type: 'damage' });
       },
     },
   });

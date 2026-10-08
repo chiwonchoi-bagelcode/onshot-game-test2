@@ -7,10 +7,12 @@ import { Debris } from '../fx/Debris';
 import { ChunkSystem, PuffSystem } from '../fx/Particles';
 import { Decals } from '../fx/Decals';
 import { Prop } from './Prop';
-import type { ColDef, FxKind, LevelDef, Mat, PropSpec } from './types';
+import type { ColDef, FxKind, LedgerEntry, LevelDef, Mat, PropSpec } from './types';
 import { Cat } from './Cat';
 import { Owner } from './Owner';
+import type { Actor } from './Actor';
 import { Aim } from './Aim';
+import { runBelts, type Belt } from './specials3';
 import { Builder } from '../levels/Builder';
 import { CATS, type CatDef } from '../meta/cats';
 import { FX_DISCOVERY } from '../meta/dex';
@@ -25,7 +27,7 @@ export interface ChainEvent {
   icon: string;
   cause: number | null;
   causeCat: boolean;
-  type: 'break' | 'fall' | 'topple' | 'dunk' | 'other';
+  type: 'break' | 'fall' | 'topple' | 'dunk' | 'damage' | 'other';
   value: number;
 }
 
@@ -38,6 +40,8 @@ export interface RunRecord {
   discovered: string[];
   /** culprit kinds (nearest first) for every broken prop */
   culprits: { kind: string; target: boolean; by: string[] }[];
+  /** damage receipt: one entry per victim (prop id) */
+  ledger: Record<number, LedgerEntry>;
 }
 
 export interface Result {
@@ -49,6 +53,20 @@ export interface Result {
   pawsLeft: number;
   pawsUsed: number;
   pawBonus: number;
+  /** real damage (₩) — what the owners actually lost */
+  money: number;
+  /** prank points: chain bonus, leftover paws, alarms, wake-ups … */
+  bonus: number;
+  /** hours of care destroyed (precious things) */
+  heart: number;
+  /** receipt lines, biggest first */
+  receipt: LedgerEntry[];
+  /** a watcher saw too much: ended as 현행범 */
+  caught: boolean;
+  /** goal met while nobody suspected a thing (perfect-crime bonus applied) */
+  perfect: boolean;
+  /** this run blew up the planet */
+  finale: boolean;
   /** icons along the longest cause-and-effect chain */
   story: { icon: string; name: string }[];
   run: RunRecord;
@@ -57,6 +75,9 @@ export interface Result {
 }
 
 export interface WaterZone { x0: number; x1: number; z0: number; z1: number; y0: number; top: number }
+export type SlickKind = 'water' | 'milk' | 'juice' | 'paint' | 'hair' | 'oil' | 'soap';
+
+const SLICK_COLOR: Record<SlickKind, string> = { water: '#9fdcf7', milk: '#ffffff', juice: '#ffc46b', paint: '#ff8fa3', hair: '#cdb8a8', oil: '#4a4458', soap: '#e8f6ff' };
 
 export type GameEvent =
   | { type: 'score'; amount: number; total: number; pos: THREE.Vector3; big: boolean; chain: number }
@@ -111,6 +132,9 @@ export class Game {
   decals = new Decals(56);
   cat = new Cat();
   owner: Owner | null = null;
+  /** people in the outside world (openings, watchers, the ending) */
+  actors: Actor[] = [];
+  actorMap: Record<string, Actor> = {};
   aim = new Aim();
 
   time = 0;
@@ -118,6 +142,10 @@ export class Game {
   paws = 3;
   maxPaws = 3;
   score = 0;
+  /** split of score: real damage vs prank points (score = money + bonus) */
+  money = 0;
+  bonus = 0;
+  heart = 0;
   chain = 0;
   maxChain = 0;
   brokenCount = 0;
@@ -143,6 +171,10 @@ export class Game {
   readonly headless: boolean;
   builder: Builder | null = null;
   waterZones: WaterZone[] = [];
+  /** slippery puddles (spills, hairballs, wet paving): things on them slide */
+  slicks: { x: number; z: number; r: number; y: number; kind: SlickKind }[] = [];
+  /** conveyor belts (factories, airport baggage) */
+  belts: Belt[] = [];
   wallH = 7;
   roomLabels: { name: string; pos: THREE.Vector3 }[] = [];
   catDef: CatDef = CATS[0];
@@ -201,19 +233,21 @@ export class Game {
     this.time = 0;
     this.phase = 'intro';
     this.paws = this.maxPaws = level.paws;
-    this.score = 0; this.chain = 0; this.maxChain = 0; this.brokenCount = 0;
+    this.score = 0; this.money = 0; this.bonus = 0; this.heart = 0; this.chain = 0; this.maxChain = 0; this.brokenCount = 0;
     this.goalComplete = false; this.goalAnnounced = false;
     this.lastActionTime = -100; this.settleTimer = 0; this.endTimer = -1;
     this.timeScale = 1; this.slowTimer = 0; this.hitstop = 0; this.acc = 0;
     this.endRequested = false;
     this.waterZones = [];
+    this.slicks = [];
+    this.belts = [];
     this.roomLabels = [];
     this.wallH = 7;
     this.swatIndex = -1;
     this.noise = 0;
     this.caughtT = 0;
     this.lastWake.clear();
-    this.run = { swats: [], chains: [], counters: {}, maxes: {}, discovered: [], culprits: [] };
+    this.run = { swats: [], chains: [], counters: {}, maxes: {}, discovered: [], culprits: [], ledger: {} };
     const b = new Builder(this);
     level.build(b);
     b.finish();
@@ -238,6 +272,10 @@ export class Game {
     this.aim.hide();
     if (this.debris) { this.debris.clear(); this.scene.remove(this.debris.mesh); }
     if (this.owner) { this.owner.dispose(); this.scene.remove(this.owner.group); this.owner = null; }
+    for (const a of this.actors) this.scene.remove(a.group);
+    this.actors = [];
+    this.actorMap = {};
+    this.glintT = 0;
     if (this.world) { this.world.free(); this.events.free(); }
     this.framePoints = [];
   }
@@ -317,6 +355,7 @@ export class Game {
       }
       const col = this.world.createCollider(d, body);
       prop.colliderHandles.push(col.handle);
+      prop.baseFriction.push(col.friction());
       this.byCollider.set(col.handle, prop);
     }
     spec.group.position.set(spec.pos[0], spec.pos[1], spec.pos[2]);
@@ -334,6 +373,8 @@ export class Game {
   static wakeStacks = (globalThis as { __WAKE_STACKS?: boolean }).__WAKE_STACKS ?? true;
   /** also let fast movers wake what they touch (changes tuned chains; off) */
   static wakeMovers = (globalThis as { __WAKE_MOVERS?: boolean }).__WAKE_MOVERS ?? false;
+  /** spilled liquids leave slippery puddles (a rule shared by every place) */
+  static spillSlicks = (globalThis as { __SPILL_SLICKS?: boolean }).__SPILL_SLICKS ?? true;
   wakeAround(p: Prop, depth = 4) {
     if (!Game.wakeStacks) return;
     const seen = new Set<Prop>([p]);
@@ -479,12 +520,20 @@ export class Game {
   /* scoring & goal                                               */
   /* ------------------------------------------------------------ */
 
-  addScore(amount: number, pos: THREE.Vector3, opts: { chain?: boolean; prop?: Prop; type?: ChainEvent['type'] } = {}) {
-    let total = Math.round(amount * (this.perk === 'gold' ? 1.1 : 1));
+  /**
+   * Score something. `as: 'money'` (default) is real damage the owners pay
+   * for and goes on the receipt; `as: 'bonus'` is prank points (alarms,
+   * wake-ups, domino style). The chain bonus is always prank points.
+   */
+  addScore(amount: number, pos: THREE.Vector3, opts: { chain?: boolean; prop?: Prop; type?: ChainEvent['type']; as?: 'money' | 'bonus' } = {}) {
+    const base = Math.round(amount * (this.perk === 'gold' ? 1.1 : 1));
+    let total = base;
+    let chainBonus = 0;
     if (opts.chain !== false) {
       this.chain++;
       this.maxChain = Math.max(this.maxChain, this.chain);
-      if (this.chain > 1) total += Math.round(500 * (this.chain - 1) * (this.perk === 'chatty' ? 1.4 : 1));
+      if (this.chain > 1) chainBonus = Math.round(500 * (this.chain - 1) * (this.perk === 'chatty' ? 1.4 : 1));
+      total += chainBonus;
       this.sfx.chain(this.chain - 1);
       if (this.chain >= 3) this.emit({ type: 'chain', n: this.chain });
       if (this.chain === 6) this.cat.sayLine(this, 'chain', 1.5);
@@ -495,8 +544,46 @@ export class Game {
       }
     }
     this.score += total;
+    if (opts.as === 'bonus') this.bonus += base + chainBonus;
+    else {
+      this.money += base;
+      this.bonus += chainBonus;
+      if (opts.prop) this.ledgerAdd(opts.prop, base, opts.type ?? 'other');
+    }
     this.emit({ type: 'score', amount: total, total: this.score, pos: pos.clone(), big: total >= 50000, chain: this.chain });
     this.checkGoal();
+  }
+
+  private static WHAT_RANK: Record<LedgerEntry['what'], number> = { other: 0, topple: 1, fall: 2, dunk: 3, damage: 4, break: 5 };
+
+  /** record real damage against a victim (one receipt line per prop) */
+  ledgerAdd(p: Prop, money: number, type: ChainEvent['type']) {
+    let e = this.run.ledger[p.id];
+    if (!e) {
+      e = { id: p.id, kind: p.kind, name: p.name, icon: p.icon, what: 'other', money: 0, heart: 0, owner: p.spec.worth?.owner, path: [] };
+      this.run.ledger[p.id] = e;
+    }
+    e.money += money;
+    const what = type as LedgerEntry['what'];
+    if ((Game.WHAT_RANK[what] ?? 0) >= Game.WHAT_RANK[e.what]) e.what = what;
+    // a precious thing counts its care once, when it is really ruined
+    const h = p.spec.worth?.heart ?? 0;
+    if (h && !e.heart && (what === 'break' || what === 'damage' || what === 'dunk')) { e.heart = h; this.heart += h; }
+    // who did it: nearest causes first, ending at the paw
+    const path: string[] = [];
+    const seen = new Set<number>([p.id]);
+    for (let c = p.causeCat ? null : p.cause; c && path.length < 4 && !seen.has(c.id); c = c.causeCat ? null : c.cause) {
+      seen.add(c.id);
+      path.push(c.icon);
+      if (c.causeCat) break;
+    }
+    path.push('🐾');
+    e.path = path;
+  }
+
+  /** the receipt, biggest damage first */
+  receipt(): LedgerEntry[] {
+    return Object.values(this.run.ledger).filter((e) => e.money > 0 || e.heart > 0).sort((a, b) => (b.money + b.heart * 1000) - (a.money + a.heart * 1000));
   }
 
   goalProgress(): { done: number; need: number } {
@@ -613,6 +700,36 @@ export class Game {
     this.decals.add(new THREE.Vector3(pos.x + rand(-0.2, 0.2), g.y, pos.z + rand(-0.2, 0.2)), g.normal, size, color, opacity);
   }
 
+  /**
+   * A slippery puddle on whatever surface is below pos: the shared rule
+   * "spilled liquid makes floors slippery" (also hairballs, paint, oil).
+   */
+  addSlick(pos: THREE.Vector3, r: number, kind: SlickKind, decal = true) {
+    const g = this.groundBelow(pos.x, pos.y + 0.3, pos.z, 20, true);
+    if (!g) return;
+    for (const s of this.slicks) {
+      if (Math.abs(s.y - g.y) < 0.3 && Math.hypot(s.x - pos.x, s.z - pos.z) < (s.r + r) * 0.5) { s.r = Math.min(4, Math.max(s.r, r) + 0.2); return; }
+    }
+    this.slicks.push({ x: pos.x, z: pos.z, r, y: g.y, kind });
+    if (decal) this.decals.add(new THREE.Vector3(pos.x, g.y, pos.z), g.normal, r * 2, SLICK_COLOR[kind], kind === 'hair' ? 0.55 : 0.5);
+    if (this.time > 0.7) this.discover('slick', pos.clone());
+  }
+
+  /** collider friction follows the puddles under each moving prop */
+  private slide(p: Prop) {
+    let on = false;
+    if (this.slicks.length) {
+      const t = p.body.translation();
+      const bottom = t.y + p.localBox.min.y;
+      for (const s of this.slicks) {
+        if (Math.abs(bottom - s.y) < 0.45 && (t.x - s.x) ** 2 + (t.z - s.z) ** 2 < s.r * s.r) { on = true; break; }
+      }
+    }
+    if (on === p.slippery) return;
+    p.slippery = on;
+    p.colliderHandles.forEach((h, i) => this.world.getCollider(h)?.setFriction(on ? 0.02 : p.baseFriction[i]));
+  }
+
   fx(kind: FxKind, pos: THREE.Vector3, k: number) {
     const pan = clamp(pos.x / 8, -1, 1);
     const drops = (n: number, colors: string[], speed: number, size: number, opts: Partial<{ flat: boolean; flutter: boolean; life: number; gravity: number; drag: number }> = {}) => {
@@ -633,11 +750,13 @@ export class Game {
         drops(22, ['#7fd4ff', '#bfeaff', '#5ab8f0'], 5, 0.16);
         this.sfx.splash(k, pan);
         this.stain(pos, 1.3, '#8fd3f5', 0.6);
+        if (Game.spillSlicks) this.addSlick(pos, 1.1, 'water', false);
         break;
       case 'juice':
         drops(16, ['#ffb347', '#ffd27f'], 4.5, 0.15);
         this.sfx.splash(k * 0.8, pan);
         this.stain(pos, 1.1, '#ffb347', 0.75);
+        if (Game.spillSlicks) this.addSlick(pos, 0.9, 'juice', false);
         break;
       case 'coffee':
         drops(14, ['#7a4a2a', '#a5714a'], 4, 0.14);
@@ -706,6 +825,7 @@ export class Game {
         this.sfx.splash(1, pan);
         this.sfx.splash(0.7, -pan);
         for (let i = 0; i < 4; i++) this.stain(pos.clone().add(new THREE.Vector3(rand(-1.4, 1.4), 0, rand(-1.4, 1.4))), rand(1.4, 2.2), '#8fd3f5', 0.55);
+        if (Game.spillSlicks) this.addSlick(pos, 2.4, 'water', false);
         this.count('flood');
         this.discover('flood', pos.clone());
         break;
@@ -719,6 +839,7 @@ export class Game {
         drops(18, ['#ffffff', '#f4f8ff'], 4.5, 0.15);
         this.sfx.splash(k * 0.7, pan);
         this.stain(pos, 1.4, '#ffffff', 0.92);
+        if (Game.spillSlicks) this.addSlick(pos, 1.1, 'milk', false);
         break;
       default:
         break;
@@ -779,6 +900,8 @@ export class Game {
     this.decals.update(gdt);
     this.cat.update(this, dt, gdt);
     this.owner?.update(this, gdt, dt);
+    for (const a of this.actors) a.update(this, dt);
+    if (!this.headless) this.glints(dt);
     this.aim.update(dt);
     for (const u of this.updaters) u(gdt);
     this.updateFlow(dt);
@@ -793,6 +916,7 @@ export class Game {
       if (p.special?.step) p.special.step(this, p, h);
     }
     this.debris.savePrev();
+    if (this.belts.length) runBelts(this, h);
     this.world.timestep = h;
     this.world.step(this.events);
     this.events.drainContactForceEvents((e) => {
@@ -850,6 +974,7 @@ export class Game {
         this.wakeAround(p, 2);
       }
       if (p.alive && this.waterZones.length) this.water(p, h);
+      if (p.alive && (this.slicks.length || p.slippery)) this.slide(p);
       if (p.alive) {
         p.prevV.set(v.x, v.y, v.z);
         p.prevW.set(w.x, w.y, w.z);
@@ -977,7 +1102,8 @@ export class Game {
         this.count('topple');
         if (this.swatIndex >= 0) { const k = `swatTopple${this.swatIndex}`; this.count(k); this.best('toppleChain', this.run.counters[k]); }
         const amt = (p.spec.toppleValue ?? Math.max(200, p.value * 0.06)) * (this.perk === 'domino' ? 2 : 1);
-        this.addScore(amt, _v.set(t.x, t.y + p.height * 0.5, t.z), { prop: p, type: 'topple' });
+        // knocking over dominoes is style, not damage
+        this.addScore(amt, _v.set(t.x, t.y + p.height * 0.5, t.z), { prop: p, type: 'topple', as: p.spec.toppleValue !== undefined ? 'bonus' : 'money' });
         if ((p.kind === 'domino' || p.kind === 'book') && (this.run.counters[`swatTopple${this.swatIndex}`] ?? 0) >= 4) this.discover('domino', _v.clone());
         if (p.body.mass() >= 8) this.discover('furniture', _v.clone());
         if (p.kind === 'block' && (this.run.counters[`swatTopple${this.swatIndex}`] ?? 0) >= 6) this.discover('castle', _v.clone());
@@ -1037,17 +1163,20 @@ export class Game {
     this.phase = 'ending';
     this.emit({ type: 'phase', phase: 'ending' });
     const pawBonus = success ? this.paws * 10000 * (this.perk === 'bonus2x' ? 2 : 1) : 0;
-    if (pawBonus) this.score += pawBonus;
+    if (pawBonus) { this.score += pawBonus; this.bonus += pawBonus; }
     const [s2, s3] = this.level.stars;
     const stars = success ? (this.score >= s3 ? 3 : this.score >= s2 ? 2 : 1) : 0;
     this.pendingResult = {
       success, score: this.score, stars, maxChain: this.maxChain, broken: this.brokenCount,
-      pawsLeft: this.paws, pawsUsed: this.maxPaws - this.paws, pawBonus, story: this.story(), run: this.run,
+      pawsLeft: this.paws, pawsUsed: this.maxPaws - this.paws, pawBonus, money: this.money, bonus: this.bonus, heart: this.heart, receipt: this.receipt(), caught: false, perfect: false, finale: false,
+      story: this.story(), run: this.run,
       wokeOwner: !!this.owner?.awake, noise: this.noise,
     };
     this.endTimer = this.headless ? 0 : success ? 3.6 : 2.4;
     this.cat.ending(this, success);
     if (this.owner) this.owner.discover(this, success);
+    const re = this.level.reactor ? this.actorMap[this.level.reactor] : null;
+    if (re) re.react(this, success, this.level.ownerLine ?? '이게 다 뭐야?!');
   }
 
   private finish() {
@@ -1087,6 +1216,20 @@ export class Game {
       n++;
     }
     return n;
+  }
+
+  private glintT = 0;
+  /** precious things twinkle now and then: gold = expensive, pink = loved */
+  private glints(dt: number) {
+    this.glintT -= dt;
+    if (this.glintT > 0) return;
+    this.glintT = 0.35;
+    const precious = this.props.filter((p) => p.alive && !p.broken && !p.damaged && p.spec.worth);
+    if (!precious.length) return;
+    const p = precious[Math.floor(Math.random() * precious.length)];
+    const c = p.center(_v2);
+    const r = p.radius * 0.8;
+    this.glows.emit({ pos: new THREE.Vector3(c.x + rand(-r, r), c.y + p.height * rand(0.1, 0.6), c.z + rand(-r, r)), vel: new THREE.Vector3(0, 0.5, 0), life: 0.8, size0: 0.4, size1: 0.02, color: p.spec.worth?.heart ? '#ff9fc0' : '#fff2a8', drag: 1 });
   }
 
   /** for headless sims: run until settled */

@@ -1,6 +1,6 @@
-import { formatWon } from '../core/util';
+import { formatHeart, formatWon } from '../core/util';
 import type { Result } from '../game/Game';
-import type { LevelDef } from '../game/types';
+import type { LedgerEntry, LevelDef } from '../game/types';
 import type { Settlement, UnlockItem } from '../meta/rewards';
 import type { AchDef } from '../meta/achievements';
 import type { Discovery } from '../meta/dex';
@@ -103,24 +103,35 @@ export class Screens {
 
   /* ------------------------------ stage card ------------------------------ */
 
-  intro(d: IntroData, on: { start: () => void; back: () => void; cat: () => void }) {
+  intro(d: IntroData, on: { start: () => void; back: () => void; cat: () => void; replay?: () => void }) {
     const L = d.level;
     const e = h('div', 'introscr');
     const card = h('div', 'sheet-card');
     const stars = `${'★'.repeat(d.stars)}<i>${'★'.repeat(3 - d.stars)}</i>`;
-    card.innerHTML = `<div class="ich"><span class="lvno">${L.id}</span><span class="istars">${stars}</span>${d.best ? `<span class="ibest">최고 ${formatWon(d.best)}</span>` : ''}</div>
+    const pts = (n: number) => `${Math.round(n).toLocaleString('ko-KR')}점`;
+    card.innerHTML = `<div class="ich"><span class="lvno">${L.id}</span><span class="istars">${stars}</span>${d.best ? `<span class="ibest">최고 ${pts(d.best)}</span>` : ''}</div>
       <h2>${esc(L.title)}</h2><div class="sub">${esc(L.subtitle)}</div>
       <div class="goalline"><span class="tgt"></span>${esc(L.goal.text)}</div>
-      <div class="pawsline">앞발 장난 <b>${L.paws}번</b> · ⭐⭐ ${formatWon(L.stars[0])} · ⭐⭐⭐ ${formatWon(L.stars[1])}</div>
+      <div class="pawsline">앞발 장난 <b>${L.paws}번</b> · ⭐⭐ ${pts(L.stars[0])} · ⭐⭐⭐ ${pts(L.stars[1])}</div>
       <div class="chlist">${d.challenges.map((c, i) => `<div class="chrow${d.ch[i] ? ' done' : ''}"><span class="chi">${c.icon}</span><span class="cht2">${esc(c.text)}</span><span class="chk">${d.ch[i] ? '✔' : ''}</span></div>`).join('')}</div>
       ${L.tip ? `<div class="tip">💡 ${esc(L.tip)}</div>` : ''}`;
     const row = h('div', 'row');
     row.append(btn('btn-round', '←', on.back));
     const cat = btn('catchip', `<i class="catdot" style="background:${d.cat.color}"></i><span><b>${esc(d.cat.name)}</b><small>${esc(d.cat.perk)}</small></span>`, on.cat);
     row.append(cat);
+    if (on.replay) row.append(btn('btn-round replay', '🎬', on.replay));
     card.append(row);
     card.append(btn('btn-big go', d.first ? '장난 개시! 🐾' : '다시 도전! 🐾', on.start));
     e.append(card);
+    this.show(e);
+  }
+
+  /** the opening plays over the stage; a tap anywhere skips it */
+  prelude(title: string, onSkip: () => void) {
+    const e = h('div', 'preludescr');
+    e.innerHTML = `<div class="plbar top"></div><div class="plbar bot"><span>${esc(title)}</span></div>`;
+    e.append(btn('plskip', '건너뛰기 ▶▶', () => onSkip()));
+    e.addEventListener('pointerdown', (ev) => { if (!(ev.target as HTMLElement).closest('.plskip')) onSkip(); });
     this.show(e);
   }
 
@@ -142,15 +153,20 @@ export class Screens {
   async result(level: LevelDef, r: Result, s: Settlement, hasNext: boolean, on: { retry: () => void; next: () => void; map: () => void }) {
     const e = h('div', 'overlay dim result');
     const c = h('div', 'card');
-    const title = r.success ? (r.stars === 3 ? '완전 범죄!' : r.stars === 2 ? '대성공!' : '미션 성공!') : '아직 너무 평화롭다…';
-    const sub = r.success ? (level.goal.kind === 'sneak' ? '집사는 아무것도 모른 채 잠들어 있다…' : '집사는 범인을 끝내 찾지 못했다…') : level.goal.kind === 'sneak' && r.wokeOwner ? '집사가 깨 버렸다! 더 조용히…' : '목표를 아직 망가뜨리지 못했어요';
+    const caught = r.caught;
+    const title = r.success ? (caught ? '현행범 체포!' : r.stars === 3 ? '완전 범죄!' : r.stars === 2 ? '대성공!' : '미션 성공!') : '아직 너무 평화롭다…';
+    const sub = r.success
+      ? (caught ? '들켜 버렸다… 그래도 피해는 피해다냥.' : level.goal.kind === 'sneak' ? '집사는 아무것도 모른 채 잠들어 있다…' : '범인은 끝내 밝혀지지 않았다…')
+      : level.goal.kind === 'sneak' && r.wokeOwner ? '집사가 깨 버렸다! 더 조용히…' : caught ? '들켜 버렸다! 시선을 피해 다시…' : '목표를 아직 망가뜨리지 못했어요';
     c.innerHTML = `<h2>${title}</h2><div class="sub">${sub}</div>
       <div class="stars"><span class="star">⭐</span><span class="star mid">⭐</span><span class="star">⭐</span></div>
-      <div class="total">₩0</div><div class="stamp hidden">신기록!</div>
-      <div class="best">${s.prevBest > 0 ? `이전 최고 ${formatWon(s.prevBest)}` : ''}</div>`;
+      <div class="evalline">장난 평가 <b class="evalv">0</b>점<span class="stamp hidden">신기록!</span></div>
+      <div class="best">${s.prevBest > 0 ? `이전 최고 ${Math.round(s.prevBest).toLocaleString('ko-KR')}점` : ''}</div>`;
+    const bill = this.receipt(r, s);
+    c.append(bill.el);
     const story = h('div', 'story hidden');
     if (r.story.length >= 2) story.innerHTML = `<div class="sh">📜 사건 일지 · 최장 연쇄 x${r.maxChain}</div><div class="sr">${['🐾', ...r.story.map((x) => x.icon)].map((i, k) => `<span style="animation-delay:${k * 0.08}s">${i}</span>`).join('<b>→</b>')}</div>`;
-    else story.innerHTML = `<div class="sh">📜 사건 일지</div><div class="sr small">깨뜨린 물건 ${r.broken}개 · 최대 연쇄 x${r.maxChain}${r.pawBonus ? ` · 남은 앞발 보너스 ${formatWon(r.pawBonus)}` : ''}</div>`;
+    else story.innerHTML = `<div class="sh">📜 사건 일지</div><div class="sr small">깨뜨린 물건 ${r.broken}개 · 최대 연쇄 x${r.maxChain}</div>`;
     c.append(story);
     const chl = h('div', 'chlist hidden');
     chl.innerHTML = s.challenges.map((x) => `<div class="chrow${x.done || x.before ? ' done' : ''}${x.isNew ? ' new' : ''}"><span class="chi">${x.icon}</span><span class="cht2">${esc(x.text)}</span><span class="chk">${x.isNew ? `<em>NEW</em>` : x.done || x.before ? '✔' : ''}</span></div>`).join('');
@@ -171,22 +187,56 @@ export class Screens {
     e.addEventListener('pointerdown', () => { fast = true; }, { once: true });
     const pause = (ms: number) => (fast ? Promise.resolve() : wait(ms));
     const stars = c.querySelectorAll('.star');
-    const total = c.querySelector('.total') as HTMLElement;
     if (r.success) this.snd.fanfare(); else this.snd.fail();
-    await pause(350);
-    countUp(total, r.score, fast ? 1 : 900, formatWon, (i) => { if (!fast) this.snd.tick(i); });
-    await pause(500);
-    for (let i = 0; i < r.stars; i++) { stars[i].classList.add('on'); this.snd.star(i); await pause(330); }
-    if (s.newBest && s.prevBest > 0) { await pause(250); c.querySelector('.stamp')!.classList.remove('hidden'); this.snd.stamp(); }
     await pause(250);
+    await bill.play(pause, () => fast);
+    countUp(c.querySelector('.evalv') as HTMLElement, r.score, fast ? 1 : 500, (n) => Math.round(n).toLocaleString('ko-KR'));
+    await pause(300);
+    for (let i = 0; i < r.stars; i++) { stars[i].classList.add('on'); this.snd.star(i); await pause(300); }
+    if (s.newBest && s.prevBest > 0) { await pause(200); c.querySelector('.stamp')!.classList.remove('hidden'); this.snd.stamp(); }
+    await pause(200);
     story.classList.remove('hidden');
-    await pause(350);
+    await pause(300);
     chl.classList.remove('hidden');
     if (s.challenges.some((x) => x.isNew)) this.snd.jingle();
-    await pause(300);
+    await pause(250);
     if (s.churu > 0) { rew.classList.remove('hidden'); this.snd.discover(); }
     c.querySelector('.hintline')?.classList.remove('hidden');
     row.classList.remove('hidden');
+  }
+
+  /** the damage receipt: what was lost, who did it, and that the cat can't pay */
+  private receipt(r: Result, s: Settlement): { el: HTMLElement; play: (pause: (ms: number) => Promise<void>, fast: () => boolean) => Promise<void> } {
+    const el = h('div', 'receipt');
+    const top = r.receipt.slice(0, 5);
+    const rest = r.receipt.slice(5);
+    const what = (x: LedgerEntry) => x.label ?? ({ break: '파손', damage: '망가짐', fall: '추락 흠집', topple: '넘어짐', dunk: '침수', other: '피해' } as const)[x.what];
+    const line = (x: LedgerEntry) => `<div class="rl"><span class="ri">${x.icon}</span><span class="rn">${esc(x.owner ? `${x.owner}의 ${x.name}` : x.name)} <small>${what(x)}</small>`
+      + `${x.heart ? `<em class="rh">💗 정성 ${formatHeart(x.heart)}</em>` : ''}<span class="rp">${x.path.map((i) => `← ${i}`).join(' ')}</span></span>`
+      + `<b>${x.money > 0 ? formatWon(x.money) : '값을 매길 수 없음'}</b></div>`;
+    const bonusBits = [r.maxChain >= 3 ? `연쇄 x${r.maxChain}` : '', r.pawBonus ? '남은 앞발' : '', r.perfect ? '완전범죄' : '', r.run.swats.length && r.run.swats.every((x) => !x.target) ? '간접 공략' : ''].filter(Boolean).join(' · ');
+    el.innerHTML = `<div class="rtitle">손해배상 청구서</div>
+      <div class="rlines2">${top.map(line).join('')}${rest.length ? `<div class="rl more"><span class="ri">…</span><span class="rn">그 외 ${rest.length}건</span><b>${formatWon(rest.reduce((a, x) => a + x.money, 0))}</b></div>` : ''}${!top.length ? '<div class="rl more"><span class="rn">아무것도 망가지지 않았다…</span></div>' : ''}</div>
+      <div class="rsum"><span>실제 손해</span><b class="rmoney">₩0</b></div>
+      ${r.heart ? `<div class="rsum heart"><span>💗 정성 파괴</span><b>${r.finale ? '46억 년' : formatHeart(r.heart)}</b></div>` : ''}
+      <div class="rsum bonus"><span>장난 점수${bonusBits ? ` <small>${bonusBits}</small>` : ''}</span><b>+${Math.round(r.bonus).toLocaleString('ko-KR')}</b></div>
+      <div class="rbill">청구 대상: 고양이 <small>(지불 능력 없음)</small></div>
+      <div class="rstamp hidden">${r.caught ? '현행범' : r.success ? '시치미' : '미수'}</div>`;
+    void s;
+    const rows = [...el.querySelectorAll('.rl')] as HTMLElement[];
+    for (const x of rows) x.classList.add('pre');
+    return {
+      el,
+      play: async (pause, fast) => {
+        for (const x of rows) { x.classList.remove('pre'); this.snd.tick(1); await pause(fast() ? 0 : 120); }
+        const m = el.querySelector('.rmoney') as HTMLElement;
+        if (r.finale) m.textContent = '측정 불가';
+        else countUp(m, r.money, fast() ? 1 : 700, formatWon, (i) => { if (!fast()) this.snd.tick(i); });
+        await pause(650);
+        el.querySelector('.rstamp')!.classList.remove('hidden');
+        this.snd.stamp();
+      },
+    };
   }
 
   /* ------------------------------ reveal queue ------------------------------ */

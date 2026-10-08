@@ -117,6 +117,7 @@ export const DISCOVERIES: Discovery[] = [
   { id: 'feathers', icon: '🪶', name: '깃털 폭발', desc: '베개가 터지면 깃털이 흩날려요.' },
   { id: 'breakfast', icon: '🥣', name: '아침밥 대참사', desc: '시리얼과 우유가 바닥에 쏟아졌어요.' },
   { id: 'castle', icon: '🏰', name: '성 무너뜨리기', desc: '블록 성은 아래 기둥을 치면 와르르 무너져요.' },
+  { id: 'slick', icon: '🫧', name: '미끄덩 웅덩이', desc: '쏟아진 물·우유·페인트 위에서는 물건이 쭉 미끄러져요.' },
 ];
 
 export const discoveryById = (id: string) => DISCOVERIES.find((d) => d.id === id);
