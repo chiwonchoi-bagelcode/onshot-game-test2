@@ -55,14 +55,23 @@ export interface Profile {
   outside: boolean;
   /** the Earth is gone (11-3) */
   worldEnd: boolean;
+  /** hidden incidents solved (the case files) */
+  cases: string[];
+  /** records per place (chapter id as key) */
+  places: Record<string, PlaceRec>;
+  /** souvenirs bought for the cat room */
+  decor: string[];
 }
+
+/** a place's records: biggest damage, longest chain, fewest paws to clear, most care ruined */
+export interface PlaceRec { damage: number; chain: number; paws: number; heart: number }
 
 export function freshProfile(): Profile {
   return {
     v: 2, churu: 0, levels: {}, cats: ['cheese'], cat: 'cheese', skins: [], skinOf: {}, accs: [], wear: {},
     ach: [], disc: [], seen: [], stats: {}, chapterIntro: [], tutorial: [],
     settings: { sound: true, music: true, vibrate: true, lowGfx: false }, finale: false, fresh: [], preludes: [],
-    tricks: [], trick: null, outside: false, worldEnd: false,
+    tricks: [], trick: null, outside: false, worldEnd: false, cases: [], places: {}, decor: [],
   };
 }
 

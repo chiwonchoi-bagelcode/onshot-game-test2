@@ -5,7 +5,7 @@ import type { Special } from './types';
 import type { Loop } from '../audio/Sfx';
 import { clamp, rand, srand } from '../core/util';
 import { GRAVITY as GRAV } from '../core/constants';
-import type { Driver } from './specials4';
+import type { Steering } from './specials4';
 
 /* ------------------------------------------------------------------ */
 /* Outside-world gadgets. The paw never gets stronger: it pulls a      */
@@ -67,7 +67,7 @@ export class CarSpecial implements Special {
   /** on a gentle slope: don't brake before it has had a chance to get going */
   gentle = false;
   /** traffic: someone is at the wheel (until it hits something) */
-  driver: Driver | null = null;
+  driver: Steering | null = null;
   constructor(private parts: CarParts, private glassMat: THREE.MeshLambertMaterial, private crackedMat: THREE.Material) {}
   busy() { return false; }
 
@@ -667,7 +667,7 @@ export class HoseSpecial implements Special {
   private dir = new THREE.Vector3(1, 0, 0);
   private loop: Loop | null = null;
   private wetT = 0;
-  constructor(private nozzle: THREE.Object3D, private dur = 4) {}
+  constructor(private nozzle: THREE.Object3D, private dur = 4, private fluid: { slick: import('./Game').SlickKind; colors: [string, string]; word: string } = { slick: 'water', colors: ['#bfeaff', '#7fd4ff'], word: '촤아아~' }) {}
   busy() { return this.on > 0; }
 
   onSwat(game: Game, p: Prop, dir: THREE.Vector3): boolean {
@@ -675,7 +675,7 @@ export class HoseSpecial implements Special {
     this.on = this.dur;
     if (!game.headless) this.loop = game.sfx.hose();
     game.discover('hose', p.center(new THREE.Vector3()));
-    game.emit({ type: 'word', text: '촤아아~', pos: p.center(new THREE.Vector3()).add(new THREE.Vector3(0, 0.8, 0)), size: 1.0, color: '#7fd3ff' });
+    game.emit({ type: 'word', text: this.fluid.word, pos: p.center(new THREE.Vector3()).add(new THREE.Vector3(0, 0.8, 0)), size: 1.0, color: this.fluid.colors[1] });
     this.nozzle.rotation.y = Math.atan2(this.dir.x, this.dir.z) - p.group.rotation.y;
     return true;
   }
@@ -710,7 +710,7 @@ export class HoseSpecial implements Special {
     if (this.wetT <= 0) {
       this.wetT = 0.45;
       const reach = range * srand(0.55, 0.95);
-      game.addSlick(o.clone().addScaledVector(this.dir, reach), 1.3, 'water');
+      game.addSlick(o.clone().addScaledVector(this.dir, reach), 1.3, this.fluid.slick);
     }
     if (this.on <= 0) { this.loop?.stop(); this.loop = null; }
   }
@@ -721,7 +721,7 @@ export class HoseSpecial implements Special {
     o.y += 0.35;
     for (let i = 0; i < 3; i++) {
       const s = rand(7, 11);
-      game.chunks.emit({ pos: o.clone(), vel: new THREE.Vector3(this.dir.x * s + rand(-0.6, 0.6), rand(2.5, 4), this.dir.z * s + rand(-0.6, 0.6)), life: 0.9, size: rand(0.08, 0.14), color: i ? '#bfeaff' : '#7fd4ff', floor: game.floorY + 0.03 });
+      game.chunks.emit({ pos: o.clone(), vel: new THREE.Vector3(this.dir.x * s + rand(-0.6, 0.6), rand(2.5, 4), this.dir.z * s + rand(-0.6, 0.6)), life: 0.9, size: rand(0.08, 0.14), color: i ? this.fluid.colors[0] : this.fluid.colors[1], floor: game.floorY + 0.03 });
     }
     void dt;
   }

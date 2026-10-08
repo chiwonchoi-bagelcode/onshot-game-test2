@@ -7,6 +7,9 @@ import type { Prop } from '../game/Prop';
 import { SwingSpecial, blame } from '../game/specials3';
 import { M, box, mesh } from '../render/kit';
 import { buildLot, building, slab, streetLamp } from './outdoor';
+import * as C4 from '../game/catalog4';
+import { buildHouse, table } from './house';
+import { rect } from './rooms';
 
 /* ================================================================== */
 /* Chapter 11 — 극비 기지. Everything the cat has learned, tied together.*/
@@ -122,4 +125,122 @@ const S11_3: LevelDef = {
   },
 };
 
-export const CH11: LevelDef[] = [S11_3];
+/* ================================================================== */
+/* 11-1  보안 구역 잠입 — eyes everywhere; a meow moves them            */
+/* ================================================================== */
+
+const S11_1: LevelDef = {
+  id: '11-1', chapter: 11, theme: 'base', title: '보안 구역 잠입', subtitle: '1급 기밀 서류 수레와, 눈을 떼지 않는 경비병',
+  paws: 3,
+  goal: { kind: 'break', count: 4, text: '1급 기밀 서류 4개를 바닥에 쏟아라', short: '기밀 서류 ×4' },
+  stars: [30000000, 90000000],
+  challenges: [
+    { type: 'discover', id: 'perfect', text: '아무에게도 들키지 않기 (완전 범죄)' },
+    { type: 'count', kind: 'server', n: 4, event: 'topple', text: '서버 4대 줄줄이 넘어뜨리기' },
+    { type: 'stat', key: 'lured', min: 2, text: '야옹 한 번에 경비병 둘을 부르기' },
+  ],
+  tip: '경비병의 부채꼴 안에서 장난치면 금방 들켜요(100%면 즉시 끝). 야옹으로 다른 곳을 보게 하거나, 고개를 돌리는 순간을 노려요.',
+  hints: [
+    '기밀 서류는 바퀴 달린 수레에 실려 있어요. 툭 밀면 캐비닛에 쾅!',
+    '야옹(장난 기술)을 장착하고 멀리 있는 자판기를 고르면 경비병이 그리로 가요.',
+    '서버는 꼭대기를 두 번 연달아 밀면 넘어가고, 옆 서버까지 줄줄이.',
+  ],
+  hintMove: { prop: 'rack', dir: [1, 0] },
+  start: [0, 0],
+  ownerLine: '침입자다!! …고양이?',
+  reactor: '경비병',
+  prelude: (k) => {
+    k.cam('folder', 0.6);
+    k.at(0.5, () => k.glint('folder', '#ffe680'));
+    k.at(1.0, () => k.say('경비병', '기밀 서류 수레, 이상 무!', 1.8));
+    k.at(3.2, () => k.say('순찰병', '복도 순찰 시작합니다.', 1.6));
+    return 5.4;
+  },
+  build(b) {
+    buildHouse(b, { rooms: [rect('vault', '보안 구역', 0, 0, 22, 12, 'concrete', 'steel')], base: '#4a5268' });
+    b.game.view.playWidth = 19;
+    // the archive: a filing cabinet, the folder trolley
+    table(b, 5.5, -5.0, 6, 1.2, 1.1, '#9aa6bd', '#5b5f73');
+    b.solid(mesh(box(1.2, 2.4, 1.0, 0.04), M('#8e95a8')), [{ shape: 'box', hx: 0.6, hy: 1.2, hz: 0.5, at: [0, 1.2, 0] }], [9.0, 0, -2.8]);
+    const tr = C3.dryingRack(b, { at: [5.6, 0, -2.8], h: 2.0, rot: Math.PI / 2, name: '서류 수레', color: '#9aa6bd' });
+    tr.shelfY.slice(0, 3).forEach((y, i) => { for (const dz of i === 1 ? [-0.4, 0.4] : [0]) C4.secretFolder(b, { at: [5.6, y, -2.8 + dz], rot: Math.PI / 2, target: true, color: ['#e8c46a', '#ff9f43', '#e8c46a'][i] }); });
+    for (let i = 0; i < 2; i++) C4.secretFolder(b, { at: [4.2 + i * 0.6, 1.1, -5.0], target: true, name: '기밀 서류 (책상 위)' });
+    // the server room
+    for (let i = 0; i < 4; i++) C4.serverRack(b, { at: [-8.6 + i * 1.35, 0, -4.4] });
+    // things to meow at
+    C3.vendingMachine(b, { at: [9.6, 0, 4.4], rot: Math.PI, color: '#5ec4c9' });
+    C3.waterCooler(b, { at: [-9.6, 0, 4.4] });
+    b.actor('경비병', GUARD, 5.6, 0, 0.6, Math.PI, [5.6, -1]);
+    b.watcher('경비병', { range: 9, half: 0.5, cycle: [[7, 0], [2.2, 2.9]] });
+    b.actor('순찰병', GUARD, -7, 0, 2.8, Math.PI / 2, [0, 2.8]);
+    b.watcher('순찰병', { range: 8, half: 0.45, cycle: [[1, 0]], patrol: [[-7, 2.8, 2.5], [2.5, 2.8, 2.5]] });
+    b.cat(-1.5, 0, -0.5);
+  },
+};
+
+/* ================================================================== */
+/* 11-2  NASA 발사 준비 — rocket fuel on the floor                      */
+/* ================================================================== */
+
+const SCIENTIST = { shirt: '#ffffff', pants: '#4f86c6', hair: '#3a2a22', glasses: true, tool: 'clipboard' as const };
+const LANE112 = -2.2;
+
+const S11_2: LevelDef = {
+  id: '11-2', chapter: 11, theme: 'base', title: 'NASA 발사 준비', subtitle: '연료 주입 직전의 1단 탱크',
+  paws: 3,
+  goal: { kind: 'break', count: 1, text: '1단 연료 탱크를 쓰러뜨려라', short: '연료 탱크' },
+  stars: [330000000, 380000000],
+  challenges: [
+    { type: 'count', kind: 'laptop', n: 3, text: '연료 줄기로 노트북 3대 지지직' },
+    { type: 'cause', victim: 'fuelTank', culprit: 'cart', text: '엔진 수레로 탱크 쓰러뜨리기' },
+    { type: 'discover', id: 'perfect', text: '연구원들 몰래 (완전 범죄)' },
+  ],
+  tip: '연료 호스는 툭 친 방향으로 연료를 뿜어요. 연료 웅덩이는 빙판처럼 미끄러워요. 탱크는 앞발로는 꿈쩍도 안 해요 — 무거운 게 세게 부딪혀야!',
+  hints: [
+    '연료 호스를 엔진 수레 쪽으로! 바닥이 미끄러워지면 물줄기가 수레를 밀어요.',
+    '무거운 것이 세게 부딪히면 탱크는 한 번에 넘어가요.',
+    '연구원들은 모니터를 보다가 가끔 탱크 쪽을 돌아봐요.',
+  ],
+  hintMove: { prop: 'hose', dir: [1, 0] },
+  start: [-3, 0],
+  ownerLine: '발사가… 연료 탱크가!!',
+  reactor: '연구원',
+  prelude: (k) => {
+    k.cam('fuelTank', 0.5);
+    k.at(0.5, () => k.glint('fuelTank', '#ffe680'));
+    k.at(1.0, () => k.say('연구원', '1단 탱크 점검 완료. 연료 주입 10분 전!', 2.0));
+    k.at(3.6, () => { k.cam('engine', 0.6); k.say('연구원', '엔진은 수레 위에 잠깐 두고…', 1.8); });
+    return 6;
+  },
+  build(b) {
+    buildHouse(b, { rooms: [rect('hangar', '발사 준비동', 0, 0, 24, 12, 'concrete', 'steel')], base: '#4a5268' });
+    b.game.view.playWidth = 20;
+    // the fuel truck and its hose
+    const truck = new THREE.Group();
+    truck.add(mesh(box(4.2, 2.4, 2.4, 0.1), M('#dfe3ea'), { pos: [0, 1.4, 0] }));
+    truck.add(mesh(box(1.6, 1.8, 2.4, 0.1), M('#ff6b6b'), { pos: [-2.9, 1.1, 0] }));
+    truck.add(mesh(box(2.2, 0.5, 0.04, 0.01), M('#4f86c6'), { pos: [0.3, 1.6, 1.22], shadow: false }));
+    b.solid(truck, [{ shape: 'box', hx: 2.9, hy: 1.4, hz: 1.2, at: [-0.7, 1.4, 0] }], [-8.6, 0, -4.6]);
+    C3.hoseReel(b, { at: [-7.6, 0, LANE112], fuel: true, name: '로켓 연료 호스', dur: 4.5 });
+    // the engine on its dolly, between the hose and the tank
+    const cart = C3.gardenCart(b, { at: [-3.4, 0, LANE112], name: '엔진 수레', color: '#9aa6bd' });
+    void cart;
+    C4.rocketEngine(b, { at: [-3.3, 0.88, LANE112] });
+    // the tank
+    C4.fuelTank(b, { at: [6.2, 0, LANE112], target: true });
+    // mission control: laptops in the line of fire, monitors behind
+    table(b, -2.6, 1.6, 4.4, 1.2, 1.1, '#ffffff', '#9aa6bd');
+    for (let i = 0; i < 3; i++) C.laptop(b, { at: [-4.2 + i * 1.5, 1.1, 1.5], rot: Math.PI });
+    table(b, 3.6, 3.6, 5, 1.2, 1.1, '#ffffff', '#9aa6bd');
+    for (let i = 0; i < 3; i++) C3.monitor(b, { at: [1.8 + i * 1.8, 1.1, 3.6], rot: Math.PI });
+    // the escape ship's scale model (for later)
+    C3.vendingMachine(b, { at: [10.6, 0, 4.4], rot: Math.PI, color: '#ffffff', name: '우주식 자판기' });
+    b.actor('연구원', SCIENTIST, 2.4, 0, 2.4, Math.PI, [4, 0]);
+    b.watcher('연구원', { range: 9, half: 0.5, cycle: [[4.5, 0], [2.5, 1.0]] });
+    b.actor('연구원2', SCIENTIST, -5.4, 0, 3.4, Math.PI, [-3, 1]);
+    b.watcher('연구원2', { range: 8, half: 0.45, cycle: [[3, 0.3], [3, -0.6]] });
+    b.cat(-5.2, 0, -0.2);
+  },
+};
+
+export const CH11: LevelDef[] = [S11_1, S11_2, S11_3];

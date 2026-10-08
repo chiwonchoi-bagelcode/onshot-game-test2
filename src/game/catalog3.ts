@@ -285,7 +285,7 @@ export function bucket(b: Builder, o: O): Prop {
 }
 
 /** a garden hose on its reel: swat to turn it on, the stream goes where the paw pointed */
-export function hoseReel(b: Builder, o: O & { dur?: number }): Prop {
+export function hoseReel(b: Builder, o: O & { dur?: number; fuel?: boolean }): Prop {
   const grp = g();
   grp.add(mesh(box(0.9, 0.12, 0.7, 0.04), M('#5bb98c'), { pos: [0, 0.06, 0] }));
   for (const z of [-0.28, 0.28]) grp.add(mesh(cyl(0.45, 0.45, 0.08, 12), M('#5bb98c'), { pos: [0, 0.6, z], rot: [Math.PI / 2, 0, 0] }));
@@ -297,7 +297,7 @@ export function hoseReel(b: Builder, o: O & { dur?: number }): Prop {
   return b.prop({
     kind: 'hose', name: o.name ?? '정원 호스', icon: '🚿', group: grp, pos: o.at, rotY: o.rot,
     colliders: [{ shape: 'box', hx: 0.45, hy: 0.55, hz: 0.35, at: [0, 0.55, 0] }],
-    mass: 14, mat: 'plastic', value: 40000, special: new HoseSpecial(nozzle, o.dur ?? 4), traits: ['물줄기', '방향'],
+    mass: 14, mat: 'plastic', value: 40000, special: new HoseSpecial(nozzle, o.dur ?? 4, o.fuel ? { slick: 'oil', colors: ['#c9b8ff', '#8f7fd8'], word: '치이익~ 연료!' } : undefined), traits: o.fuel ? ['연료 분사', '바닥이 빙판'] : ['물줄기', '방향'],
   });
 }
 

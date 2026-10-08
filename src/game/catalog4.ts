@@ -4,7 +4,8 @@ import type { Builder } from '../levels/Builder';
 import type { Worth } from './types';
 import type { Prop } from './Prop';
 import type { Game, SlickKind } from './Game';
-import { SpillSpecial, SwitchBladeSpecial } from './specials4';
+import { RailSwitch, SpillSpecial } from './specials4';
+import { WobbleSpecial } from './specials3';
 import type { O } from './catalog';
 
 /* ------------------------------------------------------------------ */
@@ -302,18 +303,17 @@ export function saleStand(b: Builder, o: { x0: number; x1: number; z: number; d?
 
 /* ------------------------------ the railway ------------------------------ */
 
-/** a switch blade (kinematic guide rail) hinged at `at`, `len` long along its local +x */
-export function switchBlade(b: Builder, o: O & { len: number; a0: number; a1: number }): { prop: Prop; blade: import('./specials4').SwitchBladeSpecial } {
+/** the yellow switch blade (scenery: the rails decide), hinged at `at` */
+export function switchBlade(b: Builder, o: { at: [number, number, number]; len: number; a0: number; a1: number }): RailSwitch {
   const grp = g();
-  grp.add(mesh(box(o.len, 0.5, 0.25, 0.04), M('#ffd23f'), { pos: [o.len / 2, 0.25, 0] }));
-  for (let i = 0; i < 4; i++) grp.add(mesh(box(0.3, 0.52, 0.27, 0), M('#2f3142'), { pos: [0.4 + i * (o.len / 4), 0.25, 0], shadow: false }));
-  const blade = new SwitchBladeSpecial({ a0: o.a0, a1: o.a1 });
-  const prop = b.prop({
-    kind: 'switch', name: '선로 전환 레일', icon: '🛤️', group: grp, pos: o.at, rotY: o.a0, kinematic: true, interactable: false,
-    colliders: [{ shape: 'box', hx: o.len / 2, hy: 0.6, hz: 0.12, at: [o.len / 2, 0.6, 0] }],
-    mass: 50, mat: 'metal', value: 0, special: blade, friction: 0.05,
-  });
-  return { prop, blade };
+  grp.add(mesh(box(o.len, 0.18, 0.22, 0.04), M('#ffd23f'), { pos: [o.len / 2, 0.09, 0] }));
+  for (let i = 0; i < 4; i++) grp.add(mesh(box(0.25, 0.2, 0.24, 0), M('#2f3142'), { pos: [0.4 + i * (o.len / 4), 0.09, 0], shadow: false }));
+  grp.position.set(o.at[0], o.at[1] + 0.01, o.at[2]);
+  grp.userData.keep = true;
+  b.deco(grp);
+  const sw = new RailSwitch(grp, o.a0, o.a1);
+  b.game.addUpdater((dt) => sw.update(dt));
+  return sw;
 }
 
 /** a rail curb (static): keeps wheels on the track */
@@ -334,4 +334,104 @@ export function rails(b: Builder, x0: number, z0: number, x1: number, z1: number
   grp.position.set((x0 + x1) / 2, y + 0.005, (z0 + z1) / 2);
   grp.rotation.y = ang;
   b.deco(grp);
+}
+
+/* ------------------------------ the airport ------------------------------ */
+
+/** a hard-shell suitcase: heavy, rides belts, fills carts */
+export function suitcase(b: Builder, o: O): Prop {
+  const grp = g();
+  const c = o.color ?? '#4f86c6';
+  grp.add(mesh(box(0.9, 0.62, 0.36, 0.08), M(c), { pos: [0, 0.31, 0] }));
+  for (const x of [-0.2, 0.2]) grp.add(mesh(box(0.04, 0.6, 0.38, 0.01), M('#ffffff'), { pos: [x, 0.31, 0], shadow: false }));
+  grp.add(mesh(box(0.3, 0.06, 0.06, 0.02), M('#2f3142'), { pos: [0, 0.66, 0] }));
+  return b.prop({
+    kind: 'suitcase', name: o.name ?? '여행 가방', icon: '🧳', group: grp, pos: o.at, rotY: o.rot,
+    colliders: [{ shape: 'box', hx: 0.45, hy: 0.31, hz: 0.18, at: [0, 0.31, 0], round: 0.04 }],
+    mass: 6, mat: 'plastic', value: o.value ?? 180000, friction: 0.5,
+    traits: ['무거움', '컨베이어를 탐'],
+  });
+}
+
+/** a duty-free bottle (perfume or whisky): small, pricey, shatters */
+export function dutyFree(b: Builder, o: O & { type?: 'perfume' | 'whisky' }): Prop {
+  const t = o.type ?? 'perfume';
+  const grp = g();
+  if (t === 'perfume') {
+    grp.add(mesh(box(0.22, 0.26, 0.14, 0.04), M(o.color ?? '#ffb3c6', { transparent: true, opacity: 0.85 }), { pos: [0, 0.13, 0] }));
+    grp.add(mesh(cyl(0.05, 0.05, 0.08, 6), M('#ffd23f'), { pos: [0, 0.3, 0] }));
+  } else {
+    grp.add(mesh(cyl(0.11, 0.12, 0.36, 8), M(o.color ?? '#c98a5a', { transparent: true, opacity: 0.9 }), { pos: [0, 0.18, 0] }));
+    grp.add(mesh(cyl(0.04, 0.05, 0.12, 6), M('#2f3142'), { pos: [0, 0.42, 0] }));
+  }
+  return b.prop({
+    kind: t, name: o.name ?? (t === 'perfume' ? '면세 향수' : '면세 위스키'), icon: t === 'perfume' ? '🧴' : '🥃', group: grp, pos: o.at, rotY: o.rot,
+    colliders: [t === 'perfume' ? { shape: 'box', hx: 0.11, hy: 0.17, hz: 0.07, at: [0, 0.17, 0] } : { shape: 'cyl', r: 0.12, hh: 0.24, at: [0, 0.24, 0] }],
+    mass: 0.4, mat: 'glass', value: o.value ?? (t === 'perfume' ? 320000 : 450000), target: o.target, friction: 0.5,
+    breakable: { threshold: 3.0, mode: 'shatter', fx: t === 'perfume' ? 'perfume' : 'juice', word: t === 'perfume' ? '쨍! 향수 폭탄' : '쨍그랑! 위스키', debris: { count: 6, colors: [o.color ?? '#ffb3c6', '#ffffff'], size: 0.1, flat: true } },
+  });
+}
+
+/* ------------------------------ the secret base ------------------------------ */
+
+/** a classified folder: drop it and the secrets are all over the floor */
+export function secretFolder(b: Builder, o: O): Prop {
+  const grp = g();
+  grp.add(mesh(box(0.42, 0.56, 0.08, 0.02), M(o.color ?? '#e8c46a'), { pos: [0, 0.28, 0] }));
+  grp.add(mesh(box(0.3, 0.08, 0.09, 0.005), M('#ff2a3c'), { pos: [0, 0.4, 0] }));
+  return b.prop({
+    kind: 'folder', name: o.name ?? '1급 기밀 서류', icon: '📁', group: grp, pos: o.at, rotY: o.rot,
+    colliders: [{ shape: 'box', hx: 0.21, hy: 0.28, hz: 0.04, at: [0, 0.28, 0] }],
+    mass: 0.35, mat: 'paper', value: o.value ?? 5000000, target: o.target, friction: 0.5,
+    breakable: { threshold: 2.4, mode: 'damage', fx: 'paper', word: '기밀 유출!', onDamage: (p) => { p.group.scale.set(1.1, 0.4, 1.1); } },
+  });
+}
+
+/** a server rack: tall, heavy, blinking; tips on the second shove, and they go in rows */
+export function serverRack(b: Builder, o: O): Prop {
+  const grp = g();
+  grp.add(mesh(box(1.0, 2.6, 1.0, 0.04), M('#2f3142'), { pos: [0, 1.3, 0] }));
+  for (let i = 0; i < 7; i++) {
+    grp.add(mesh(box(0.84, 0.22, 0.02, 0.01), M('#3f4458'), { pos: [0, 0.35 + i * 0.32, 0.51], shadow: false }));
+    grp.add(mesh(box(0.06, 0.05, 0.02, 0), M(i % 3 ? '#5bd98c' : '#7fd3ff', { emissive: i % 3 ? '#2ad86c' : '#4ad8ff', emissiveIntensity: 0.8 }), { pos: [0.32, 0.35 + i * 0.32, 0.525], shadow: false }));
+  }
+  return b.prop({
+    kind: 'server', name: o.name ?? '서버', icon: '🗄️', group: grp, pos: o.at, rotY: o.rot,
+    colliders: [{ shape: 'box', hx: 0.5, hy: 1.3, hz: 0.5, at: [0, 1.3, 0] }],
+    mass: 25, mat: 'electronic', value: o.value ?? 18000000, target: o.target, friction: 0.7,
+    special: new WobbleSpecial(), touchForce: 100, traits: ['아주 무거움', '흔들릴 때 한 번 더', '줄줄이'],
+    breakable: { threshold: 4.5, mode: 'damage', fx: 'sparks', word: '파지직! 서버 다운', debris: { count: 8, colors: ['#2f3142', '#5bd98c'], size: 0.14, flat: true } },
+  });
+}
+
+/** a rocket engine (rides a dolly) */
+export function rocketEngine(b: Builder, o: O): Prop {
+  const grp = g();
+  grp.add(mesh(cyl(0.45, 0.5, 0.9, 12), M('#dfe3ea'), { pos: [0, 0.45, 0] }));
+  grp.add(mesh(cyl(0.3, 0.65, 0.8, 12), M('#5b5f73'), { pos: [0, 1.25, 0], rot: [0, 0, Math.PI] }));
+  grp.add(mesh(cyl(0.48, 0.48, 0.12, 12), M('#ff6b6b'), { pos: [0, 0.85, 0] }));
+  return b.prop({
+    kind: 'engine', name: o.name ?? '로켓 엔진', icon: '🚀', group: grp, pos: o.at, rotY: o.rot,
+    colliders: [{ shape: 'cyl', r: 0.55, hh: 0.8, at: [0, 0.8, 0] }],
+    mass: 12, mat: 'metal', value: o.value ?? 60000000, friction: 0.6,
+    breakable: { threshold: 9, mode: 'damage', fx: 'sparks', word: '쿵! 엔진 찌그러짐' },
+  });
+}
+
+/** the first-stage fuel tank: tall, top-heavy, tips on the second shove or one big hit */
+export function fuelTank(b: Builder, o: O & { h?: number; r?: number }): Prop {
+  const h = o.h ?? 4.6, r = o.r ?? 0.9;
+  const grp = g();
+  grp.add(mesh(cyl(r, r, h, 16), M('#f4f4f8'), { pos: [0, h / 2 + 0.3, 0] }));
+  grp.add(mesh(cyl(r * 0.6, r, 0.5, 16), M('#f4f4f8'), { pos: [0, h + 0.55, 0] }));
+  for (const y of [0.25, 0.5, 0.75]) grp.add(mesh(cyl(r + 0.02, r + 0.02, 0.12, 16), M('#ff6b6b'), { pos: [0, 0.3 + h * y, 0], shadow: false }));
+  grp.add(mesh(box(0.5, 1.4, 0.04, 0.01), M('#4f86c6'), { pos: [0, 0.3 + h * 0.55, r + 0.01], shadow: false }));
+  grp.add(mesh(cyl(r * 1.05, r * 1.2, 0.3, 12), M('#5b5f73'), { pos: [0, 0.15, 0] }));
+  return b.prop({
+    kind: 'fuelTank', name: o.name ?? '1단 연료 탱크', icon: '🛢️', group: grp, pos: o.at, rotY: o.rot,
+    colliders: [{ shape: 'cyl', r, hh: h / 2, at: [0, h / 2 + 0.3, 0], massShare: 0.85 }, { shape: 'cyl', r: r * 1.15, hh: 0.15, at: [0, 0.15, 0], massShare: 0.15 }],
+    mass: 30, mat: 'metal', value: o.value ?? 300000000, target: o.target, friction: 0.7,
+    special: new WobbleSpecial({ kick: 2.4, minHeight: 2 }), touchForce: 100, traits: ['아주 무거움', '키가 큼', '앞발로는 꿈쩍 안 함'],
+    breakable: { threshold: 4, mode: 'damage', fx: 'sparks', word: '콰앙!! 연료 탱크', debris: { count: 14, colors: ['#f4f4f8', '#ff6b6b', '#4f86c6'], size: 0.3, flat: true } },
+  });
 }

@@ -123,7 +123,14 @@ export interface DriveDef {
   gap?: number;
 }
 
-export class Driver {
+/** something steering a car (a driver in traffic, rails under a wagon) */
+export interface Steering {
+  crashed: boolean;
+  step(game: Game, p: Prop, h: number): void;
+  crash(game: Game, p: Prop): void;
+}
+
+export class Driver implements Steering {
   crashed = false;
   private blocked = 0;
   private v = 0;
@@ -206,31 +213,61 @@ export function unlatch(game: Game, p: Prop, by: Prop | null, nudge?: THREE.Vect
 
 /* ------------------------------ the railway ------------------------------ */
 
+/** a straight piece of track: from (x, z) along unit (dx, dz) */
+export interface Track { x: number; z: number; dx: number; dz: number }
+
 /**
- * A switch blade: a kinematic guide rail hinged at its origin that swings
- * between yaw a0 (straight on) and a1 (into the siding) when thrown.
+ * Wheels on rails: on the flat, a wagon follows whichever track `pick`
+ * says (the switch), rolling freely along it. Hit something hard (or get
+ * the switch thrown under you) and it leaves the rails for good.
  */
-export class SwitchBladeSpecial implements Special {
-  label = '';
+export class RailFollower implements Steering {
+  crashed = false;
+  private q = new THREE.Quaternion();
+  private want = new THREE.Quaternion();
+  constructor(private o: { pick: (x: number, z: number) => Track | null }) {}
+  step(_game: Game, p: Prop) {
+    if (this.crashed || !p.alive) return;
+    const t = p.body.translation();
+    const tr = this.o.pick(t.x, t.z);
+    if (!tr) return;
+    const v = p.body.linvel();
+    const along = v.x * tr.dx + v.z * tr.dz;
+    if (Math.abs(along) < 0.05) return;
+    const nx = -tr.dz, nz = tr.dx;
+    const e = (t.x - tr.x) * nx + (t.z - tr.z) * nz;
+    p.body.setLinvel({ x: tr.dx * along - nx * e * 3, y: v.y, z: tr.dz * along - nz * e * 3 }, true);
+    const r = p.body.rotation();
+    this.q.set(r.x, r.y, r.z, r.w);
+    this.want.setFromAxisAngle(_q.set(0, 1, 0), Math.atan2(-tr.dz, tr.dx));
+    this.q.slerp(this.want, 0.25);
+    p.body.setRotation({ x: this.q.x, y: this.q.y, z: this.q.z, w: this.q.w }, true);
+    p.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
+  }
+  crash(game: Game, p: Prop) {
+    if (this.crashed) return;
+    this.crashed = true;
+    game.emit({ type: 'word', text: '탈선!!', pos: p.center(_v).clone().add(new THREE.Vector3(0, 2.4, 0)), size: 1.3, color: '#ff5a6e' });
+  }
+}
+
+/** the switch: a yellow blade (scenery) that swings over when the lever is thrown */
+export class RailSwitch {
   set = false;
   private t = 1;
   private from = 0;
-  private q = new THREE.Quaternion();
-  constructor(private o: { a0: number; a1: number; dur?: number }) { this.from = o.a0; }
-  busy() { return this.t < 1; }
-  throwSwitch(game: Game, p: Prop, by: Prop | null) {
-    this.from = this.yaw();
+  constructor(readonly blade: THREE.Object3D, private a0: number, private a1: number) { blade.rotation.y = a0; this.from = a0; }
+  throwSwitch(game: Game) {
+    this.from = this.blade.rotation.y;
     this.set = !this.set;
     this.t = 0;
-    blame(game, p, by);
     game.sfx.clunk();
-    game.emit({ type: 'word', text: this.set ? '철컥! 옆 선로로' : '철컥! 직진', pos: p.center(new THREE.Vector3()).add(new THREE.Vector3(0, 1.2, 0)), size: 1.0, color: '#ffd23f' });
+    game.emit({ type: 'word', text: this.set ? '철컥! 옆 선로로' : '철컥! 본선으로', pos: this.blade.position.clone().add(new THREE.Vector3(2, 1.4, 0)), size: 1.0, color: '#ffd23f' });
   }
-  private yaw() { const k = 1 - (1 - this.t) * (1 - this.t); return this.from + ((this.set ? this.o.a1 : this.o.a0) - this.from) * k; }
-  step(_g: Game, p: Prop, h: number) {
+  update(dt: number) {
     if (this.t >= 1) return;
-    this.t = Math.min(1, this.t + h / (this.o.dur ?? 0.5));
-    this.q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), this.yaw());
-    p.body.setNextKinematicRotation({ x: this.q.x, y: this.q.y, z: this.q.z, w: this.q.w });
+    this.t = Math.min(1, this.t + dt / 0.4);
+    const k = 1 - (1 - this.t) * (1 - this.t);
+    this.blade.rotation.y = this.from + ((this.set ? this.a1 : this.a0) - this.from) * k;
   }
 }

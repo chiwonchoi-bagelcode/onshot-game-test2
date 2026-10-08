@@ -1,6 +1,6 @@
 /* Sanity test of the meta layer: play every regression case through settle() on a fresh profile. */
 import { runPlan } from './sim';
-import { CHAPTERS, levelById } from '../src/levels/index';
+import { CHAPTERS, LEVELS, REMIXES, levelById } from '../src/levels/index';
 import { freshProfile } from '../src/meta/profile';
 import { settle, chapterOpen, homeDone, stageOpen, totalStars } from '../src/meta/rewards';
 import type { Case } from './cases/types';
@@ -20,7 +20,9 @@ import { CASES as CR } from './cases/remix';
 const p = freshProfile();
 let bad = 0;
 const check = (ok: boolean, what: string) => { if (!ok) { bad++; console.log('  ✗ ' + what); } };
-const cases: Case[] = [...C1, ...C2, ...C3, ...C4, ...C5, ...C6, ...C7, ...C8, ...C9, ...C10, ...C11, ...CR].filter((c) => c.expect === 'win');
+// play the way a player would: stage by stage, in order
+const order = [...LEVELS, ...REMIXES].map((l) => l.id);
+const cases: Case[] = [...C1, ...C2, ...C3, ...C4, ...C5, ...C6, ...C7, ...C8, ...C9, ...C10, ...C11, ...CR].filter((c) => c.expect === 'win').sort((a, b) => order.indexOf(a.level) - order.indexOf(b.level));
 let doors = 0, ends = 0;
 for (const c of cases) {
   const level = levelById(c.level);

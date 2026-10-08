@@ -9,6 +9,9 @@ import { buildHouse, table } from './house';
 import { rect, waterZone } from './rooms';
 import { jolt } from '../game/specials3';
 import { buildLot, building, slab, streetLamp } from './outdoor';
+import * as C4 from '../game/catalog4';
+import type { Prop } from '../game/Prop';
+import { RailFollower, latch, unlatch, type Track } from '../game/specials4';
 
 /* ================================================================== */
 /* Chapter 10 — 멀리 떠나자. Everything moves together: a train that    */
@@ -177,4 +180,202 @@ const S10_3: LevelDef = {
   },
 };
 
-export const CH10: LevelDef[] = [S10_1, S10_3];
+/* ================================================================== */
+/* 10-2  선로 전환기 — which way the runaway wagon goes                 */
+/* ================================================================== */
+
+const R102 = { x0: -16, x1: -6, y0: 3, y1: 0 };
+const SLOPE102 = Math.atan2(R102.y0 - R102.y1, R102.x1 - R102.x0);
+/** the siding leaves the main line at this angle (toward +z) */
+const SIDING = 0.39;
+const STATION = { shirt: '#ffffff', pants: '#2f3142', hair: '#2a1c14', hat: 'cap' as const, hatColor: '#4f86c6', tool: 'clipboard' as const };
+
+const S10_2: LevelDef = {
+  id: '10-2', chapter: 10, theme: 'travel', title: '선로 전환기', subtitle: '고임목 하나에 걸린 화물 화차',
+  paws: 3,
+  goal: { kind: 'break', count: 5, text: '창고의 수출 도자기 5상자를 깨라', short: '도자기 상자 ×5' },
+  stars: [18000000, 28500000],
+  challenges: [
+    { type: 'count', kind: 'fragile', n: 8, text: '도자기 8상자 전부' },
+    { type: 'stat', key: 'switchLate', min: 1, text: '화차가 달리는 중에 선로 바꾸기' },
+    { type: 'discover', id: 'perfect', text: '역무원 몰래 (완전 범죄)' },
+  ],
+  tip: '고임목을 빼면 화차가 내리막을 달려요. 그대로면 직진해서 차막이에 쿵. 선로 전환기는 어느 쪽으로 보낼지 정해요.',
+  hints: ['선로 전환기를 툭 치면 노란 레일이 옆 선로 쪽으로 꺾여요.', '전환기 먼저, 고임목은 그다음!', '화차가 이미 달리고 있어도 전환 레일에 닿기 전이면 늦지 않았어요.'],
+  hintMove: { prop: 'lever', dir: [1, 0] },
+  start: [-4, 0],
+  ownerLine: '수출 화물이…!! 누가 전환기를?!',
+  reactor: '역무원',
+  prelude: (k) => {
+    k.cam('fragile', 0.6);
+    k.at(0.5, () => k.glint('fragile', '#ffe680'));
+    k.at(1.2, () => k.say('역무원', '도자기 수출품, 내일 아침 출발!', 2.0));
+    k.at(3.8, () => { k.cam('chock', 0.7); k.say('역무원', '화차는 고임목으로 꽉 잡아 뒀지.', 2.0); });
+    return 6.4;
+  },
+  build(b) {
+    buildLot(b, {
+      bounds: { minX: -16, maxX: 16, minZ: -8, maxZ: 9 },
+      patches: [
+        { x0: -16, x1: -6, z0: -8, z1: -1.6, kind: 'grass', y: 3 },
+        { x0: -16, x1: -6, z0: 1.6, z1: 9, kind: 'grass', y: 3 },
+        { x0: -6, x1: 16, z0: -8, z1: 9, kind: 'gravel' },
+      ],
+      ramps: [{ x0: R102.x0, x1: R102.x1, z0: -1.6, z1: 1.6, kind: 'gravel', y0: R102.y0, y1: R102.y1, along: 'x' }],
+      base: '#7f8f6f',
+      height: 7,
+      labels: [{ name: '본선', x: 6, z: -1.2 }, { name: '수출 창고', x: 12.5, z: 7.6 }],
+    });
+    b.game.view.playWidth = 20;
+    const rampY = (x: number) => R102.y0 + ((x - R102.x0) / (R102.x1 - R102.x0)) * (R102.y1 - R102.y0);
+    // main line: down the hill, along the flat, into the buffer stop
+    C4.rails(b, -16, 0, -6, 0, 1.5);
+    C4.rails(b, -6, 0, 13, 0);
+    // low platform edges along the main line (scenery)
+    const W = 1.75;
+    slab(b, { x: 13.6, z: 0, w: 1.0, d: 3.2, h: 1.4, color: '#ff5a6e', top: '#ffd23f' });
+    // the siding, off toward the export shed
+    const sx = Math.cos(SIDING), sz = Math.sin(SIDING), nx = -sz, nz = sx;
+    C4.rails(b, 0, 0, 13 * sx, 13 * sz);
+    void W; void nx; void nz;
+    // the switch: the yellow blade shows which way the points are set
+    const sw = C4.switchBlade(b, { at: [-1.6, 0, -0.75], len: 3.4, a0: 0, a1: -SIDING });
+    const main: Track = { x: 0, z: 0, dx: 1, dz: 0 };
+    const siding: Track = { x: 0, z: 0, dx: sx, dz: sz };
+    // past the points the wagon keeps to whichever track it took
+    let took: Track | null = null;
+    const follower = new RailFollower({
+      pick: (x) => {
+        if (x < -6) return null;
+        if (x < 0.2) { took = null; return main; }
+        if (!took) took = sw.set ? siding : main;
+        return took;
+      },
+    });
+    C3.lever(b, {
+      at: [-5.0, 0, -3.0], label: '선로 전환기', word: '철컥!', rot: 0,
+      action: (game, self) => {
+        sw.throwSwitch(game);
+        const t = wagon.prop.body.translation(), v = wagon.prop.body.linvel();
+        if (wagon.prop.isDynamic() && v.x > 1) {
+          game.count('switchLate');
+          // thrown right under the wheels: off the rails it goes
+          if (t.x > -3 && t.x < 2 && !follower.crashed) {
+            follower.crash(game, wagon.prop);
+            wagon.prop.body.applyTorqueImpulse({ x: 900, y: 600, z: 0 }, true);
+            game.count('derail');
+            blameSwitch(game, self);
+          }
+        }
+        game.discover('trigger', self.center(new THREE.Vector3()));
+      },
+    });
+    const blameSwitch = (game: Game, self: Prop) => { wagon.prop.cause = self; wagon.prop.causeCat = false; wagon.prop.activeSwat = game.swatIndex; };
+    // the runaway: a freight wagon on the slope, held by its chock
+    const yW = rampY(-12.5);
+    const wagon = C3.car(b, { at: [-12.5, yW, 0], slope: SLOPE102, held: true, kind: 'wagon', icon: '🚃', name: '화물 화차', color: '#8e6a4a', value: 15000000 });
+    wagon.car.driver = follower;
+    const shell = new THREE.Group();
+    shell.add(mesh(box(5.0, 1.9, 2.5, 0.06), M('#a8714a'), { pos: [0, 1.95, 0] }));
+    shell.add(mesh(box(5.05, 0.12, 2.55, 0.02), M('#5b3b2b'), { pos: [0, 2.95, 0] }));
+    for (const x of [-1.6, 0, 1.6]) shell.add(mesh(box(0.08, 1.8, 2.52, 0), M('#6e452b'), { pos: [x, 1.95, 0], shadow: false }));
+    shell.userData.keep = true;
+    wagon.prop.group.add(shell);
+    const cx = -12.5 + 2.05 * Math.cos(SLOPE102);
+    C3.chock(b, { at: [cx, rampY(cx) + 0.02, 0], slope: SLOPE102, car: wagon });
+    // the export shed at the end of the siding
+    const shedX = 13 * sx + 0.6, shedZ = 13 * sz;
+    slab(b, { x: shedX + 2.2, z: shedZ, w: 0.4, d: 6, h: 4, color: '#c9b08a' });
+    slab(b, { x: shedX, z: shedZ + 3.1, w: 4.8, d: 0.4, h: 4, color: '#c9b08a' });
+    const crates: Prop[] = [];
+    for (let i = 0; i < 8; i++) {
+      const row = Math.floor(i / 4), k = i % 4;
+      crates.push(C3.parcel(b, { at: [shedX - 0.6 + row * 1.1, k < 2 ? 0 : 0.72, shedZ - 1.2 + (k % 2) * 1.0], size: [0.9, 0.7, 0.9], fragile: true, target: true, name: '수출 도자기', value: 2400000, content: 'ceramic' }));
+    }
+    void crates;
+    // celadon for export on a wheeled rack, parked beside the siding
+    const rack = C3.dryingRack(b, { at: [5.0, 0, 4.7], h: 2.6, name: '청자 운반 선반' });
+    rack.shelfY.slice(0, 2).forEach((y) => { for (const dx of [-0.35, 0.35]) C3.maebyeong(b, { at: [5.0 + dx, y, 4.7], name: '수출용 청자', value: 600000, scale: 0.55 }); });
+    // the platform, the station worker
+    slab(b, { x: 3, z: -4.0, w: 16, d: 3, h: 0.8, color: '#d9d1c4', top: '#ffffff' });
+    C3.vendingMachine(b, { at: [7.5, 0.8, -4.8], value: 2500000 });
+    for (let i = 0; i < 3; i++) C4.toolbox(b, { at: [-1 + i * 1.6, 0.8, -3.4], color: ['#4f86c6', '#ff9f43', '#5bb98c'][i] });
+    streetLamp(b, -2, -5.2, 0.8);
+    streetLamp(b, 9, -5.2, 0.8);
+    b.actor('역무원', STATION, 3.5, 0.8, -3.6, 0, [3, -2.4]);
+    b.watcher('역무원', { range: 10, half: 0.55, cycle: [[3.2, -0.9], [2.8, 0.2], [2.6, 1.0]] });
+    b.cat(-6.5, 0, -3.0);
+  },
+};
+
+/* ================================================================== */
+/* 10-4  공항 수하물 — a cart that fills itself, a ramp, duty free      */
+/* ================================================================== */
+
+const GUARD104 = { shirt: '#2f3142', pants: '#2f3142', hair: '#2a1c14', hat: 'cap' as const, hatColor: '#2f3142', glasses: true };
+const LANE104 = -1.6;
+
+const S10_4: LevelDef = {
+  id: '10-4', chapter: 10, theme: 'travel', title: '공항 수하물', subtitle: '컨베이어 끝 수하물 카트, 그 아래 면세점',
+  paws: 3,
+  goal: { kind: 'break', count: 6, text: '면세점 향수 6병을 깨라', short: '향수 ×6' },
+  stars: [5000000, 7800000],
+  challenges: [
+    { type: 'count', kind: 'perfume', n: 10, text: '향수 10병 이상' },
+    { type: 'stat', key: 'cartLoad', min: 5, text: '가방 5개를 다 싣고 출발시키기' },
+    { type: 'discover', id: 'perfect', text: '보안 요원 몰래 (완전 범죄)' },
+  ],
+  tip: '수하물 카트는 브레이크가 걸려 있어요. 가방이 많이 실릴수록 무겁고, 무거울수록 세게 부딪혀요. 보안 요원은 정해진 길을 돌아요.',
+  hints: ['카트를 툭 치면 브레이크가 풀리면서 경사로로 굴러가요.', '바로 보내면 빈 카트. 가방이 다 실릴 때까지 기다려 봐요.', '보안 요원이 면세점 쪽을 볼 때는 참아요.'],
+  hintMove: { prop: 'cart', dir: [1, 0] },
+  start: [-4, -1],
+  ownerLine: '면세점이…!! 누구 가방이야?!',
+  reactor: '보안 요원',
+  prelude: (k) => {
+    k.cam('perfume', 0.6);
+    k.at(0.5, () => k.glint('perfume', '#ffb3c6'));
+    k.at(1.0, () => k.say('보안 요원', '면세점 신상 향수 진열 완료~', 1.8));
+    k.at(3.4, () => { k.cam('cart', 0.6); k.say('보안 요원', '수하물 카트는 브레이크 걸어 두고.', 1.8); });
+    return 5.8;
+  },
+  build(b) {
+    buildHouse(b, { rooms: [rect('airport', '공항', 0, 0, 21, 11, 'marttile', 'mart')], base: '#7f9fc4' });
+    b.game.view.playWidth = 18;
+    // the baggage hall upstairs, and the ramp down to duty free
+    C4.platform(b, { x0: -10.5, x1: -3, z0: -5.5, z1: 1.2, y: 1.4, rail: ['z1'] });
+    C4.rampX(b, { x0: -3, x1: 2.5, y0: 1.4, y1: 0, z0: LANE104 - 1.3, z1: LANE104 + 1.3 });
+    const belt = C3.conveyor(b, { x0: -10.3, x1: -4.25, z: LANE104, y: 2.85, w: 1.2, speed: 0.9 });
+    belt.on = true;
+    const colors = ['#4f86c6', '#ff6b6b', '#ffd23f', '#5bb98c', '#c9a0dc'];
+    const bags = colors.map((c, i) => C4.suitcase(b, { at: [-9.8 + i * 1.0, 2.86, LANE104], color: c }));
+    const cart = C3.gardenCart(b, { at: [-3.35, 1.4, LANE104], name: '수하물 카트', color: '#9aa6bd', braked: true });
+    // parked hard: the brake holds it on the edge of the ramp until a paw lets it off
+    latch(cart);
+    const brake = cart.special!;
+    const onSwat = brake.onSwat!.bind(brake);
+    brake.onSwat = (game, p, dir, power, point) => { unlatch(game, p, null); return onSwat(game, p, dir, power, point); };
+    // the belt stops once it has nothing left on it; the cart remembers how full it was
+    b.game.addUpdater(() => {
+      const g = b.game;
+      if (belt.on && !bags.some((p) => p.alive && p.body.translation().x < -3.9 && p.body.translation().y > 2.6)) belt.on = false;
+      const c = cart.body.translation();
+      const load = bags.filter((p) => { const t = p.body.translation(); return p.alive && Math.abs(t.x - c.x) < 1.1 && Math.abs(t.z - c.z) < 0.8 && t.y > c.y + 0.6; }).length;
+      if (cart.body.linvel().x > 1.5) g.best('cartLoad', load);
+    });
+    // duty free at the bottom of the ramp
+    const vit = C3.vitrine(b, { at: [6.0, 0, LANE104], w: 2.0, h: 3.6, d: 1.0, shelves: 3, color: '#ffffff', name: '면세 진열장', value: 1500000 });
+    const pc = ['#ffb3c6', '#c9a0dc', '#7fd3ff', '#ffd23f'];
+    vit.shelfY.forEach((y, i) => { for (let k = 0; k < 4; k++) C4.dutyFree(b, { at: [5.35 + k * 0.43, y, LANE104], color: pc[(i + k) % 4], target: true }); });
+    const tb = C4.displayTable(b, { at: [8.6, 0, LANE104 + 0.4], w: 1.4, d: 2.4, h: 0.95, color: '#ffffff', name: '향수 매대' });
+    for (let k = 0; k < 6; k++) C4.dutyFree(b, { at: [8.3 + (k % 2) * 0.5, tb.top, LANE104 - 0.4 + Math.floor(k / 2) * 0.55], color: pc[k % 4], target: true });
+    for (let k = 0; k < 3; k++) C4.dutyFree(b, { at: [9.0, tb.top, LANE104 - 0.3 + k * 0.6], type: 'whisky' });
+    // waiting area odds and ends
+    for (let i = 0; i < 3; i++) C3.cone3(b, { at: [-0.5 + i * 1.2, 0, 2.8] });
+    C3.vendingMachine(b, { at: [9.2, 0, 3.8], rot: Math.PI, color: '#7fd3ff' });
+    b.actor('보안 요원', GUARD104, 3.5, 0, 2.6, -Math.PI / 2, [4, 0]);
+    b.watcher('보안 요원', { range: 9, half: 0.5, cycle: [[2.5, 0.0], [2.5, 0.8]], patrol: [[3.5, 2.6, 3.5], [-1.5, 3.4, 3.5]] });
+    b.cat(-6.5, 1.4, -3.8);
+  },
+};
+
+export const CH10: LevelDef[] = [S10_1, S10_2, S10_3, S10_4];

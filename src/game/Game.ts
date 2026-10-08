@@ -574,6 +574,7 @@ export class Game {
       this.owner?.hear(this, cat, 26);
       let came = 0;
       for (const w of this.watchers) if (w.lure(this, c.x, c.z, 4.5)) came++;
+      if (came) this.count('lured', came);
       if (this.watchers.length && !this.caught) {
         this.suspicion = Math.min(100, this.suspicion + 30);
         this.maxSuspicion = Math.max(this.maxSuspicion, this.suspicion);

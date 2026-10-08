@@ -18,3 +18,19 @@ CASES.push(
   { level: '10-3', name: 'one gantry + rocking the middle one over', expect: 'win', challenges: [2], plan: [wait(1), hit('lever', [1, 0], 0.5, 2, LA), hit('container', [0, -1], 1, 0.2, MID, 'top'), hit('container', [0, -1], 1, 8, MID, 'top')] },
   { level: '10-3', name: 'gantry released on the way back (misses)', expect: 'lose', plan: [wait(5), hit('lever', [1, 0], 0.5, 8, LA), hit('lever', [-1, 0], 0.5, 8, LC)] },
 );
+CASES.push(
+  // 10-2 선로 전환기
+  { level: '10-2', name: 'points to the siding, then the chock', expect: 'win', minStars: 2, challenges: [0, 2], plan: [hit('lever', [1, 0], 0.5, 1), hit('chock', [0, 1], 0.8, 8)] },
+  { level: '10-2', name: 'chock first, points thrown on the way down', expect: 'win', challenges: [1], plan: [hit('chock', [0, 1], 0.8, 1.3), hit('lever', [1, 0], 0.5, 8)] },
+  { level: '10-2', name: 'celadon rack rolled onto the siding (3★)', expect: 'win', minStars: 3, challenges: [0, 2], plan: [hit('lever', [1, 0], 0.5, 1), hit('rack', [0, -1], 0.4, 0.2), hit('chock', [0, 1], 0.8, 8)] },
+  { level: '10-2', name: 'chock only: straight into the buffer', expect: 'lose', plan: [hit('chock', [0, 1], 0.8, 8)] },
+  { level: '10-2', name: 'points thrown too late', expect: 'lose', plan: [hit('chock', [0, 1], 0.8, 2.3), hit('lever', [1, 0], 0.5, 8)] },
+);
+CASES.push(
+  // 10-4 공항 수하물
+  { level: '10-4', name: 'two bags in, cart off down the ramp (2★)', expect: 'win', minStars: 2, challenges: [0, 2], plan: [wait(3), hit('cart', [1, 0], 0.6, 8)] },
+  { level: '10-4', name: 'cart + the whisky on the counter (3★)', expect: 'win', minStars: 3, challenges: [0, 2], plan: [wait(3), hit('cart', [1, 0], 0.6, 6), hit('whisky', [0, -1], 1, 6, [9, 0.95, -1.9], 'top')] },
+  { level: '10-4', name: 'wait for all five bags', expect: 'win', challenges: [1], plan: [wait(8), hit('cart', [1, 0], 0.6, 8)] },
+  { level: '10-4', name: 'two shoves on the duty-free cabinet (1★)', expect: 'win', maxStars: 1, plan: [hit('vitrine', [1, 0], 1, 0.9, undefined, 0.86), hit('vitrine', [1, 0], 1, 6, undefined, 0.86)] },
+  { level: '10-4', name: 'cart sent while the guard looks', expect: 'lose', plan: [wait(6), hit('cart', [1, 0], 0.6, 8)] },
+);
