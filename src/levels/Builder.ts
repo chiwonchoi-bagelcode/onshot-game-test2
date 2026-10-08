@@ -4,6 +4,7 @@ import type { Prop } from '../game/Prop';
 import type { ColDef, PropSpec } from '../game/types';
 import { Owner } from '../game/Owner';
 import { Actor, type ActorLook } from '../game/Actor';
+import { Watcher, type WatchDef } from '../game/Watch';
 import { mergeByMaterial } from '../render/merge';
 
 /** Helper handed to level build functions. */
@@ -61,6 +62,15 @@ export class Builder {
     this.game.actorMap[name] = a;
     this.game.scene.add(a.group);
     return a;
+  }
+
+  /** the named actor keeps an eye out (see Watch.ts) */
+  watcher(name: string, def: WatchDef): Watcher {
+    const a = this.game.actorMap[name];
+    const w = new Watcher(a, def);
+    this.game.watchers.push(w);
+    this.game.scene.add(w.holder);
+    return w;
   }
 
   finish() {

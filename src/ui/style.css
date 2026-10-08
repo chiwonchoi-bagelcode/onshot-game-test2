@@ -472,3 +472,12 @@ body { word-break: keep-all; overflow-wrap: anywhere; }
 .preludescr .plskip { position: absolute; right: 12px; bottom: calc(9vh + 10px); background: rgba(29, 22, 38, 0.65); color: #fff; border: 2px solid rgba(255,255,255,0.6); box-shadow: none; border-radius: 14px; padding: 6px 12px; font-size: 14px; }
 @keyframes plin { from { transform: scaleY(0); } }
 .sheet-card .replay { font-size: 18px; }
+
+/* suspicion (watchers) */
+.suspbar { position: relative; margin-top: 5px; height: 12px; border-radius: 8px; background: #ffe3d6; border: 2px solid var(--ink); overflow: hidden; display: none; }
+.suspbar .fill { height: 100%; width: 0%; background: linear-gradient(90deg, #ffc46b, #ff5a6e); transition: width 0.2s; }
+.suspbar .zz { position: absolute; right: 4px; top: -3px; font-size: 11px; z-index: 1; }
+.goal.watched .suspbar { display: block; }
+.goal.seen .suspbar { animation: shakebar 0.4s linear infinite; }
+.suspbar.ping { animation: susping 0.5s ease-out; }
+@keyframes susping { 0% { transform: scale(1.12); box-shadow: 0 0 0 3px #ff5a6e88; } 100% { transform: scale(1); box-shadow: none; } }

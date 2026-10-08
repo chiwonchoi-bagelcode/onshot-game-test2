@@ -125,6 +125,7 @@ class App {
           ui.setSleep(e.value);
           if (this.level.goal.kind === 'sneak' && e.value >= 60 && !this.hintShown) { this.hintShown = true; ui.toast('😰 집사가 뒤척여요! 더 조용히…', 2200); }
           break;
+        case 'suspicion': ui.setSuspicion(e.value, e.seen); if (e.seen) this.sfx.denied(); break;
         case 'discover': {
           if (this.profile.disc.includes(e.id)) break;
           const d = discoveryById(e.id);
@@ -191,7 +192,7 @@ class App {
     this.applyTheme(level);
     this.stage.setFocus(null);
     const v = this.game.view;
-    this.stage.setLevel({ points: this.game.framePoints, bounds: this.game.roomBounds, yaw: v.yaw, pitch: v.pitch, fov: v.fov });
+    this.stage.setLevel({ points: this.game.framePoints, bounds: this.game.roomBounds, yaw: v.yaw, pitch: v.pitch, fov: v.fov, playWidth: v.playWidth });
     this.ui.clearFloating();
     this.music.setFlavor(level.chapter);
     // object book: remember every kind met
@@ -372,7 +373,7 @@ class App {
     const level = this.level;
     this.screens.clear();
     this.setInsets(140, 82);
-    this.ui.showHud(level, { roomy: this.stage.roomy, labels: this.game.roomLabels });
+    this.ui.showHud(level, { roomy: this.stage.roomy, labels: this.game.roomLabels, watched: this.game.watchers.length > 0 });
     this.ui.setPaws(this.game.paws, this.game.maxPaws);
     this.ui.setViewActive(false);
     this.ui.resetChainTier();

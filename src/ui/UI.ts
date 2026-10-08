@@ -46,6 +46,7 @@ export class UI {
   private marks: HTMLElement[] = [];
   private scoreVal!: HTMLElement;
   private sleepFill!: HTMLElement;
+  private suspFill!: HTMLElement;
   private pawsEl!: HTMLElement;
   private endBtn!: HTMLButtonElement;
   private chainEl!: HTMLElement;
@@ -108,7 +109,10 @@ export class UI {
     const sleep = h('div', 'sleepbar');
     this.sleepFill = h('div', 'fill');
     sleep.append(h('span', 'zz', '💤'), this.sleepFill);
-    this.goalEl.append(this.goalLv, gt, sleep, meter, score);
+    const susp = h('div', 'suspbar');
+    this.suspFill = h('div', 'fill');
+    susp.append(h('span', 'zz', '👀'), this.suspFill);
+    this.goalEl.append(this.goalLv, gt, sleep, susp, meter, score);
     top.append(menu, this.goalEl, retry);
     this.sideEl = h('div', 'hud-side');
     this.viewBtn = btn('btn-round small', '🔍', () => this.onView());
@@ -129,7 +133,7 @@ export class UI {
 
   /* ------------------------------ HUD ------------------------------ */
 
-  showHud(level: LevelDef, opts: { roomy: boolean; labels: { name: string; pos: THREE.Vector3 }[] }) {
+  showHud(level: LevelDef, opts: { roomy: boolean; labels: { name: string; pos: THREE.Vector3 }[]; watched?: boolean }) {
     this.hud.classList.remove('hidden');
     this.goalLv.textContent = `${level.id} · ${level.title}`;
     this.goalText.textContent = level.goal.short;
@@ -145,6 +149,9 @@ export class UI {
     const pos = [0.06, level.stars[0] / this.maxScore, level.stars[1] / this.maxScore];
     this.marks.forEach((m, i) => { m.style.left = `${pos[i] * 100}%`; m.classList.remove('on'); });
     this.sleepFill.style.width = '0%';
+    this.suspFill.style.width = '0%';
+    this.goalEl.classList.toggle('watched', !!opts.watched);
+    this.goalEl.classList.remove('seen');
     this.endBtn.classList.remove('show');
     this.viewBtn.classList.toggle('hidden', !opts.roomy);
     this.labelsEl.innerHTML = '';
@@ -175,6 +182,11 @@ export class UI {
   }
 
   setScore(total: number) { this.targetScore = total; }
+  setSuspicion(v: number, seen: boolean) {
+    this.suspFill.style.width = `${v}%`;
+    this.goalEl.classList.toggle('seen', v >= 60);
+    if (seen) { this.suspFill.parentElement!.classList.remove('ping'); void this.suspFill.offsetWidth; this.suspFill.parentElement!.classList.add('ping'); }
+  }
   setSleep(v: number) { this.sleepFill.style.width = `${v}%`; this.goalEl.classList.toggle('danger', v >= 60); }
   showEndButton(show: boolean) { this.endBtn.classList.toggle('show', show); }
   setViewActive(overview: boolean) { this.viewBtn.classList.toggle('on', overview); this.labelsEl.classList.toggle('show', overview); }

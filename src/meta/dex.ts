@@ -81,6 +81,22 @@ export const OBJECTS: Record<string, ObjInfo> = {
   basket: { icon: '🧺', tip: '빨래가 가득. 넘어지면 와르르 쏟아져요.' },
   towel: { icon: '🧺', tip: '폭신해서 떨어지는 물건을 조용히 받아내요.' },
   slipper: { icon: '🩴', tip: '가볍게 날아가 다른 물건을 톡 건드려요.' },
+  // ---- the outside world
+  auto: { icon: '🚗', tip: '앞발로는 흠집뿐. 경사 위에서 고임목을 빼면…?' },
+  chock: { icon: '🔺', tip: '바퀴를 붙잡는 쐐기. 빼면 차가 굴러가요.' },
+  gate: { icon: '🚪', tip: '툭 치면 열려요. 길을 열지 막을지 골라요.' },
+  gnome: { icon: '🧙', tip: '정원 난쟁이. 작고 잘 깨져요.' },
+  mailbox: { icon: '📮', tip: '기둥이 가늘어 잘 넘어가요.' },
+  birdbath: { icon: '⛲', tip: '깨지면 물이 쏟아져 바닥이 미끄러워요.' },
+  flowerPot: { icon: '🪴', tip: '토분은 잘 깨지고, 줄지어 있으면 연달아 넘어가요.' },
+  bin: { icon: '🗑️', tip: '바퀴 달린 쓰레기통. 쭉 밀려가 부딪혀요.' },
+  bonsai: { icon: '🌳', tip: '수십 년 가꾼 분재. 높은 받침대 위에 있어요.' },
+  hose: { icon: '🚿', tip: '치면 물줄기가 나와 가벼운 걸 밀고 바닥을 적셔요.' },
+  wateringCan: { icon: '🪣', tip: '쏟아지면 웅덩이가 생겨요.' },
+  parcel: { icon: '📦', tip: '"깨지기 쉬움" 상자. 높이 쌓여 있어요.' },
+  handTruck: { icon: '🛒', tip: '바퀴 달린 운반 수레. 위에 실린 걸 함께 싣고 가요.' },
+  lever: { icon: '🕹️', tip: '툭 치면 큰 장치가 움직여요.' },
+  button: { icon: '🔴', tip: '누르면 무언가 시작돼요.' },
 };
 
 export interface Discovery { id: string; icon: string; name: string; desc: string }
@@ -118,6 +134,18 @@ export const DISCOVERIES: Discovery[] = [
   { id: 'breakfast', icon: '🥣', name: '아침밥 대참사', desc: '시리얼과 우유가 바닥에 쏟아졌어요.' },
   { id: 'castle', icon: '🏰', name: '성 무너뜨리기', desc: '블록 성은 아래 기둥을 치면 와르르 무너져요.' },
   { id: 'slick', icon: '🫧', name: '미끄덩 웅덩이', desc: '쏟아진 물·우유·페인트 위에서는 물건이 쭉 미끄러져요.' },
+  // ---- the outside world
+  { id: 'chock', icon: '🔺', name: '고임목 빼기', desc: '경사 위의 차는 고임목만 빼면 스스로 굴러가요.' },
+  { id: 'carAlarm', icon: '🚨', name: '삐용삐용', desc: '차가 찌그러지면 경보가 울려요.' },
+  { id: 'carWreck', icon: '💥', name: '전손 처리', desc: '차가 크게 부딪히면 완전히 망가져요.' },
+  { id: 'trigger', icon: '🕹️', name: '방아쇠', desc: '레버·버튼 하나가 큰 장치를 움직여요.' },
+  { id: 'hose', icon: '🚿', name: '물줄기', desc: '호스를 틀면 가벼운 것이 밀려나고 바닥이 젖어요.' },
+  { id: 'gate', icon: '🚪', name: '길 열기', desc: '문과 차단기를 열면 굴러가는 것의 길이 바뀌어요.' },
+  { id: 'carry', icon: '🛒', name: '실어 보내기', desc: '바퀴 달린 것 위에 실린 물건은 함께 실려 가요.' },
+  { id: 'hairball', icon: '🌀', name: '헤어볼', desc: '헤어볼 웅덩이 위에서는 무엇이든 미끄러져요.' },
+  { id: 'knead', icon: '🍑', name: '꾹꾹이', desc: '고양이 무게로 시소·레버·저울을 눌러요.' },
+  { id: 'caught', icon: '👀', name: '현행범', desc: '사람이 보는 앞에서 사고를 치면 들켜요.' },
+  { id: 'perfect', icon: '😇', name: '완전 범죄', desc: '아무도 못 봤어요. 장난 점수가 1.3배.' },
 ];
 
 export const discoveryById = (id: string) => DISCOVERIES.find((d) => d.id === id);

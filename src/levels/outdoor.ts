@@ -27,7 +27,8 @@ const GROUND: Record<GroundKind, { a: string; b: string; side: string; pattern: 
 };
 
 const texCache = new Map<string, THREE.Texture>();
-function groundTex(kind: GroundKind, w: number, d: number): THREE.Texture {
+function groundTex(kind: GroundKind, w: number, d: number): THREE.Texture | undefined {
+  if (typeof document === 'undefined') return undefined;
   const key = kind;
   let t = texCache.get(key);
   if (!t) {
@@ -76,6 +77,11 @@ function groundTex(kind: GroundKind, w: number, d: number): THREE.Texture {
   return c;
 }
 
+function groundMat(kind: GroundKind, w: number, d: number): THREE.Material {
+  const t = groundTex(kind, w, d);
+  return t ? M('#ffffff', { map: t }) : M(GROUND[kind].a);
+}
+
 export interface Patch { x0: number; x1: number; z0: number; z1: number; kind: GroundKind; y?: number }
 /** a slope: height y0 at the low end of `along` (x0 or z0), y1 at the other */
 export interface Ramp { x0: number; x1: number; z0: number; z1: number; kind: GroundKind; y0: number; y1: number; along: 'x' | 'z' }
@@ -99,7 +105,7 @@ export function buildLot(b: Builder, spec: LotSpec) {
   for (const p of spec.patches) {
     const w = p.x1 - p.x0, d = p.z1 - p.z0, y = p.y ?? 0;
     const g = GROUND[p.kind];
-    env.add(mesh(plane(w, d), M('#ffffff', { map: groundTex(p.kind, w, d) }), { rot: [-Math.PI / 2, 0, 0], pos: [(p.x0 + p.x1) / 2, y + 0.002, (p.z0 + p.z1) / 2], shadow: false }));
+    env.add(mesh(plane(w, d), groundMat(p.kind, w, d), { rot: [-Math.PI / 2, 0, 0], pos: [(p.x0 + p.x1) / 2, y + 0.002, (p.z0 + p.z1) / 2], shadow: false }));
     const h = y + 0.45;
     env.add(mesh(box(w, h, d, 0.01), M(g.side), { pos: [(p.x0 + p.x1) / 2, y - h / 2, (p.z0 + p.z1) / 2], shadow: false }));
     cols.push({ shape: 'box', hx: w / 2, hy: (y + 1) / 2, hz: d / 2, at: [(p.x0 + p.x1) / 2, (y - 1) / 2, (p.z0 + p.z1) / 2] });
@@ -113,7 +119,7 @@ export function buildLot(b: Builder, spec: LotSpec) {
     const cx = (r.x0 + r.x1) / 2, cz = (r.z0 + r.z1) / 2, cy = (r.y0 + r.y1) / 2;
     const top = new THREE.Group();
     const sw = r.along === 'x' ? slant : w, sd = r.along === 'x' ? d : slant;
-    top.add(mesh(plane(sw, sd), M('#ffffff', { map: groundTex(r.kind, sw, sd) }), { rot: [-Math.PI / 2, 0, 0], shadow: false }));
+    top.add(mesh(plane(sw, sd), groundMat(r.kind, sw, sd), { rot: [-Math.PI / 2, 0, 0], shadow: false }));
     top.position.set(cx, cy + 0.002, cz);
     if (r.along === 'x') top.rotation.z = ang; else top.rotation.x = -ang;
     env.add(top);

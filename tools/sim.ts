@@ -1,7 +1,7 @@
 /* Headless level simulator: runs scripted or random swat plans through the real game logic. */
 import RAPIER from '@dimforge/rapier3d-compat';
 import * as THREE from 'three';
-import { Game, type Result } from '../src/game/Game';
+import { Game, type Result, type TrickId } from '../src/game/Game';
 import { LEVELS } from '../src/levels/index';
 import type { Prop } from '../src/game/Prop';
 import type { LevelDef } from '../src/game/types';
@@ -26,6 +26,8 @@ export interface Action {
   at?: 'top' | 'mid' | 'low' | number;
   /** seconds to wait after this action before the next */
   wait?: number;
+  /** use the cat trick instead of a swat */
+  trick?: TrickId;
 }
 
 export interface SimOut {
@@ -61,9 +63,9 @@ export function runPlan(level: LevelDef, plan: Action[], verbose = false): SimOu
     if (e.type === 'word' && verbose) log.push(`  word ${e.text}`);
     if (e.type === 'toast') log.push(`  toast ${e.text}`);
   });
+  g.trick = plan.find((a) => a.trick)?.trick ?? null;
   g.load(level);
   g.start();
-  for (const p of g.props) if (p.breakable) { const orig = p.breakable; void orig; }
   g.simulate(1.0);
   const startBroken = new Set<number>();
   for (const a of plan) {
@@ -78,6 +80,7 @@ export function runPlan(level: LevelDef, plan: Action[], verbose = false): SimOu
     const frac = a.at === 'top' ? 0.85 : a.at === 'low' ? 0.15 : a.at === 'mid' || a.at === undefined ? 0.5 : a.at;
     const hit = new THREE.Vector3(c.x, t.y + p.height * frac, c.z);
     const dir = new THREE.Vector3(a.dir[0], 0, a.dir[1]).normalize();
+    if (a.trick) g.armTrick(true);
     const ok = g.swat(p, dir, a.power, hit);
     if (verbose) log.push(`> swat ${p.name}#${p.id} dir(${a.dir}) pw ${a.power} ok=${ok}`);
     g.simulate(a.wait ?? 0.6);

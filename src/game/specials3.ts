@@ -60,8 +60,31 @@ export class CarSpecial implements Special {
   private smokeT = 0;
   private spin = 0;
   label = '';
+  /** parked on a slope: held in place until its chock goes (or something rams it) */
+  held = false;
   constructor(private parts: CarParts, private glassMat: THREE.MeshLambertMaterial, private crackedMat: THREE.Material) {}
   busy() { return false; }
+
+  /** lock in place (call after the body exists) */
+  hold(p: Prop) {
+    this.held = true;
+    p.body.setEnabledTranslations(false, false, false, false);
+    p.body.setEnabledRotations(false, false, false, false);
+  }
+
+  /** the chock is gone: gravity takes over */
+  release(game: Game, p: Prop, by: Prop | null) {
+    if (!this.held || !p.alive) return;
+    this.held = false;
+    p.body.setEnabledTranslations(true, true, true, true);
+    p.body.setEnabledRotations(true, true, true, true);
+    p.body.wakeUp();
+    blame(game, p, by);
+    p.graceUntil = game.time + 0.3;
+    game.wakeAround(p);
+    game.sfx.clunk();
+    game.emit({ type: 'word', text: '스르륵…', pos: p.center(new THREE.Vector3()).add(new THREE.Vector3(0, 2.2, 0)), size: 1.0, color: '#ffffff' });
+  }
 
   onSwat(game: Game, p: Prop, dir: THREE.Vector3, power: number, point: THREE.Vector3): boolean {
     // a paw on a car: a scratch at most, and a sore paw
@@ -82,9 +105,11 @@ export class CarSpecial implements Special {
 
   onTouch(game: Game, p: Prop, other: Prop) {
     // something heavy fell on / rammed the car
-    const v = other.body.linvel();
-    const e = other.body.mass() * Math.hypot(v.x, v.y, v.z);
+    // closing speed just before the hit (this step's solver already slowed them)
+    const v = other.prevV, w = p.prevV;
+    const e = other.body.mass() * Math.hypot(v.x - w.x, v.y - w.y, v.z - w.z);
     if (e < 60) return;
+    if (this.held && e > 260) this.release(game, p, other);
     const want: CarStage = e > 900 ? 3 : e > 260 ? 2 : 1;
     if (want > this.stage) { blame(game, p, other); this.damage(game, p, want, other.center(_v).clone()); game.sfx.crunch(1, 0); }
   }
@@ -97,6 +122,7 @@ export class CarSpecial implements Special {
     const P = this.parts;
     if (to >= 1) P.scratches.visible = true;
     if (to >= 2) {
+      p.damaged = true;
       P.dents.visible = true;
       P.body.scale.set(1, 0.94, 1);
       for (const g of P.glass) g.material = this.crackedMat;
@@ -112,18 +138,25 @@ export class CarSpecial implements Special {
       for (const g of P.glass) g.visible = false;
       for (let i = 0; i < 14; i++) game.debris.spawn(at.clone().add(new THREE.Vector3(srand(-1, 1), srand(0.5, 1.2), srand(-1, 1))), new THREE.Vector3(srand(-4, 4), srand(2, 5), srand(-4, 4)), srand(0.1, 0.22), i % 3 ? '#cfefff' : '#ffffff', true);
       this.smokeT = 6;
-      p.damaged = true;
       game.discover('carWreck', at.clone());
       game.slowmo(0.35, 0.6);
       game.glowBurst(at, '#ffd23f', 10);
     }
+    game.witness(at, 12 + to * 8);
     game.count('car:' + STAGE_NAME[to]);
     game.emit({ type: 'word', text: to === 3 ? '콰직! 전손!!' : to === 2 ? '우지끈! 삐용삐용' : '찌익—', pos: at.clone().add(new THREE.Vector3(0, 1.4, 0)), size: to === 3 ? 1.6 : 1.1, color: p.target ? '#ff4f6d' : '#ffd23f' });
     game.shake(0.3 + to * 0.2);
     game.addScore(cost, at, { prop: p, type: to === 3 ? 'break' : 'damage' });
     const e = game.run.ledger[p.id];
     if (e) e.label = STAGE_NAME[to];
-    if (to === 3) { game.brokenCount++; game.count('break'); game.count('break:' + p.kind); }
+    if (from < 2 && to >= 2) {
+      game.brokenCount++; game.count('break'); game.count('break:' + p.kind);
+      const by: string[] = [];
+      for (let c = p.cause, n = 0; c && n < 12; c = c.cause, n++) by.push(c.kind);
+      if (p.causeCat) by.unshift('cat');
+      game.run.culprits.push({ kind: p.kind, target: p.target, by });
+    }
+    if (to === 3) game.count('wreck');
     game.checkGoal();
   }
 
@@ -149,6 +182,49 @@ export class CarSpecial implements Special {
   }
 
   dispose() { this.alarm?.stop(); this.alarm = null; }
+}
+
+/* ------------------------------ gates & barriers ------------------------------ */
+
+/**
+ * A kinematic leaf that swings about its origin (the hinge) from yaw a0
+ * to a1 when opened: garden gates, parking barriers (lift: axis 'z'),
+ * glass-cabinet doors. Opening changes where rolling things can go.
+ */
+export class SwingSpecial implements Special {
+  label = '열기';
+  open = false;
+  /** the other leaf of a double gate opens with this one */
+  partner: Prop | null = null;
+  private t = 0;
+  private q = new THREE.Quaternion();
+  constructor(private o: { yaw: number; to: number; axis?: 'y' | 'z'; dur?: number; word?: string; onOpen?: (game: Game, p: Prop) => void }) {}
+  busy() { return this.open && this.t < 1; }
+
+  openNow(game: Game, p: Prop, by: Prop | null) {
+    if (this.open) return;
+    this.open = true;
+    blame(game, p, by);
+    if (this.partner) (this.partner.special as SwingSpecial).openNow(game, this.partner, p);
+    // opened in the nick of time, with a car already rolling at it
+    if (game.props.some((q) => q.kind === 'auto' && q.isDynamic() && q.body.linvel().x ** 2 + q.body.linvel().z ** 2 > 4)) game.count('gateRush');
+    game.sfx.clunk();
+    game.discover('gate', p.center(new THREE.Vector3()));
+    if (this.o.word) game.emit({ type: 'word', text: this.o.word, pos: p.center(new THREE.Vector3()).add(new THREE.Vector3(0, 1.2, 0)), size: 1.0, color: '#ffffff' });
+    this.o.onOpen?.(game, p);
+  }
+
+  onSwat(game: Game, p: Prop): boolean { this.openNow(game, p, null); return true; }
+
+  step(_g: Game, p: Prop, h: number) {
+    if (!this.open || this.t >= 1) return;
+    this.t = Math.min(1, this.t + h / (this.o.dur ?? 0.7));
+    const k = 1 - (1 - this.t) * (1 - this.t);
+    const a = this.o.to * k;
+    if (this.o.axis === 'z') this.q.setFromEuler(new THREE.Euler(0, this.o.yaw, a, 'YXZ'));
+    else this.q.setFromAxisAngle(_v.set(0, 1, 0), this.o.yaw + a);
+    p.body.setNextKinematicRotation({ x: this.q.x, y: this.q.y, z: this.q.z, w: this.q.w });
+  }
 }
 
 /* ------------------------------ triggers ------------------------------ */

@@ -6,7 +6,7 @@ import type { Prop } from './Prop';
 import { CATS, accById, type CatDef, type IdleAct } from '../meta/cats';
 import { disposeMerged, mergeByMaterial } from '../render/merge';
 
-type CatState = 'idle' | 'crouch' | 'leap' | 'strike' | 'fall' | 'land' | 'ending';
+type CatState = 'idle' | 'crouch' | 'leap' | 'strike' | 'perch' | 'fall' | 'land' | 'ending';
 
 /**
  * The player's avatar. Built from primitives according to a CatDef
@@ -223,6 +223,7 @@ export class Cat {
   }
 
   reset(home: THREE.Vector3) {
+    this.perchP = null;
     this.group.position.copy(home);
     this.state = 'idle';
     this.st = 0;
@@ -240,6 +241,25 @@ export class Cat {
   }
 
   busy() { return this.state !== 'idle' && this.state !== 'ending'; }
+
+  /** knead: after the strike, stay sitting on top of p for dur seconds */
+  private perchP: Prop | null = null;
+  private perchDur = 0;
+  private perchOff = new THREE.Vector3();
+  perch(p: Prop, dur: number, at: THREE.Vector3) {
+    this.perchP = p;
+    this.perchDur = dur;
+    // where on the prop (in its local frame) the cat sits
+    const inv = p.group.quaternion.clone().invert();
+    const c = p.body.translation();
+    this.perchOff.set(at.x - c.x, 0, at.z - c.z).applyQuaternion(inv);
+    this.perchOff.y = p.localBox.max.y;
+  }
+  /** world point the cat is pressing on (knead) */
+  perchPoint(out: THREE.Vector3): THREE.Vector3 | null {
+    if (this.state !== 'perch' || !this.perchP) return null;
+    return out.copy(this.perchOff).applyQuaternion(this.perchP.group.quaternion).add(this.perchP.group.position);
+  }
 
   /** while the player is aiming: look at the prop and wiggle in anticipation */
   setAim(p: THREE.Vector3 | null) {
@@ -390,7 +410,26 @@ export class Cat {
           this.onHit?.();
           this.onHit = null;
         }
-        if (k >= 1) { this.state = 'fall'; this.st = 0; this.from.copy(pos); }
+        if (k >= 1) {
+          if (this.perchP) { this.state = 'perch'; this.st = 0; }
+          else { this.state = 'fall'; this.st = 0; this.from.copy(pos); }
+        }
+        break;
+      }
+      case 'perch': {
+        // knead, knead: paws alternate, body sinks a little
+        const p = this.perchP;
+        const top = p && p.alive ? this.perchPoint(new THREE.Vector3()) : null;
+        if (top) pos.lerp(top, Math.min(1, dt * 14));
+        squash = 0.9 + Math.sin(this.time * 12) * 0.04;
+        pawRaise = Math.max(0, Math.sin(this.time * 12)) * 0.5;
+        lower = 0.5;
+        if (!top || s >= this.perchDur || (p && (p.broken || !p.alive))) {
+          this.perchP = null;
+          this.state = 'fall'; this.st = 0; this.from.copy(pos);
+          const g = game?.groundBelow(pos.x + this.dir.x * 0.8, pos.y + 0.3, pos.z + this.dir.z * 0.8, 30, true);
+          this.landAt.set(pos.x + this.dir.x * 0.8, g ? g.y : (game?.floorY ?? 0), pos.z + this.dir.z * 0.8);
+        }
         break;
       }
       case 'fall': {

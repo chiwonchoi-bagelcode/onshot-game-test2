@@ -9,6 +9,8 @@ export interface Framing {
   yaw: number;
   pitch: number;
   fov?: number;
+  /** world width of the comfortable play view (outdoor places are bigger) */
+  playWidth?: number;
 }
 
 /** how wide (world units) a comfortable play view is */
@@ -187,7 +189,7 @@ export class Stage {
     this.ovTarget.copy(ov.target);
     this.ovDist = ov.dist;
     const halfFov = Math.tan(THREE.MathUtils.degToRad(this.camera.fov / 2));
-    this.playDist = Math.min(this.ovDist, PLAY_WIDTH / 2 / (halfFov * Math.max(0.42, Math.min(this.camera.aspect, 0.75))));
+    this.playDist = Math.min(this.ovDist, (f.playWidth ?? PLAY_WIDTH) / 2 / (halfFov * Math.max(0.42, Math.min(this.camera.aspect, 0.75))));
     this.roomy = this.ovDist > this.playDist * 1.12;
     if (!keepView) {
       this.overview = !this.roomy;

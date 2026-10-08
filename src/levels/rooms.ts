@@ -9,7 +9,7 @@ import { buildHouse, cabinet, clockOn, doorOn, posterOn, rug, sofa, table, windo
 /* of a bigger connected house.                                         */
 /* ------------------------------------------------------------------ */
 
-export type Theme = 'living' | 'kitchen' | 'bathroom' | 'playroom' | 'bedroom' | 'house';
+export type Theme = 'living' | 'kitchen' | 'bathroom' | 'playroom' | 'bedroom' | 'house' | 'street' | 'shops' | 'city' | 'travel' | 'base';
 
 export interface RoomStyle {
   bg: [string, string];
@@ -24,6 +24,12 @@ export const THEME_STYLE: Record<Theme, RoomStyle> = {
   playroom: { bg: ['#fff3c4', '#ffb8d1'], hemi: [0xfff8ea, 0xb08fc8, 1.5], sun: [0xfff2d6, 1.85, [-6, 16, 12]] },
   bedroom: { bg: ['#4b3f8f', '#1f1b4a'], hemi: [0xc9c4ff, 0x4a3a7a, 1.15], sun: [0xffd9a0, 1.35, [6, 14, 10]] },
   house: { bg: ['#ffe9c7', '#f7a8a0'], hemi: [0xfff4e6, 0x9b7fb8, 1.45], sun: [0xfff0dc, 1.85, [-8, 20, 14]] },
+  // ---- outside
+  street: { bg: ['#c9ecff', '#8fd0f2'], hemi: [0xf4fbff, 0x8fa87f, 1.5], sun: [0xfff3dc, 2.0, [-10, 22, 14]] },
+  shops: { bg: ['#ffe9d6', '#ffc2b0'], hemi: [0xfff6ea, 0xa08fb8, 1.5], sun: [0xfff0dc, 1.9, [-9, 20, 13]] },
+  city: { bg: ['#d6e4ff', '#a7b8e8'], hemi: [0xf0f4ff, 0x8a8fa8, 1.45], sun: [0xfff2e0, 2.0, [-12, 24, 12]] },
+  travel: { bg: ['#ffe0c2', '#ff9f87'], hemi: [0xfff1e0, 0x8f86b0, 1.45], sun: [0xffe2c0, 1.9, [-12, 18, 10]] },
+  base: { bg: ['#3a3f6b', '#141833'], hemi: [0xd0d6ff, 0x3a3560, 1.2], sun: [0xffe6c8, 1.6, [10, 20, 12]] },
 };
 
 /** standard single-room footprint */

@@ -13,6 +13,7 @@ import { Owner } from './Owner';
 import type { Actor } from './Actor';
 import { Aim } from './Aim';
 import { runBelts, type Belt } from './specials3';
+import type { Watcher } from './Watch';
 import { Builder } from '../levels/Builder';
 import { CATS, type CatDef } from '../meta/cats';
 import { FX_DISCOVERY } from '../meta/dex';
@@ -74,6 +75,13 @@ export interface Result {
   noise: number;
 }
 
+/** cat tricks: one equipped per run, used once, costs a paw */
+export type TrickId = 'hairball' | 'knead';
+export const TRICKS: Record<TrickId, { icon: string; name: string; desc: string }> = {
+  hairball: { icon: '🌀', name: '헤어볼', desc: '고른 물건 아래에 미끄러운 웅덩이를 만들어요.' },
+  knead: { icon: '🍑', name: '꾹꾹이', desc: '고른 물건 위에 앉아 4초 동안 무게를 실어요.' },
+};
+
 export interface WaterZone { x0: number; x1: number; z0: number; z1: number; y0: number; top: number }
 export type SlickKind = 'water' | 'milk' | 'juice' | 'paint' | 'hair' | 'oil' | 'soap';
 
@@ -91,6 +99,8 @@ export type GameEvent =
   | { type: 'goalReached' }
   | { type: 'end'; result: Result }
   | { type: 'sleep'; value: number }
+  | { type: 'suspicion'; value: number; seen: boolean }
+  | { type: 'trick'; armed: boolean; used: boolean }
   | { type: 'aim'; label: string | null; power: number }
   | { type: 'discover'; id: string; pos: THREE.Vector3 | null };
 
@@ -164,7 +174,7 @@ export class Game {
   private updaters: ((dt: number) => void)[] = [];
   /** world-space bounds of the room for camera framing */
   framePoints: THREE.Vector3[] = [];
-  view = { yaw: 0.5, pitch: 0.72, fov: 30 };
+  view: { yaw: number; pitch: number; fov: number; playWidth?: number } = { yaw: 0.5, pitch: 0.72, fov: 30 };
   catHome = new THREE.Vector3(3, 0, 3);
   floorY = 0;
   roomBounds = { minX: -5, maxX: 5, minZ: -4.5, maxZ: 4.5 };
@@ -182,6 +192,17 @@ export class Game {
   run!: RunRecord;
   /** loudness the owner heard (used by sneak goals / challenges) */
   noise = 0;
+  /** equipped trick for this run (set before load) */
+  trick: TrickId | null = null;
+  trickUsed = false;
+  trickArmed = false;
+  private kneading: { p: Prop; t: number } | null = null;
+  /** people who might see the cat do it */
+  watchers: Watcher[] = [];
+  /** 0..100: how sure the watchers are it was the cat */
+  suspicion = 0;
+  maxSuspicion = 0;
+  caught = false;
 
   constructor(readonly R: typeof RAPIER, readonly sfx: SfxLike, opts: { headless?: boolean } = {}) {
     this.headless = !!opts.headless;
@@ -209,6 +230,23 @@ export class Game {
     if (this.run.discovered.includes(id)) return;
     this.run.discovered.push(id);
     this.emit({ type: 'discover', id, pos });
+  }
+
+  /**
+   * Something happened at pos. Any watcher looking that way gets more
+   * suspicious ('cat' = they saw the paw itself, which is worse).
+   */
+  witness(pos: THREE.Vector3, amount: number, what: 'cat' | 'crash' = 'crash') {
+    if (!this.watchers.length || this.phase !== 'ready' || this.caught) return;
+    let seen = false;
+    for (const w of this.watchers) if (w.sees(this, pos)) { seen = true; w.alert(); }
+    if (!seen) return;
+    const k = what === 'cat' ? 1.4 : 1;
+    this.suspicion = Math.min(100, this.suspicion + amount * k);
+    this.maxSuspicion = Math.max(this.maxSuspicion, this.suspicion);
+    this.emit({ type: 'suspicion', value: this.suspicion, seen: true });
+    const a = this.watchers.find((w) => w.sees(this, pos))?.actor;
+    if (a) this.emit({ type: 'bubble', text: this.suspicion >= 100 ? '‼' : this.suspicion > 55 ? '!?' : '?', anchor: () => a.top(), dur: 1.1, style: 'owner' });
   }
 
   on(fn: (e: GameEvent) => void) { this.listeners.push(fn); }
@@ -246,8 +284,11 @@ export class Game {
     this.swatIndex = -1;
     this.noise = 0;
     this.caughtT = 0;
+    this.suspicion = 0; this.maxSuspicion = 0; this.caught = false;
+    this.trickUsed = false; this.trickArmed = false; this.kneading = null;
     this.lastWake.clear();
     this.run = { swats: [], chains: [], counters: {}, maxes: {}, discovered: [], culprits: [], ledger: {} };
+    this.view = { yaw: 0.5, pitch: 0.72, fov: 30 };
     const b = new Builder(this);
     level.build(b);
     b.finish();
@@ -273,6 +314,8 @@ export class Game {
     if (this.debris) { this.debris.clear(); this.scene.remove(this.debris.mesh); }
     if (this.owner) { this.owner.dispose(); this.scene.remove(this.owner.group); this.owner = null; }
     for (const a of this.actors) this.scene.remove(a.group);
+    for (const w of this.watchers) this.scene.remove(w.holder);
+    this.watchers = [];
     this.actors = [];
     this.actorMap = {};
     this.glintT = 0;
@@ -441,6 +484,13 @@ export class Game {
   /* the paw                                                      */
   /* ------------------------------------------------------------ */
 
+  /** toggle: the next paw uses the equipped trick instead of a swat */
+  armTrick(on: boolean) {
+    if (!this.trick || this.trickUsed) on = false;
+    this.trickArmed = on;
+    this.emit({ type: 'trick', armed: on, used: this.trickUsed });
+  }
+
   canAct(): boolean {
     return this.phase === 'ready' && this.paws > 0 && !this.cat.busy();
   }
@@ -467,8 +517,43 @@ export class Game {
     const strike = hit.clone();
     const t = p.body.translation();
     strike.y = clamp(strike.y, t.y + 0.05, this.reach);
-    this.cat.performSwat(this, p, d, strike, pw, () => this.applySwat(p, d, pw, strike));
+    if (this.trickArmed && this.trick && !this.trickUsed) {
+      const kind = this.trick;
+      this.trickUsed = true;
+      this.trickArmed = false;
+      this.emit({ type: 'trick', armed: false, used: true });
+      this.count('trick:' + kind);
+      if (kind === 'knead') strike.y = Math.min(this.reach, t.y + p.localBox.max.y);
+      this.cat.performSwat(this, p, d, strike, 0.3, () => { this.witness(strike, 10, 'cat'); this.doTrick(kind, p, strike); });
+      if (kind === 'knead') this.cat.perch(p, 4, strike);
+      return true;
+    }
+    this.cat.performSwat(this, p, d, strike, pw, () => { this.witness(strike, 16, 'cat'); this.applySwat(p, d, pw, strike); });
     return true;
+  }
+
+  private doTrick(kind: TrickId, p: Prop, point: THREE.Vector3) {
+    this.lastActionTime = this.time;
+    if (!p.alive) return;
+    p.lastSwatAt = this.time;
+    p.cause = null; p.causeCat = true; p.activeSwat = this.swatIndex;
+    const c = p.center(new THREE.Vector3());
+    if (kind === 'hairball') {
+      this.sfx.puff(0.6, clamp(c.x / 8, -1, 1));
+      this.sfx.meow('annoyed', this.catDef.voice);
+      this.addSlick(c, 1.4, 'hair');
+      // whatever sits there now slides at the slightest touch
+      p.body.wakeUp();
+      this.wakeAround(p);
+      this.emit({ type: 'word', text: '퉤! 헤어볼', pos: c.clone().add(new THREE.Vector3(0, 0.8, 0)), size: 1.0, color: '#cdb8a8' });
+      this.discover('hairball', c.clone());
+    } else {
+      this.kneading = { p, t: 4 };
+      p.body.wakeUp();
+      this.sfx.purr(1.6);
+      this.emit({ type: 'word', text: '꾹꾹…', pos: point.clone().add(new THREE.Vector3(0, 0.9, 0)), size: 1.0, color: '#ffb3c6' });
+      this.discover('knead', point.clone());
+    }
   }
 
   applySwat(p: Prop, dir: THREE.Vector3, power: number, point: THREE.Vector3) {
@@ -663,6 +748,7 @@ export class Game {
     if (p.causeCat) by.unshift('cat');
     this.run.culprits.push({ kind: p.kind, target: p.target, by });
     this.owner?.hear(this, pos, clamp(p.value / 5000, 6, 30));
+    this.witness(pos, clamp(6 + Math.log10(Math.max(10, p.value)) * 3, 10, 34));
     this.sfx.shatter(p.mat, k, pan);
     this.fx(b.fx ?? 'none', pos, k);
     const fd = FX_DISCOVERY[b.fx ?? 'none'];
@@ -901,6 +987,7 @@ export class Game {
     this.cat.update(this, dt, gdt);
     this.owner?.update(this, gdt, dt);
     for (const a of this.actors) a.update(this, dt);
+    for (const w of this.watchers) w.update(this, dt);
     if (!this.headless) this.glints(dt);
     this.aim.update(dt);
     for (const u of this.updaters) u(gdt);
@@ -917,6 +1004,22 @@ export class Game {
     }
     this.debris.savePrev();
     if (this.belts.length) runBelts(this, h);
+    if (this.kneading) {
+      // the cat's weight (≈6 kg) presses where it sits
+      const k = this.kneading;
+      const at = this.cat.perchPoint(_v);
+      k.t -= h;
+      if (!at || !k.p.alive || k.t <= 0) this.kneading = null;
+      else if (k.p.isDynamic()) {
+        k.p.body.wakeUp();
+        k.p.body.applyImpulseAtPoint({ x: 0, y: -6 * -GRAVITY * h, z: 0 }, { x: at.x, y: at.y, z: at.z }, true);
+      } else if (k.p.pinned !== null && k.p.pinned < 400) this.unpin(k.p);
+    }
+    if (this.suspicion > 0 && !this.caught) {
+      const s0 = this.suspicion;
+      this.suspicion = Math.max(0, this.suspicion - h * 3.5);
+      if (Math.floor(s0) !== Math.floor(this.suspicion)) this.emit({ type: 'suspicion', value: this.suspicion, seen: false });
+    }
     this.world.timestep = h;
     this.world.step(this.events);
     this.events.drainContactForceEvents((e) => {
@@ -1114,7 +1217,7 @@ export class Game {
 
   /** is anything still moving / happening? */
   busy(): boolean {
-    if (this.cat.busy()) return true;
+    if (this.cat.busy() || this.kneading) return true;
     for (const p of this.props) {
       if (!p.alive) continue;
       if (p.special?.busy()) return true;
@@ -1133,6 +1236,14 @@ export class Game {
   private caughtT = 0;
 
   private updateFlow(dt: number) {
+    if (this.phase === 'ready' && this.suspicion >= 100 && !this.caught) {
+      // caught red-handed: it all stops here (what is broken stays broken)
+      this.caught = true;
+      this.discover('caught', this.cat.group.position.clone());
+      for (const w of this.watchers) { w.actor.clear(); w.actor.do('point', 3); }
+      this.beginEnding(this.goalComplete);
+      return;
+    }
     if (this.phase === 'ready' && this.level.goal.kind === 'sneak' && this.owner?.awake) {
       // sneak missions fail the moment the owner wakes up
       this.caughtT += dt;
@@ -1164,11 +1275,15 @@ export class Game {
     this.emit({ type: 'phase', phase: 'ending' });
     const pawBonus = success ? this.paws * 10000 * (this.perk === 'bonus2x' ? 2 : 1) : 0;
     if (pawBonus) { this.score += pawBonus; this.bonus += pawBonus; }
+    // nobody saw a thing: the perfect crime is worth 30% more
+    const perfect = success && this.watchers.length > 0 && !this.caught && this.maxSuspicion < 35;
+    if (perfect) { const add = Math.round(this.score * 0.3); this.score += add; this.bonus += add; this.discover('perfect', this.cat.group.position.clone()); }
     const [s2, s3] = this.level.stars;
-    const stars = success ? (this.score >= s3 ? 3 : this.score >= s2 ? 2 : 1) : 0;
+    let stars = success ? (this.score >= s3 ? 3 : this.score >= s2 ? 2 : 1) : 0;
+    if (this.caught) stars = Math.min(stars, 2);
     this.pendingResult = {
       success, score: this.score, stars, maxChain: this.maxChain, broken: this.brokenCount,
-      pawsLeft: this.paws, pawsUsed: this.maxPaws - this.paws, pawBonus, money: this.money, bonus: this.bonus, heart: this.heart, receipt: this.receipt(), caught: false, perfect: false, finale: false,
+      pawsLeft: this.paws, pawsUsed: this.maxPaws - this.paws, pawBonus, money: this.money, bonus: this.bonus, heart: this.heart, receipt: this.receipt(), caught: this.caught, perfect, finale: false,
       story: this.story(), run: this.run,
       wokeOwner: !!this.owner?.awake, noise: this.noise,
     };

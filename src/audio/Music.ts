@@ -16,7 +16,7 @@ export class Music {
   private intensityT = 0;
 
   setFlavor(chapter: number) {
-    const flavors: [number, number][] = [[0, 104], [0, 104], [3, 110], [5, 98], [7, 116], [-2, 92], [2, 120]];
+    const flavors: [number, number][] = [[0, 104], [0, 104], [3, 110], [5, 98], [7, 116], [-2, 92], [2, 120], [5, 112], [0, 118], [-3, 124], [4, 116], [-5, 128]];
     const f = flavors[chapter] ?? flavors[0];
     this.key = f[0];
     this.tempo = f[1];
