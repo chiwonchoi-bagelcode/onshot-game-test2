@@ -23,6 +23,7 @@ import { ACHIEVEMENTS } from './meta/achievements';
 import { CHURU, chapterCleared, chapterLock, chapterOpen, checkAchievements, homeDone, nextLevel, settle, stageOpen, totalStars } from './meta/rewards';
 import { HOME_CHAPTERS } from './levels/chapters';
 import { formatHeart, formatWon } from './core/util';
+import { INCIDENTS } from './meta/incidents';
 
 type Mode = 'title' | 'map' | 'intro' | 'prelude' | 'play' | 'pause' | 'result' | 'cats' | 'panel';
 
@@ -305,6 +306,8 @@ class App {
         id: c.id, name: c.name, icon: c.icon, color: c.color, desc: c.desc, learn: c.learn, open, lock: c.id > 1 ? chapterLock(p, c.id) : '',
         stars, max: ls.length * 3, chal, chalMax: ls.reduce((a, l) => a + l.challenges.length, 0), cleared: chapterCleared(p, c.id),
         fresh: open && !p.chapterIntro.includes(c.id), empty: ls.length === 0,
+        rec: p.places[String(c.id)],
+        cases: c.outside ? [INCIDENTS.filter((x) => x.chapter === c.id && p.cases.includes(x.id)).length, INCIDENTS.filter((x) => x.chapter === c.id).length] : undefined,
       };
     });
     const ls = ch === 0 ? REMIXES : BY_CHAPTER[ch - 1];
@@ -603,7 +606,9 @@ class App {
     // reward reveals, one by one, on top of the result card (the door speaks for chapter 7 itself)
     const unlocks = s.doorOpened ? s.unlocks.filter((u) => !(u.kind === 'chapter' && u.id === String(HOME_CHAPTERS + 1))) : s.unlocks;
     if (s.achievements.length || unlocks.length) {
-      await this.screens.revealAll(s.achievements, unlocks, s.discoveries, (id) => this.catRoom.reveal(id, this.ui.top));
+      await this.screens.revealAll(s.achievements, unlocks, s.discoveries, (id) => this.catRoom.reveal(id, this.ui.top), s.incidents);
+    } else if (s.incidents.length) {
+      await this.screens.revealAll([], [], [], async () => {}, s.incidents);
     }
     if (s.chapterCleared && !s.finale && !s.worldEnd) {
       const c = CHAPTERS[s.chapterCleared - 1];
@@ -707,6 +712,10 @@ class App {
         ['집사 깨운 횟수', `${fmt(stat(p, 'wakes'))}번`], ['모은 별', `${totalStars(p)}/${(LEVELS.length + REMIXES.length) * 3}`], ['함께하는 고양이', `${p.cats.length}/${CATS.length}`],
         ['망가뜨린 정성', formatHeart(stat(p, 'heart'))], ['완전 범죄', `${fmt(stat(p, 'perfect'))}번`], ['들킨 횟수', `${fmt(stat(p, 'caught'))}번`],
       ],
+      cases: CHAPTERS.filter((c) => INCIDENTS.some((x) => x.chapter === c.id)).map((c) => ({
+        place: `${c.icon} ${c.name}`,
+        items: INCIDENTS.filter((x) => x.chapter === c.id).map((x) => ({ c: x, found: p.cases.includes(x.id) })),
+      })),
     }, () => { this.sfx.click(); this.toMap(); });
   }
 

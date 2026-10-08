@@ -532,3 +532,8 @@ body { word-break: keep-all; overflow-wrap: anywhere; }
 .finale .fbubble::after { content: ''; position: absolute; left: 50%; bottom: -12px; margin-left: -8px; border: 8px solid transparent; border-top-color: var(--ink); }
 .finale.fade::after { content: ''; position: absolute; inset: 0; background: #120c22; animation: fadein 0.6s forwards; }
 .worldend { text-align: center; font-size: 13px; color: white; background: linear-gradient(90deg, #2b2050, #5b3f8a); border-radius: 12px; padding: 6px 10px; margin: -4px 0 10px; }
+
+/* ------------------------------ place records & case files ------------------------------ */
+.chinfo .chrec { font-size: 12px; margin-top: 3px; color: #5b4a6a; background: rgba(255, 255, 255, 0.7); border-radius: 8px; padding: 2px 8px; display: inline-block; margin-right: 4px; }
+.receipt .rplace { margin-top: 6px; font-size: 12px; text-align: center; color: #7a4ac9; background: #f3ecff; border-radius: 8px; padding: 3px 6px; animation: chnew 0.4s backwards; }
+.casehead { font-size: 15px; margin: 12px 4px 6px; color: var(--ink); }

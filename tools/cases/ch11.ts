@@ -31,3 +31,7 @@ CASES.push(
   { level: '11-2', name: 'dolly by paw, then a shove on the engine', expect: 'win', challenges: [1], plan: [hit('cart', [1, 0], 1, 4), hit('engine', [1, 0], 1, 6)] },
   { level: '11-2', name: 'a gentle nudge on the dolly', expect: 'lose', plan: [hit('cart', [1, 0], 0.4, 8)] },
 );
+CASES.push(
+  { level: '11-1', name: 'trolley and both desk folders too', expect: 'win', challenges: [0], plan: [meowAt('vending', 1.0), hit('rack', [1, 0], 1, 1.5), hit('folder', [1, 0], 0.8, 1, [4.2, 1.1, -5.0], 'top'), hit('folder', [0, 1], 0.8, 5, [4.8, 1.1, -5.0], 'top')] },
+  { level: '11-2', name: 'engine off the front of its dolly, then the fuel', expect: 'win', minStars: 3, plan: [hit('engine', [1, 0], 1, 3, undefined, 'top'), hit('hose', [1, 0], 0.6, 8)] },
+);

@@ -5,10 +5,14 @@ import type { Stage } from '../render/Stage';
 import { ACCESSORIES, CATS, SKINS, withSkin, type CatDef } from '../meta/cats';
 import type { Profile } from '../meta/profile';
 import { buy, costOf, owned, unlockMet, unlockText } from '../meta/rewards';
+import { DECOR, buyDecor, decorById, decorLock, decorOpen } from '../meta/decor';
 import { btn, churu, esc, h } from './dom';
 import type { Sound } from './Screens';
 
-type Tab = 'cat' | 'skin' | 'acc';
+type Tab = 'cat' | 'skin' | 'acc' | 'decor';
+
+/** where souvenirs stand: the back half of the rug, two rows, clear of the cat */
+const SLOTS: [number, number][] = [190, 214, 238, 302, 326, 350].map((a) => [1.85, a] as [number, number]).concat([210, 236, 304, 330].map((a) => [1.25, a] as [number, number]));
 
 /**
  * The cat room: a little 3D showroom (rendered instead of the stage) where
@@ -19,6 +23,9 @@ export class CatRoom {
   readonly camera = new THREE.PerspectiveCamera(30, 1, 0.1, 100);
   private cat = new Cat();
   private turn = new THREE.Group();
+  private decor = new THREE.Group();
+  private decorShown = '';
+  private pop: { o: THREE.Object3D; t: number } | null = null;
   private confetti: THREE.InstancedMesh;
   private conf: { p: THREE.Vector3; v: THREE.Vector3; r: THREE.Euler; w: THREE.Vector3; c: THREE.Color }[] = [];
   private spot: THREE.SpotLight;
@@ -63,6 +70,7 @@ export class CatRoom {
     fish.add(mesh(box(0.14, 0.18, 0.04, 0.02), M('#ff9f43'), { pos: [-0.3, 0, 0], rot: [0, 0, 0.8] }));
     fish.position.set(-1.1, 0.12, 1.1); fish.rotation.y = 0.6;
     s.add(fish);
+    s.add(this.decor);
     this.turn.add(this.cat.group);
     this.turn.scale.setScalar(1.5);
     s.add(this.turn);
@@ -128,6 +136,7 @@ export class CatRoom {
     this.stage.overlayScene = this.scene;
     this.stage.overlayCamera = this.camera;
     this.apply();
+    this.syncDecor();
     this.root = root;
     const bg = document.getElementById('bg');
     if (bg) { this.prevBg = bg.style.background; bg.style.background = 'radial-gradient(110% 80% at 50% 30%, #fff6e0, #ffd6c2 55%, #e9b8d8)'; }
@@ -181,8 +190,16 @@ export class CatRoom {
     const tabs = h('div', 'ptabs');
     const tab = (t: Tab, label: string) => tabs.append(btn(`ptab${this.tab === t ? ' sel' : ''}`, label, () => { this.snd.click(); this.tab = t; this.previewSkin = null; this.previewAcc = null; this.apply(); this.render(); }));
     tab('cat', '🐱 고양이'); tab('skin', '🎨 털색'); tab('acc', '🎀 꾸미기');
+    if (p.outside || p.decor.length) tab('decor', '🏆 기념품');
     panel.append(tabs);
     const has = p.cats.includes(d.id);
+    if (this.tab === 'decor') {
+      panel.append(this.decorBody());
+      e.append(panel);
+      root.append(e);
+      requestAnimationFrame(() => this.fitToStage());
+      return;
+    }
     const dots = h('div', 'crdots', CATS.map((c, i) => `<i class="${i === this.idx ? 'on' : ''}${p.cats.includes(c.id) ? '' : ' lk'}" style="background:${c.color}"></i>`).join(''));
     panel.append(dots);
     const body = h('div', 'crbody');
@@ -256,6 +273,61 @@ export class CatRoom {
     e.append(panel);
     root.append(e);
     requestAnimationFrame(() => this.fitToStage());
+  }
+
+  /** the souvenir shelf: one per place-memory, bought with churu once something there is cleared */
+  private decorBody(): HTMLElement {
+    const p = this.profile;
+    const body = h('div', 'crbody');
+    body.append(h('div', 'crname', `장소 기념품 <small>${p.decor.length}/${DECOR.length}</small>`));
+    const grid = h('div', 'accgrid');
+    for (const d of DECOR) {
+      const own = p.decor.includes(d.id);
+      const open = decorOpen(p, d);
+      const b = btn(`acc${own ? ' sel' : ''}${own || open ? '' : ' lk'}`, `<span class="ai">${d.icon}</span><span class="an">${esc(d.name)}</span><small>${own ? '전시 중' : open ? churu(d.cost) : '🔒 ' + esc(decorLock(d))}</small>`, () => {
+        if (own) { this.snd.click(); this.showOff(d.id); this.say(`${d.name}… 그때 참 재밌었지!`); return; }
+        if (!open) { this.snd.click(); this.say('아직이다냥… ' + decorLock(d)); return; }
+        if (p.churu < d.cost) { this.snd.click(); this.say(`츄르가 ${d.cost - p.churu}개 모자라요…`); return; }
+        if (!buyDecor(p, d.id)) return;
+        this.onSave();
+        this.snd.fanfare();
+        this.snd.meow('long', this.def().voice);
+        this.burst();
+        this.cat.cheer();
+        this.syncDecor();
+        this.showOff(d.id);
+        this.render();
+        this.say('기념품이 방에 놓였다냥!');
+      });
+      grid.append(b);
+    }
+    body.append(grid);
+    body.append(h('div', 'crnote', '바깥 장소에서 한 판이라도 깨면 그곳의 기념품을 살 수 있어요'));
+    return body;
+  }
+
+  /** rebuild the souvenirs standing around the rug (only when the owned set changed) */
+  private syncDecor() {
+    const ids = this.profile.decor.filter((id) => decorById(id));
+    const key = ids.join(',');
+    if (key === this.decorShown) return;
+    this.decorShown = key;
+    for (const c of [...this.decor.children]) this.decor.remove(c);
+    ids.slice(0, SLOTS.length).forEach((id, i) => {
+      const o = decorById(id)!.build();
+      const [r, deg] = SLOTS[i];
+      const a = THREE.MathUtils.degToRad(deg);
+      o.position.set(Math.cos(a) * r, 0, -Math.sin(a) * r);
+      o.rotation.y = -o.position.x * 0.25;
+      o.userData.id = id;
+      o.traverse((m) => { if ((m as THREE.Mesh).isMesh) m.castShadow = true; });
+      this.decor.add(o);
+    });
+  }
+
+  private showOff(id: string) {
+    const o = this.decor.children.find((c) => c.userData.id === id);
+    if (o) this.pop = { o, t: 0 };
   }
 
   private purchase(kind: 'cat' | 'skin' | 'acc', id: string) {
@@ -359,6 +431,12 @@ export class CatRoom {
       this.turn.position.y = k * k * 4;
       this.spot.intensity = Math.min(60, this.spot.intensity + dt * 80);
     } else this.turn.position.y = 0;
+    if (this.pop) {
+      const k = (this.pop.t += dt) / 0.6;
+      const o = this.pop.o;
+      if (k >= 1) { o.scale.setScalar(1); o.position.y = 0; this.pop = null; }
+      else { o.scale.setScalar(0.4 + 0.6 * Math.min(1, k * 1.6) + Math.sin(k * Math.PI) * 0.25); o.position.y = Math.sin(k * Math.PI) * 0.5; }
+    }
     if (this.bubbleT > 0) { this.bubbleT -= dt; if (this.bubbleT <= 0) this.bubbleEl?.classList.remove('show'); }
     if (this.conf.length) {
       const m = new THREE.Matrix4(), q = new THREE.Quaternion();

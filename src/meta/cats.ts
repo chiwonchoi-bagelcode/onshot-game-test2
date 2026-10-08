@@ -7,7 +7,7 @@ import { M, box, cone, cyl, mesh, sphere, torus } from '../render/kit';
 /* ------------------------------------------------------------------ */
 
 export type Pattern = 'tabby' | 'solid' | 'tuxedo' | 'calico' | 'point' | 'spots';
-export type PerkId = 'bonus2x' | 'quiet' | 'heavy' | 'lucky' | 'chatty' | 'domino' | 'elegant' | 'jump' | 'gold';
+export type PerkId = 'bonus2x' | 'quiet' | 'heavy' | 'lucky' | 'chatty' | 'domino' | 'elegant' | 'jump' | 'gold' | 'space';
 export type IdleAct = 'lick' | 'stretch' | 'roll' | 'groom' | 'yawn' | 'loaf' | 'tail';
 
 export type Unlock =
@@ -42,7 +42,7 @@ export const CATS: CatDef[] = [
     desc: '시치미 떼기의 달인. 무슨 일이 있어도 눈을 깜빡일 뿐.',
     look: { base: '#f39a4a', belly: '#fff6e8', stripe: '#d9732c', ear: '#ff9db0', nose: '#ff9db0', eye: '#2b2233', pattern: 'tabby' },
     stats: { power: 1, speed: 1, reach: 0 },
-    perk: { id: 'bonus2x', name: '시치미 장인', text: '남은 앞발 보너스 2배' },
+    perk: { id: 'bonus2x', name: '시치미 장인', text: '남은 앞발 보너스 2배 · 의심이 2배 빨리 식음' },
     voice: 1, motion: { leap: 1, hop: 1, wiggle: 1, tail: 1, idle: ['lick', 'stretch', 'loaf'] },
     lines: {
       swat: ['툭!', '에잇', '냥!'], heavy: ['칫, 무겁잖아…', '더 세게…?'], chain: ['후훗…', '계획대로다냥', '흐흥~'],
@@ -107,7 +107,7 @@ export const CATS: CatDef[] = [
     desc: '도미노에 진심인 신사. 줄 세워진 물건만 보면 설렌다.',
     look: { base: '#2f2a38', belly: '#ffffff', stripe: '#2b2533', ear: '#ff9db0', nose: '#ff9db0', eye: '#7bd389', pattern: 'tuxedo' },
     stats: { power: 1, speed: 1, reach: 0 },
-    perk: { id: 'domino', name: '도미노 신사', text: '넘어뜨리기 점수 2배' },
+    perk: { id: 'domino', name: '도미노 신사', text: '넘어뜨리기 점수 2배 · 넘어지는 물건이 조금 더 멀리' },
     voice: 1.0, motion: { leap: 1, hop: 1, wiggle: 0.8, tail: 1, idle: ['groom', 'loaf', 'stretch'] },
     lines: {
       swat: ['실례.', '자, 시작하지', '톡'], heavy: ['신사답지 못하군'], chain: ['아름다운 연쇄군', '브라보'],
@@ -146,13 +146,26 @@ export const CATS: CatDef[] = [
     desc: '집 전체를 엉망으로 만든 자에게만 나타나는 전설의 고양이.',
     look: { base: '#ffcf3f', belly: '#fff3c4', stripe: '#e8a91f', ear: '#ffb3a7', nose: '#ff9db0', eye: '#7a3a00', pattern: 'tabby', sparkle: true },
     stats: { power: 1.1, speed: 1.1, reach: 0.3 },
-    perk: { id: 'gold', name: '금손', text: '모든 손해액 +10% · 츄르 +50%' },
+    perk: { id: 'gold', name: '금손', text: '모든 손해액 +10% · 츄르 +50% · 헤어볼 웅덩이 1.5배' },
     voice: 1.08, motion: { leap: 0.9, hop: 1.2, wiggle: 1.2, tail: 1.2, idle: ['stretch', 'lick', 'tail'] },
     lines: {
       swat: ['반짝!', '황금 앞발!', '찰랑'], heavy: ['황금도 무거운 건 무겁다'], chain: ['반짝반짝 연쇄!', '빛이 난다!'],
       big: ['전설이 된다냥', '황금 대참사!'], innocent: ['냥? (빛나는 눈)', '(반짝이며 외면)'], fail: ['전설은 쉬지 않는다'], hello: ['전설의 시작이다냥'],
     },
     unlock: { kind: 'finale' },
+  },
+  {
+    id: 'space', name: '우주냥', breed: '탈출선 고양이', color: '#c9b8ff',
+    desc: '지구가 사라진 날, 탈출선 창가에서 털을 고르던 그 고양이. 아무것도 모른다.',
+    look: { base: '#eeeaff', belly: '#ffffff', stripe: '#c9b8ff', ear: '#ffb3e6', nose: '#ff9db0', eye: '#5b4aa8', pattern: 'point', sparkle: true, fluffy: true },
+    stats: { power: 1, speed: 1.05, reach: 0.2 },
+    perk: { id: 'space', name: '무중력 앞발', text: '친 물건이 두 배로 높이 떠올라요 (선반 너머로!)' },
+    voice: 1.12, motion: { leap: 0.85, hop: 1.35, wiggle: 0.9, tail: 1.1, idle: ['loaf', 'stretch', 'tail'] },
+    lines: {
+      swat: ['둥실~', '무중력!', '냥…?'], heavy: ['중력이 아직 남아 있었네'], chain: ['궤도에 올랐다냥', '둥실둥실 연쇄'],
+      big: ['지구… 아니 이건 아무것도 아니다냥', '은하급 대참사!'], innocent: ['냥? (난 아무것도 몰라요)', '(창밖을 본다)'], fail: ['다음 행성에서'], hello: ['여기는… 어느 별이냥?'],
+    },
+    unlock: { kind: 'achievement', id: 'earth' },
   },
 ];
 
@@ -237,6 +250,30 @@ export const ACCESSORIES: AccDef[] = [
   {
     id: 'scarf', name: '줄무늬 목도리', slot: 'neck', unlock: { kind: 'churu', cost: 150 }, icon: '🧣',
     build() { const o = g(); o.add(mesh(torus(0.27, 0.07, 6, 16), M('#4f86c6'), { rot: [Math.PI / 2, 0, 0] })); o.add(mesh(box(0.14, 0.35, 0.05, 0.02), M('#4f86c6'), { pos: [0.15, -0.18, 0.24], rot: [0, 0, 0.3] })); for (let i = 0; i < 3; i++) o.add(mesh(box(0.15, 0.04, 0.06, 0), M('#ffffff'), { pos: [0.15 + i * 0.02, -0.08 - i * 0.1, 0.26], rot: [0, 0, 0.3] })); return o; },
+  },
+  {
+    id: 'hardhat', name: '안전모', slot: 'head', unlock: { kind: 'chapter', chapter: 9 }, icon: '⛑️',
+    build() { const o = g(); o.add(mesh(sphere(0.27, 12, 7, ), M('#ffd23f'), { scale: [1, 0.7, 1], pos: [0, 0.06, 0] })); o.add(mesh(cyl(0.34, 0.34, 0.04, 14), M('#ffcf3f'), { pos: [0, 0.02, 0.04] })); o.add(mesh(box(0.06, 0.06, 0.4, 0.02), M('#ffb000'), { pos: [0, 0.24, 0] })); o.position.set(0, 0.3, 0); return o; },
+  },
+  {
+    id: 'conductor', name: '기관사 모자', slot: 'head', unlock: { kind: 'chapter', chapter: 10 }, icon: '🚂',
+    build() { const o = g(); o.add(mesh(cyl(0.24, 0.22, 0.2, 12), M('#2f3a5a'), { pos: [0, 0.1, 0] })); o.add(mesh(box(0.34, 0.03, 0.16, 0.02), M('#1f263d'), { pos: [0, 0.01, 0.22] })); o.add(mesh(sphere(0.05, 6, 4), M('#ffd23f', { emissive: '#6b4a00', emissiveIntensity: 0.4 }), { pos: [0, 0.12, 0.23] })); o.position.set(0, 0.32, 0); return o; },
+  },
+  {
+    id: 'helmet', name: '우주 헬멧', slot: 'head', unlock: { kind: 'achievement', id: 'earth' }, icon: '🧑‍🚀',
+    build() { const o = g(); o.add(mesh(sphere(0.48, 14, 10), M('#e8f8ff', { transparent: true, opacity: 0.32 }), { pos: [0, -0.08, 0.05], shadow: false })); o.add(mesh(torus(0.4, 0.06, 6, 18), M('#ffffff'), { pos: [0, -0.42, 0.05], rot: [Math.PI / 2, 0, 0] })); o.add(mesh(sphere(0.05, 6, 4), M('#ff5a6e', { emissive: '#ff2a3c', emissiveIntensity: 0.8 }), { pos: [0.3, 0.2, 0.2] })); o.position.set(0, 0.25, 0); return o; },
+  },
+  {
+    id: 'lei', name: '꽃 목걸이', slot: 'neck', unlock: { kind: 'churu', cost: 160 }, icon: '💐',
+    build() { const o = g(); for (let i = 0; i < 12; i++) { const a = (i / 12) * Math.PI * 2; o.add(mesh(sphere(0.07, 6, 4), M(['#ff8fa3', '#ffd23f', '#ffffff', '#c9a0dc'][i % 4]), { pos: [Math.cos(a) * 0.27, 0, Math.sin(a) * 0.27] })); } return o; },
+  },
+  {
+    id: 'goggles', name: '용접 고글', slot: 'face', unlock: { kind: 'achievement', id: 'tricks' }, icon: '🥽',
+    build() { const o = g(); for (const s of [-1, 1]) o.add(mesh(cyl(0.1, 0.1, 0.06, 10), M('#5bd98c', { transparent: true, opacity: 0.8 }), { pos: [s * 0.13, 0, 0], rot: [Math.PI / 2, 0, 0] })); o.add(mesh(torus(0.3, 0.025, 4, 16, Math.PI), M('#5b5f73'), { pos: [0, 0, -0.18], rot: [0, 0, 0] })); o.position.set(0, 0.06, 0.32); return o; },
+  },
+  {
+    id: 'badge', name: '보안 출입증', slot: 'neck', unlock: { kind: 'achievement', id: 'detective' }, icon: '🪪',
+    build() { const o = g(); o.add(mesh(torus(0.26, 0.02, 4, 16), M('#4f86c6'), { rot: [Math.PI / 2, 0, 0] })); o.add(mesh(box(0.16, 0.2, 0.02, 0.01), M('#ffffff'), { pos: [0, -0.16, 0.27] })); o.add(mesh(box(0.1, 0.04, 0.025, 0), M('#ff5a6e'), { pos: [0, -0.1, 0.28] })); return o; },
   },
   {
     id: 'shades', name: '선글라스', slot: 'face', unlock: { kind: 'achievement', id: 'oneShot' }, icon: '🕶️',

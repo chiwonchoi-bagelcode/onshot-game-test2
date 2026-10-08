@@ -34,3 +34,6 @@ CASES.push(
   { level: '10-4', name: 'two shoves on the duty-free cabinet (1★)', expect: 'win', maxStars: 1, plan: [hit('vitrine', [1, 0], 1, 0.9, undefined, 0.86), hit('vitrine', [1, 0], 1, 6, undefined, 0.86)] },
   { level: '10-4', name: 'cart sent while the guard looks', expect: 'lose', plan: [wait(6), hit('cart', [1, 0], 0.6, 8)] },
 );
+CASES.push(
+  { level: '10-2', name: 'points thrown right under the wagon: derailed', expect: 'lose', plan: [hit('chock', [0, 1], 0.8, 2.0), hit('lever', [1, 0], 0.5, 4), hit('lever', [1, 0], 0.5, 6)] },
+);

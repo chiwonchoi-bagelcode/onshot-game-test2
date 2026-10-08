@@ -4,6 +4,7 @@ import type { LedgerEntry, LevelDef } from '../game/types';
 import type { Settlement, UnlockItem } from '../meta/rewards';
 import type { AchDef } from '../meta/achievements';
 import type { Discovery } from '../meta/dex';
+import type { Incident } from '../meta/incidents';
 import { CHURU_SVG, btn, churu, countUp, esc, h, wait } from './dom';
 
 export interface Sound {
@@ -13,6 +14,10 @@ export interface Sound {
 export interface ChapterCard {
   id: number; name: string; icon: string; color: string; desc: string; learn: string;
   open: boolean; lock: string; stars: number; max: number; chal: number; chalMax: number; cleared: boolean; fresh: boolean; empty: boolean;
+  /** this place's records (once something was cleared here) */
+  rec?: { damage: number; chain: number; paws: number; heart: number };
+  /** hidden incidents solved here / total (outside only) */
+  cases?: [number, number];
 }
 export interface StageNode { id: string; title: string; stars: number; ch: boolean[]; chN: number; open: boolean; cleared: boolean; current: boolean; goal: string }
 export interface MapData {
@@ -120,7 +125,9 @@ export class Screens {
     const info = h('div', 'chinfo');
     info.style.setProperty('--cc', c.color);
     info.innerHTML = `<div class="cht"><span class="chno">${c.id}장</span> ${esc(c.name)} <span class="chs">⭐ ${c.stars}/${c.max} · 🏅 ${c.chal}/${c.chalMax}</span></div>
-      <div class="chd">${esc(c.desc)}</div><div class="chl">배우는 것: ${esc(c.learn)}</div>`;
+      <div class="chd">${esc(c.desc)}</div><div class="chl">배우는 것: ${esc(c.learn)}</div>
+      ${c.rec ? `<div class="chrec">📍 최고 ${formatWon(c.rec.damage)} · 연쇄 x${c.rec.chain} · 최소 앞발 ${c.rec.paws}${c.rec.heart ? ` · 💗 ${formatHeart(c.rec.heart)}` : ''}</div>` : ''}
+      ${c.cases ? `<div class="chrec">🗂️ 숨은 사고 ${c.cases[0]}/${c.cases[1]}</div>` : ''}`;
     sheet.append(info);
     if (!c.open) {
       sheet.append(h('div', 'chlock', c.empty ? '🚧 준비 중인 장소예요' : `🔒 ${esc(c.lock)}`));
@@ -290,6 +297,7 @@ export class Screens {
       ${r.heart ? `<div class="rsum heart"><span>💗 정성 파괴</span><b>${r.finale ? '46억 년' : formatHeart(r.heart)}</b></div>` : ''}
       <div class="rsum bonus"><span>장난 점수${bonusBits ? ` <small>${bonusBits}</small>` : ''}</span><b>+${Math.round(r.bonus).toLocaleString('ko-KR')}</b></div>
       <div class="rbill">청구 대상: 고양이 <small>(지불 능력 없음)</small></div>
+      ${s.placeNew.length ? `<div class="rplace">📍 장소 기록 갱신 · ${s.placeNew.map(esc).join(' · ')}</div>` : ''}
       <div class="rstamp hidden">${r.caught ? '현행범' : r.success ? '시치미' : '미수'}</div>`;
     void s;
     const rows = [...el.querySelectorAll('.rl')] as HTMLElement[];
@@ -322,8 +330,9 @@ export class Screens {
     });
   }
 
-  async revealAll(achs: AchDef[], unlocks: UnlockItem[], discs: Discovery[], revealCat: (id: string) => Promise<void>) {
+  async revealAll(achs: AchDef[], unlocks: UnlockItem[], discs: Discovery[], revealCat: (id: string) => Promise<void>, cases: Incident[] = []) {
     void discs;
+    for (const c of cases) await this.reveal('disc', c.icon, '숨은 사고 해결!', c.name, `${c.story} · 사건 파일에 기록했어요`, '#c9a0dc');
     for (const a of achs) await this.reveal('ach', a.icon, '업적 달성!', a.name, `${a.desc} · 츄르 +${a.reward}`);
     for (const u of unlocks) {
       if (u.kind === 'cat') await revealCat(u.id);
@@ -422,7 +431,7 @@ export class Screens {
     }
   }
 
-  dex(d: { disc: { d: Discovery; found: boolean }[]; objects: { icon: string; name: string; tip: string; seen: boolean }[]; stats: [string, string][] }, back: () => void) {
+  dex(d: { disc: { d: Discovery; found: boolean }[]; objects: { icon: string; name: string; tip: string; seen: boolean }[]; stats: [string, string][]; cases: { place: string; items: { c: Incident; found: boolean }[] }[] }, back: () => void) {
     const p = this.panel('냥이 도감', back, 'dex');
     const tabs: [string, () => void][] = [
       ['✨ 발견', () => {
@@ -438,6 +447,17 @@ export class Screens {
         const g = h('div', 'ogrid');
         for (const x of d.objects) g.append(h('div', `ocell${x.seen ? '' : ' unseen'}`, x.seen ? `<div class="oi">${x.icon}</div><div><div class="on">${esc(x.name)}</div><div class="ot">${esc(x.tip)}</div></div>` : `<div class="oi">❔</div><div><div class="on">???</div><div class="ot">아직 만나지 못한 물건</div></div>`));
         p.body.append(g);
+      }],
+      ['🗂️ 사건 파일', () => {
+        p.body.innerHTML = '';
+        const all = d.cases.flatMap((x) => x.items);
+        p.body.append(h('div', 'psum', `숨은 사고 ${all.filter((x) => x.found).length}/${all.length} · 해결하면 츄르 +25`));
+        for (const pl of d.cases) {
+          p.body.append(h('div', 'casehead', esc(pl.place)));
+          const g = h('div', 'dgrid');
+          for (const x of pl.items) g.append(h('div', `dcell${x.found ? ' found' : ''}`, x.found ? `<div class="di">${x.c.icon}</div><div class="dn">${esc(x.c.name)}</div><div class="dd">${esc(x.c.story)}</div>` : `<div class="di">🔒</div><div class="dn">${esc(x.c.level)} · ???</div><div class="dd">${esc(x.c.clue)}</div>`));
+          p.body.append(g);
+        }
       }],
       ['📊 기록', () => {
         p.body.innerHTML = '';

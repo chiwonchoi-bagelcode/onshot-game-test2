@@ -560,7 +560,7 @@ export class Game {
     if (kind === 'hairball') {
       this.sfx.puff(0.6, clamp(c.x / 8, -1, 1));
       this.sfx.meow('annoyed', this.catDef.voice);
-      this.addSlick(c, 1.4, 'hair');
+      this.addSlick(c, this.perk === 'gold' ? 2.1 : 1.4, 'hair');
       // whatever sits there now slides at the slightest touch
       p.body.wakeUp();
       this.wakeAround(p);
@@ -631,7 +631,8 @@ export class Game {
       const st = this.catDef.stats;
       const dv = PAW.vmax * st.speed * power * Math.min(boost > 1 ? 1.15 : 1, (PAW.mref * st.power * boost) / m);
       const imp = _v.copy(dir).multiplyScalar(dv * m);
-      imp.y += PAW.lift * dv * m;
+      // 우주냥: whatever it hits floats up (twice the lift)
+      imp.y += PAW.lift * dv * m * (this.perk === 'space' ? 2 : 1);
       body.applyImpulseAtPoint({ x: imp.x, y: imp.y, z: imp.z }, { x: point.x, y: point.y, z: point.z }, true);
       const w = body.angvel();
       const wl = Math.hypot(w.x, w.y, w.z);
@@ -1096,7 +1097,8 @@ export class Game {
     }
     if (this.suspicion > 0 && !this.caught) {
       const s0 = this.suspicion;
-      this.suspicion = Math.max(0, this.suspicion - h * 3.5);
+      // 치즈 (시치미 장인): people forget twice as fast
+      this.suspicion = Math.max(0, this.suspicion - h * 3.5 * (this.perk === 'bonus2x' ? 2 : 1));
       if (Math.floor(s0) !== Math.floor(this.suspicion)) this.emit({ type: 'suspicion', value: this.suspicion, seen: false });
     }
     this.world.timestep = h;
@@ -1290,6 +1292,11 @@ export class Game {
         this.count('topple');
         if (this.swatIndex >= 0) { const k = `swatTopple${this.swatIndex}`; this.count(k); this.best('toppleChain', this.run.counters[k]); }
         const amt = (p.spec.toppleValue ?? Math.max(200, p.value * 0.06)) * (this.perk === 'domino' ? 2 : 1);
+        // the domino gentleman's things fall a little further (and reach the next one)
+        if (this.perk === 'domino' && p.isDynamic() && p.spec.mass < 60) {
+          const hx = _v2.x, hz = _v2.z, l = Math.hypot(hx, hz);
+          if (l > 0.2) { const m = p.body.mass() * 0.9 / l; p.body.applyImpulse({ x: hx * m, y: 0, z: hz * m }, true); }
+        }
         // knocking over dominoes is style, not damage
         this.addScore(amt, _v.set(t.x, t.y + p.height * 0.5, t.z), { prop: p, type: 'topple', as: p.spec.toppleValue !== undefined ? 'bonus' : 'money' });
         if ((p.kind === 'domino' || p.kind === 'book') && (this.run.counters[`swatTopple${this.swatIndex}`] ?? 0) >= 4) this.discover('domino', _v.clone());

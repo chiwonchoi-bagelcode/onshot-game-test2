@@ -414,7 +414,7 @@ export function rocketEngine(b: Builder, o: O): Prop {
     kind: 'engine', name: o.name ?? '로켓 엔진', icon: '🚀', group: grp, pos: o.at, rotY: o.rot,
     colliders: [{ shape: 'cyl', r: 0.55, hh: 0.8, at: [0, 0.8, 0] }],
     mass: 12, mat: 'metal', value: o.value ?? 60000000, friction: 0.6,
-    breakable: { threshold: 9, mode: 'damage', fx: 'sparks', word: '쿵! 엔진 찌그러짐' },
+    breakable: { threshold: 3.6, mode: 'damage', fx: 'sparks', word: '쿵! 엔진 찌그러짐' },
   });
 }
 

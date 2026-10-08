@@ -13,11 +13,13 @@ import { addStat, levelRec, maxStat, peekRec, type Profile } from './profile';
 /* Rewards (츄르), unlock rules and the post-stage settlement.          */
 /* ------------------------------------------------------------------ */
 
-export const CHURU = { firstClear: 20, star: 8, challenge: 15, replay: 3, newBest: 3, discovery: 10 };
+export const CHURU = { firstClear: 20, star: 8, challenge: 15, replay: 3, newBest: 3, discovery: 10, incident: 25 };
 
 export interface UnlockItem { kind: 'cat' | 'acc' | 'skin' | 'chapter' | 'trick'; id: string; name: string; icon: string; color?: string }
 
 export interface ChallengeLine { text: string; icon: string; done: boolean; isNew: boolean; before: boolean }
+
+import { INCIDENTS, type Incident } from './incidents';
 
 export interface Settlement {
   lines: { label: string; amount: number }[];
@@ -32,6 +34,10 @@ export interface Settlement {
   achievements: AchDef[];
   unlocks: UnlockItem[];
   chapterCleared: number | null;
+  /** hidden incidents solved this run */
+  incidents: Incident[];
+  /** place records beaten this run (labels) */
+  placeNew: string[];
   finale: boolean;
   /** the house is done: the front door opens (first time) */
   doorOpened: boolean;
@@ -228,6 +234,15 @@ export function settle(p: Profile, level: LevelDef, r: Result, perk: PerkId): Se
     p.fresh.push('dex');
   }
   if (discoveries.length) lines.push({ label: `새로운 발견 ×${discoveries.length}`, amount: CHURU.discovery * discoveries.length });
+  // hidden incidents count even on a failed run (it happened!)
+  const incidents: Incident[] = [];
+  for (const inc of INCIDENTS) {
+    if (inc.level !== level.id || p.cases.includes(inc.id) || !inc.test(run)) continue;
+    p.cases.push(inc.id);
+    incidents.push(inc);
+    lines.push({ label: `사건 파일 · ${inc.name}`, amount: CHURU.incident });
+    p.fresh.push('dex');
+  }
 
   const challenges: ChallengeLine[] = level.challenges.map((c, i) => ({ text: challengeText(c), icon: challengeIcon(c), done: false, isNew: false, before: !!rec.ch[i] }));
   let chapterClearedNow: number | null = null;
@@ -269,7 +284,19 @@ export function settle(p: Profile, level: LevelDef, r: Result, perk: PerkId): Se
     rec.fails++;
     rec.streak++;
   }
-  const discChuru = CHURU.discovery * discoveries.length;
+  // place records (house rooms and places outside alike; request-board stages don't count)
+  const placeNew: string[] = [];
+  if (r.success && !level.remix) {
+    const key = String(level.chapter);
+    const pr = p.places[key] ?? { damage: 0, chain: 0, paws: 99, heart: 0 };
+    const had = !!p.places[key];
+    if (r.money > pr.damage) { if (had) placeNew.push('최고 손해'); pr.damage = Math.round(r.money); }
+    if (r.maxChain > pr.chain) { if (had) placeNew.push('최장 연쇄'); pr.chain = r.maxChain; }
+    if (r.pawsUsed < pr.paws) { if (had) placeNew.push('최소 앞발'); pr.paws = r.pawsUsed; }
+    if (r.heart > pr.heart) { if (had) placeNew.push('정성 파괴'); pr.heart = r.heart; }
+    p.places[key] = pr;
+  }
+  const discChuru = CHURU.discovery * discoveries.length + CHURU.incident * incidents.length;
   if (perk === 'lucky' || perk === 'gold') {
     const k = perk === 'lucky' ? 0.3 : 0.5;
     const bonus = Math.round((stageChuru + discChuru) * k);
@@ -292,6 +319,6 @@ export function settle(p: Profile, level: LevelDef, r: Result, perk: PerkId): Se
   const churu = lines.reduce((a, l) => a + l.amount, 0);
   return {
     lines, churu, prevStars, stars: r.success ? r.stars : 0, prevBest, newBest, firstClear: r.success && !wasCleared,
-    challenges, discoveries, achievements: ach.achievements, unlocks, chapterCleared: chapterClearedNow, finale, doorOpened, worldEnd, hint,
+    challenges, discoveries, achievements: ach.achievements, unlocks, chapterCleared: chapterClearedNow, incidents, placeNew, finale, doorOpened, worldEnd, hint,
   };
 }

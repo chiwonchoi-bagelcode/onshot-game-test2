@@ -65,6 +65,8 @@ export const ACHIEVEMENTS: AchDef[] = [
   { id: 'wreck', icon: '🚗', name: '폐차장 직행', desc: '자동차를 완전히 찌그러뜨리기', reward: 30, goal: 1, progress: disc('carWreck') },
   { id: 'tricks', icon: '🌀', name: '기술냥', desc: '장난 기술 10번 쓰기', reward: 40, goal: 10, progress: (p) => stat(p, 'tricks') },
   { id: 'board', icon: '📋', name: '의뢰 해결사', desc: '의뢰판의 의뢰 모두 해결하기', reward: 80, goal: Math.max(1, REMIXES.length), progress: (p) => REMIXES.filter((l) => p.levels[l.id]?.cleared).length },
+  { id: 'detective', icon: '🕵️', name: '탐정 고양이', desc: '숨은 사고 5개 해결', reward: 50, goal: 5, progress: (p) => p.cases.length },
+  { id: 'caseAll', icon: '🗂️', name: '사건 파일 완성', desc: '숨은 사고 15개 전부 해결', reward: 150, goal: 15, progress: (p) => p.cases.length },
   { id: 'earth', icon: '🪐', name: '난 아무것도 몰라요', desc: '절대 누르지 말라던 버튼을 누르기', reward: 200, goal: 1, progress: (p) => (p.worldEnd ? 1 : 0), secret: true },
 ];
 
