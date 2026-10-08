@@ -1,4 +1,5 @@
-import { LEVELS } from '../levels/index';
+import { LEVELS, REMIXES } from '../levels/index';
+import { HOME_CHAPTERS } from '../levels/chapters';
 import { CATS, ACCESSORIES } from './cats';
 import { DISCOVERIES } from './dex';
 import { stat, type Profile } from './profile';
@@ -55,7 +56,16 @@ export const ACHIEVEMENTS: AchDef[] = [
   { id: 'cats5', icon: '😻', name: '고양이 부자', desc: '고양이 5마리 모으기', reward: 50, goal: 5, progress: (p) => p.cats.length },
   { id: 'catsAll', icon: '🐈', name: '고양이 마을', desc: '모든 고양이 모으기', reward: 100, goal: CATS.length, progress: (p) => p.cats.length },
   { id: 'dress', icon: '🎀', name: '패셔니스타', desc: '꾸미기 아이템 5개 모으기', reward: 30, goal: 5, progress: (p) => p.accs.length },
-  { id: 'finale', icon: '🏠', name: '와장창 대참사', desc: '최종장 클리어', reward: 100, goal: 1, progress: (p) => (p.finale ? 1 : 0) },
+  { id: 'finale', icon: '🏠', name: '와장창 대참사', desc: '우리 집 최종장 클리어', reward: 100, goal: 1, progress: (p) => (p.finale ? 1 : 0) },
+  // the world outside
+  { id: 'outside', icon: '🚪', name: '현관문 너머', desc: '우리 집을 모두 클리어하고 바깥으로 나가기', reward: 60, goal: 1, progress: (p) => (p.outside || LEVELS.filter((l) => l.chapter <= HOME_CHAPTERS).every((l) => p.levels[l.id]?.cleared) ? 1 : 0) },
+  { id: 'perfect3', icon: '🕶️', name: '시치미 9단', desc: '보는 눈이 있는 곳에서 완전 범죄 3번', reward: 50, goal: 3, progress: (p) => stat(p, 'perfect') },
+  { id: 'caught', icon: '🚨', name: '현행범', desc: '장난치다 딱 걸리기', reward: 15, goal: 1, progress: (p) => stat(p, 'caught'), secret: true },
+  { id: 'heart', icon: '💔', name: '정성 파괴자', desc: '누군가의 정성 1,000시간어치 망가뜨리기', reward: 50, goal: 1000, progress: (p) => Math.floor(stat(p, 'heart')) },
+  { id: 'wreck', icon: '🚗', name: '폐차장 직행', desc: '자동차를 완전히 찌그러뜨리기', reward: 30, goal: 1, progress: disc('carWreck') },
+  { id: 'tricks', icon: '🌀', name: '기술냥', desc: '장난 기술 10번 쓰기', reward: 40, goal: 10, progress: (p) => stat(p, 'tricks') },
+  { id: 'board', icon: '📋', name: '의뢰 해결사', desc: '의뢰판의 의뢰 모두 해결하기', reward: 80, goal: Math.max(1, REMIXES.length), progress: (p) => REMIXES.filter((l) => p.levels[l.id]?.cleared).length },
+  { id: 'earth', icon: '🪐', name: '난 아무것도 몰라요', desc: '절대 누르지 말라던 버튼을 누르기', reward: 200, goal: 1, progress: (p) => (p.worldEnd ? 1 : 0), secret: true },
 ];
 
 export const achById = (id: string) => ACHIEVEMENTS.find((a) => a.id === id);

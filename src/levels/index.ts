@@ -15,4 +15,7 @@ import { CH11 } from './ch11';
 export { CHAPTERS };
 export const BY_CHAPTER: LevelDef[][] = [CH1, CH2, CH3, CH4, CH5, CH6, CH7, CH8, CH9, CH10, CH11];
 export const LEVELS: LevelDef[] = BY_CHAPTER.flat();
-export const levelById = (id: string) => LEVELS.find((l) => l.id === id);
+import { buildRemixes } from './remix';
+/** the request board: variations of house stages (not part of the chapters) */
+export const REMIXES: LevelDef[] = buildRemixes((id) => LEVELS.find((l) => l.id === id));
+export const levelById = (id: string) => LEVELS.find((l) => l.id === id) ?? REMIXES.find((l) => l.id === id);

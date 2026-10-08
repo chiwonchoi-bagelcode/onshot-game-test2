@@ -1,6 +1,6 @@
 /* Regression check: every stage's intended solutions still work (and the non-solutions still fail). */
 import { runPlan } from './sim';
-import { LEVELS } from '../src/levels/index';
+import { LEVELS, REMIXES, levelById } from '../src/levels/index';
 import type { Case } from './cases/types';
 import { CASES as C1 } from './cases/ch1';
 import { CASES as C2 } from './cases/ch2';
@@ -13,17 +13,18 @@ import { CASES as C8 } from './cases/ch8';
 import { CASES as C9 } from './cases/ch9';
 import { CASES as C10 } from './cases/ch10';
 import { CASES as C11 } from './cases/ch11';
+import { CASES as CR } from './cases/remix';
 
-const CASES: Case[] = [...C1, ...C2, ...C3, ...C4, ...C5, ...C6, ...C7, ...C8, ...C9, ...C10, ...C11];
+const CASES: Case[] = [...C1, ...C2, ...C3, ...C4, ...C5, ...C6, ...C7, ...C8, ...C9, ...C10, ...C11, ...CR];
 const robust = process.argv.includes('--robust');
-const only = process.argv.filter((a) => /^\d+(-\d)?$/.test(a));
-const pick = (c: Case) => !only.length || only.some((o) => c.level === o || c.level.startsWith(o + '-'));
+const only = process.argv.filter((a) => /^(\d+(-\d)?|R\d*)$/.test(a));
+const pick = (c: Case) => !only.length || only.some((o) => c.level === o || c.level.startsWith(o + '-') || (o === 'R' && c.level.startsWith('R')));
 
 if (robust) {
   // jitter power / direction / timing like a real finger would
   for (const c of CASES) {
     if (!pick(c)) continue;
-    const level = LEVELS.find((l) => l.id === c.level)!;
+    const level = levelById(c.level)!;
     let wins = 0, n = 0;
     for (let v = 0; v < 10; v++) {
       const j = (k: number) => Math.sin(v * 12.9898 + k * 78.233) * 0.5 + 0.5;
@@ -46,13 +47,13 @@ let fails = 0;
 const covered = new Map<string, Set<number>>();
 for (const c of CASES) {
   if (!pick(c)) continue;
-  const level = LEVELS.find((l) => l.id === c.level);
+  const level = levelById(c.level);
   if (!level) { console.log(`FAIL ${c.level} missing level`); fails++; continue; }
   const r = runPlan(level, c.plan);
   const won = !!r.result?.success;
   const stars = r.result?.stars ?? 0;
   const chOk = (c.challenges ?? []).every((i) => r.challenges[i]);
-  const ok = (c.expect === 'win') === won && (!c.minStars || stars >= c.minStars) && chOk;
+  const ok = (c.expect === 'win') === won && (!c.minStars || stars >= c.minStars) && (c.maxStars === undefined || stars <= c.maxStars) && chOk;
   if (!ok) fails++;
   const set = covered.get(c.level) ?? new Set<number>();
   r.challenges.forEach((d, i) => { if (d) set.add(i); });
@@ -61,8 +62,8 @@ for (const c of CASES) {
   console.log(`${ok ? 'PASS' : 'FAIL'} ${c.level} ${c.name.padEnd(44)} ${won ? 'won ' : 'lost'} ${'★'.repeat(stars).padEnd(3)} [${chs}] ₩${Math.round(r.score).toLocaleString()} x${r.result?.maxChain ?? 0}`);
 }
 // every challenge of every tested stage should be shown achievable by some case
-for (const l of LEVELS) {
-  if (only.length && !only.some((o) => l.id === o || l.id.startsWith(o + '-'))) continue;
+for (const l of [...LEVELS, ...REMIXES]) {
+  if (only.length && !only.some((o) => l.id === o || l.id.startsWith(o + '-') || (o === 'R' && l.id.startsWith('R')))) continue;
   const set = covered.get(l.id);
   if (!set) { console.log(`WARN ${l.id} has no cases`); continue; }
   l.challenges.forEach((_, i) => { if (!set.has(i)) console.log(`WARN ${l.id} challenge #${i} never completed by a case`); });

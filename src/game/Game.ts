@@ -198,7 +198,7 @@ export class Game {
   trick: TrickId | null = null;
   trickUsed = false;
   trickArmed = false;
-  private kneading: { p: Prop; t: number } | null = null;
+  private kneading: { p: Prop; t: number; on: boolean } | null = null;
   /** people who might see the cat do it */
   watchers: Watcher[] = [];
   /** 0..100: how sure the watchers are it was the cat */
@@ -487,7 +487,7 @@ export class Game {
   /* the paw                                                      */
   /* ------------------------------------------------------------ */
 
-  /** toggle: the next paw uses the equipped trick instead of a swat */
+  /** toggle: the next move is the equipped trick (free, once a stage) instead of a swat */
   armTrick(on: boolean) {
     if (!this.trick || this.trickUsed) on = false;
     this.trickArmed = on;
@@ -506,8 +506,12 @@ export class Game {
       this.sfx.denied();
       return false;
     }
-    this.paws--;
-    this.emit({ type: 'paws', left: this.paws, max: this.maxPaws });
+    // a trick is a free extra move (once a stage): it never costs a paw
+    const trick = this.trickArmed && !!this.trick && !this.trickUsed;
+    if (!trick) {
+      this.paws--;
+      this.emit({ type: 'paws', left: this.paws, max: this.maxPaws });
+    }
     this.chain = 0;
     this.swatIndex++;
     this.run.chains.push([]);
@@ -520,7 +524,7 @@ export class Game {
     const strike = hit.clone();
     const t = p.body.translation();
     strike.y = clamp(strike.y, t.y + 0.05, this.reach);
-    if (this.trickArmed && this.trick && !this.trickUsed) {
+    if (trick && this.trick) {
       const kind = this.trick;
       this.trickUsed = true;
       this.trickArmed = false;
@@ -551,12 +555,24 @@ export class Game {
       this.emit({ type: 'word', text: '퉤! 헤어볼', pos: c.clone().add(new THREE.Vector3(0, 0.8, 0)), size: 1.0, color: '#cdb8a8' });
       this.discover('hairball', c.clone());
     } else {
-      this.kneading = { p, t: 4 };
+      this.kneading = { p, t: 4, on: false };
       p.body.wakeUp();
       this.sfx.purr(1.6);
       this.emit({ type: 'word', text: '꾹꾹…', pos: point.clone().add(new THREE.Vector3(0, 0.9, 0)), size: 1.0, color: '#ffb3c6' });
       this.discover('knead', point.clone());
     }
+  }
+
+  /** the pinned prop (wall shelf) the kneaded prop rests on, if any, comes off the wall */
+  private kneadShelf(p: Prop) {
+    const t = p.body.translation();
+    const ray = new this.R.Ray({ x: t.x, y: t.y + p.localBox.min.y + 0.05, z: t.z }, { x: 0, y: -1, z: 0 });
+    const hit = this.world.castRay(ray, 0.6, true, undefined, groups(G.PROP, G.PROP), undefined, p.body);
+    const under = hit ? this.byCollider.get(hit.collider.handle) : undefined;
+    if (!under || under.pinned === null || under.pinned >= 400) return;
+    under.cause = p; under.causeCat = true;
+    this.emit({ type: 'word', text: '끼이익…', pos: under.center(new THREE.Vector3()).add(new THREE.Vector3(0, 0.6, 0)), size: 0.9, color: '#e8c39e' });
+    this.unpin(under);
   }
 
   applySwat(p: Prop, dir: THREE.Vector3, power: number, point: THREE.Vector3) {
@@ -1016,11 +1032,16 @@ export class Game {
       // the cat's weight (≈6 kg) presses where it sits
       const k = this.kneading;
       const at = this.cat.perchPoint(_v);
+      // the paw lands a few frames before the cat settles on top
+      if (at) k.on = true;
       k.t -= h;
-      if (!at || !k.p.alive || k.t <= 0) this.kneading = null;
+      if ((!at && (k.on || k.t < 3.5)) || !k.p.alive || k.t <= 0) this.kneading = null;
+      else if (!at) { /* still hopping up */ }
       else if (k.p.isDynamic()) {
         k.p.body.wakeUp();
         k.p.body.applyImpulseAtPoint({ x: 0, y: -6 * -GRAVITY * h, z: 0 }, { x: at.x, y: at.y, z: at.z }, true);
+        // the weight goes through: a wall shelf under the perch gives way after a creak
+        if (k.t < 2.8 && k.t + h >= 2.8) this.kneadShelf(k.p);
       } else if (k.p.pinned !== null && k.p.pinned < 400) this.unpin(k.p);
     }
     if (this.suspicion > 0 && !this.caught) {
@@ -1272,7 +1293,8 @@ export class Game {
       if (this.goalComplete && !this.goalAnnounced) {
         this.goalAnnounced = true;
       }
-      const noMore = this.paws <= 0 && !this.cat.busy();
+      // out of paws — or out of planet: nothing is left to do once the Earth is gone
+      const noMore = (this.paws <= 0 || this.finale) && !this.cat.busy();
       if ((this.goalComplete && (this.endRequested || noMore) && settled) || (!this.goalComplete && noMore && settled && since > 1.2)) {
         this.beginEnding(this.goalComplete);
       }

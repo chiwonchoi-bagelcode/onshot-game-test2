@@ -201,6 +201,8 @@ export interface LevelDef {
   reactor?: string;
   /** prank points per paw left over (default 10,000; bigger places pay more for a clean job) */
   pawValue?: number;
+  /** a request-board variation of a home stage (same room, new rules) */
+  remix?: { base: string; trick?: 'hairball' | 'knead'; note: string };
 }
 
 export type RAPIERType = typeof RAPIER;

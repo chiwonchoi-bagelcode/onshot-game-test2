@@ -14,6 +14,8 @@ export interface ChapterDef {
   learn: string;
   /** stars needed (in total) to open it */
   needStars: number;
+  /** beyond the front door */
+  outside?: boolean;
 }
 
 export const CHAPTERS: ChapterDef[] = [
@@ -47,4 +49,34 @@ export const CHAPTERS: ChapterDef[] = [
     intro: ['모든 문이 열려 있다.', '거실에서 시작된 장난이 복도를 지나…', '집 전체가 내 무대다냥!'],
     learn: '방을 넘나드는 연쇄 · 큰 그림', needStars: 36,
   },
+  // ---- beyond the front door: opens when every room of the house is a mess
+  {
+    id: 7, name: '우리 동네', icon: '🏘️', desc: '집 앞 골목과 이웃집 마당', color: '#9fd8a8', theme: 'street', outside: true,
+    intro: ['현관문이 빼꼼 열려 있다.', '바깥은… 넓다.', '앞발은 그대로. 대신 어디를 칠지 알게 됐다냥.'],
+    learn: '작은 걸 빼면 큰 게 움직인다 · 시선 피하기', needStars: 0,
+  },
+  {
+    id: 8, name: '상점가', icon: '🏪', desc: '공방과 새 사무실', color: '#ffc2b0', theme: 'shops', outside: true,
+    intro: ['택배 상자 안에서 잠들었다.', '눈을 떠 보니… 상점가?', '반짝이는 진열장이 가득하다냥.'],
+    learn: '흔들릴 때 한 번 더 · 전선과 물', needStars: 0,
+  },
+  {
+    id: 9, name: '도시 블록', icon: '🏙️', desc: '주차장, 공사장, 고층 빌딩', color: '#a7b8e8', theme: 'city', outside: true,
+    intro: ['마트 배송 트럭 짐칸에 숨었다.', '도시는 크다.', '크레인… 저건 언제 놓아야 할까?'],
+    learn: '언제 놓을지 고르기 · 구조 읽기', needStars: 0,
+  },
+  {
+    id: 10, name: '멀리 떠나자', icon: '🚂', desc: '기차, 그리고 항구', color: '#ff9f87', theme: 'travel', outside: true,
+    intro: ['공사 자재와 함께 화물칸에 실렸다.', '덜컹덜컹… 기차는 달린다.', '급정거하면 전부 앞으로 쏟아지겠지?'],
+    learn: '모두 함께 미끄러진다 · 도미노', needStars: 0,
+  },
+  {
+    id: 11, name: '극비 기지', icon: '🚀', desc: '지구 최후의 날', color: '#7d70c9', theme: 'base', outside: true,
+    intro: ['"극비 화물" 상자에 들어갔다.', '군 수송기에서 내려 보니… 기지.', '빨간 버튼이 보인다. 누르지 말라고 쓰여 있다.'],
+    learn: '전부 엮기', needStars: 0,
+  },
 ];
+
+/** the last stage of the house (the old ending) */
+export const HOME_LAST = '6-5';
+export const HOME_CHAPTERS = 6;

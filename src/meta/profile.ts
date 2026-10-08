@@ -48,6 +48,13 @@ export interface Profile {
   fresh: string[];
   /** stage openings already watched (retries start right away) */
   preludes: string[];
+  /** cat tricks unlocked, and the one equipped */
+  tricks: string[];
+  trick: string | null;
+  /** the front door opened (the world beyond the house) — the story was shown */
+  outside: boolean;
+  /** the Earth is gone (11-3) */
+  worldEnd: boolean;
 }
 
 export function freshProfile(): Profile {
@@ -55,6 +62,7 @@ export function freshProfile(): Profile {
     v: 2, churu: 0, levels: {}, cats: ['cheese'], cat: 'cheese', skins: [], skinOf: {}, accs: [], wear: {},
     ach: [], disc: [], seen: [], stats: {}, chapterIntro: [], tutorial: [],
     settings: { sound: true, music: true, vibrate: true, lowGfx: false }, finale: false, fresh: [], preludes: [],
+    tricks: [], trick: null, outside: false, worldEnd: false,
   };
 }
 

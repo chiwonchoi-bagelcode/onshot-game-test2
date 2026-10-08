@@ -1,6 +1,8 @@
 import type { Result } from '../game/Game';
 import type { LevelDef } from '../game/types';
 import { BY_CHAPTER, CHAPTERS, LEVELS } from '../levels/index';
+import { HOME_CHAPTERS, HOME_LAST } from '../levels/chapters';
+import { TRICKS, type TrickId } from '../game/Game';
 import { ACHIEVEMENTS, type AchDef } from './achievements';
 import { ACCESSORIES, CATS, SKINS, type PerkId, type Unlock } from './cats';
 import { challengeDone, challengeIcon, challengeText } from './challenges';
@@ -13,7 +15,7 @@ import { addStat, levelRec, maxStat, peekRec, type Profile } from './profile';
 
 export const CHURU = { firstClear: 20, star: 8, challenge: 15, replay: 3, newBest: 3, discovery: 10 };
 
-export interface UnlockItem { kind: 'cat' | 'acc' | 'skin' | 'chapter'; id: string; name: string; icon: string; color?: string }
+export interface UnlockItem { kind: 'cat' | 'acc' | 'skin' | 'chapter' | 'trick'; id: string; name: string; icon: string; color?: string }
 
 export interface ChallengeLine { text: string; icon: string; done: boolean; isNew: boolean; before: boolean }
 
@@ -31,6 +33,10 @@ export interface Settlement {
   unlocks: UnlockItem[];
   chapterCleared: number | null;
   finale: boolean;
+  /** the house is done: the front door opens (first time) */
+  doorOpened: boolean;
+  /** the Earth went (first time) */
+  worldEnd: boolean;
   hint: string | null;
 }
 
@@ -44,31 +50,71 @@ export function chapterCleared(p: Profile, ch: number): boolean {
   return !!peekRec(p, ls[ls.length - 1].id)?.cleared;
 }
 
+/** every room of the house is a mess (all home stages cleared, stars don't matter) */
+export function homeDone(p: Profile): boolean {
+  for (let c = 0; c < HOME_CHAPTERS; c++) for (const l of BY_CHAPTER[c] ?? []) if (!peekRec(p, l.id)?.cleared) return false;
+  return true;
+}
+const homeCleared = (p: Profile) => BY_CHAPTER.slice(0, HOME_CHAPTERS).flat().filter((l) => peekRec(p, l.id)?.cleared).length;
+const homeTotal = () => BY_CHAPTER.slice(0, HOME_CHAPTERS).flat().length;
+const clearsIn = (p: Profile, ch: number) => (BY_CHAPTER[ch - 1] ?? []).filter((l) => peekRec(p, l.id)?.cleared).length;
+/** outside, the next place opens before the last stage of this one is done (parallel goals) */
+const needToLeave = (ch: number) => { const n = BY_CHAPTER[ch - 1]?.length ?? 0; return n >= 4 ? n - 1 : n; };
+
 export function chapterOpen(p: Profile, ch: number): boolean {
   if (ch === 1) return true;
   const def = CHAPTERS[ch - 1];
   if (!def || !BY_CHAPTER[ch - 1]?.length) return false;
+  if (ch === HOME_CHAPTERS + 1) return homeDone(p);
+  if (def.outside) return chapterOpen(p, ch - 1) && clearsIn(p, ch - 1) >= needToLeave(ch - 1);
   return chapterCleared(p, ch - 1) && totalStars(p) >= def.needStars;
 }
 
 /** why a chapter is still closed */
 export function chapterLock(p: Profile, ch: number): string {
   const def = CHAPTERS[ch - 1];
+  if (ch === HOME_CHAPTERS + 1) return `우리 집 스테이지를 모두 클리어하면 현관문이 열려요 (${homeCleared(p)}/${homeTotal()})`;
+  if (def?.outside) return `${CHAPTERS[ch - 2].name} 스테이지 ${needToLeave(ch - 1)}개 클리어 (${clearsIn(p, ch - 1)}/${needToLeave(ch - 1)})`;
   if (!chapterCleared(p, ch - 1)) return `${CHAPTERS[ch - 2].name} 마지막 스테이지를 클리어하세요`;
   return `⭐ ${def.needStars}개 필요 (현재 ${totalStars(p)}개)`;
 }
 
 export function stageOpen(p: Profile, level: LevelDef): boolean {
+  if (level.remix) return homeDone(p) && !!peekRec(p, level.remix.base)?.cleared;
   if (!chapterOpen(p, level.chapter)) return false;
   const ls = BY_CHAPTER[level.chapter - 1];
   const i = ls.indexOf(level);
-  return i <= 0 || !!peekRec(p, ls[i - 1].id)?.cleared;
+  if (i <= 0) return true;
+  if (CHAPTERS[level.chapter - 1]?.outside) {
+    // outside: the first stage opens the others; the place's big finish needs two clears
+    if (i === ls.length - 1 && ls.length >= 3) return clearsIn(p, level.chapter) >= 2;
+    return !!peekRec(p, ls[0].id)?.cleared;
+  }
+  return !!peekRec(p, ls[i - 1].id)?.cleared;
 }
 
 /** next stage to play after a level (or null at the end) */
-export function nextLevel(level: LevelDef): LevelDef | null {
+export function nextLevel(level: LevelDef, p?: Profile): LevelDef | null {
+  if (level.remix) return null;
+  const ch = CHAPTERS[level.chapter - 1];
+  if (ch?.outside && p) {
+    const ls = BY_CHAPTER[level.chapter - 1];
+    const open = ls.find((l) => l !== level && !peekRec(p, l.id)?.cleared && stageOpen(p, l));
+    if (open) return open;
+    const nx = BY_CHAPTER[level.chapter]?.[0];
+    return nx ?? null;
+  }
   const i = LEVELS.indexOf(level);
   return LEVELS[i + 1] ?? null;
+}
+
+/** tricks open as the world opens: hairball after the neighbourhood, knead after the shops */
+export function grantTricks(p: Profile): UnlockItem[] {
+  const out: UnlockItem[] = [];
+  const add = (id: TrickId) => { if (p.tricks.includes(id)) return; p.tricks.push(id); out.push({ kind: 'trick', id, name: TRICKS[id].name, icon: TRICKS[id].icon }); if (!p.trick) p.trick = id; };
+  if (chapterOpen(p, HOME_CHAPTERS + 2)) add('hairball');
+  if (chapterOpen(p, HOME_CHAPTERS + 3)) add('knead');
+  return out;
 }
 
 export function unlockMet(p: Profile, u: Unlock): boolean {
@@ -165,6 +211,9 @@ export function settle(p: Profile, level: LevelDef, r: Result, perk: PerkId): Se
   maxStat(p, 'toppleChainMax', run.maxes.toppleChain ?? 0);
   maxStat(p, 'tpMax', run.maxes.tpLen ?? 0);
   maxStat(p, 'bestRun', Math.round(r.score));
+  if (r.caught) addStat(p, 'caught', 1);
+  if (r.heart) addStat(p, 'heart', r.heart);
+  addStat(p, 'tricks', Object.entries(run.counters).reduce((a, [k, v]) => a + (k.startsWith('trick:') ? v : 0), 0));
 
   // discoveries pay out even on a failed attempt (learning by doing)
   const discoveries: Discovery[] = [];
@@ -181,6 +230,8 @@ export function settle(p: Profile, level: LevelDef, r: Result, perk: PerkId): Se
   const challenges: ChallengeLine[] = level.challenges.map((c, i) => ({ text: challengeText(c), icon: challengeIcon(c), done: false, isNew: false, before: !!rec.ch[i] }));
   let chapterClearedNow: number | null = null;
   let finale = false;
+  let worldEnd = false;
+  const doorBefore = homeDone(p);
   let stageChuru = 0;
   const newBest = r.success && r.score > prevBest;
   if (r.success) {
@@ -192,6 +243,7 @@ export function settle(p: Profile, level: LevelDef, r: Result, perk: PerkId): Se
     if (level.goal.kind !== 'score' && level.goal.kind !== 'wake' && run.swats.length && run.swats.every((s) => !s.target)) addStat(p, 'indirect', 1);
     if (level.paws >= 3 && r.pawsUsed === 1) addStat(p, 'oneShot', 1);
     if (level.goal.kind === 'sneak') addStat(p, 'sneak', 1);
+    if (r.perfect) addStat(p, 'perfect', 1);
     if (!wasCleared) { lines.push({ label: '첫 클리어', amount: CHURU.firstClear }); stageChuru += CHURU.firstClear; }
     const ns = rec.stars - prevStars;
     if (ns > 0) { lines.push({ label: `새 별 ${'★'.repeat(ns)}`, amount: CHURU.star * ns }); stageChuru += CHURU.star * ns; }
@@ -207,9 +259,10 @@ export function settle(p: Profile, level: LevelDef, r: Result, perk: PerkId): Se
     });
     if (!stageChuru) { lines.push({ label: '다시 하기 보상', amount: CHURU.replay }); stageChuru += CHURU.replay; }
     if (newBest && prevBest > 0) { lines.push({ label: '최고 기록 갱신', amount: CHURU.newBest }); stageChuru += CHURU.newBest; }
-    const bs = BY_CHAPTER[level.chapter - 1];
+    const bs = BY_CHAPTER[level.chapter - 1] ?? [];
     if (!wasCleared && bs[bs.length - 1] === level) chapterClearedNow = level.chapter;
-    if (level === LEVELS[LEVELS.length - 1] && !p.finale) { p.finale = true; finale = true; }
+    if (level.id === HOME_LAST && !p.finale) { p.finale = true; finale = true; }
+    if (r.finale && !p.worldEnd) { p.worldEnd = true; worldEnd = true; }
   } else {
     rec.fails++;
     rec.streak++;
@@ -227,6 +280,8 @@ export function settle(p: Profile, level: LevelDef, r: Result, perk: PerkId): Se
   for (const a of ach.achievements) lines.push({ label: `업적 · ${a.name}`, amount: a.reward });
   const unlocks = [...ach.unlocks];
   CHAPTERS.forEach((c, i) => { if (!openBefore[i] && chapterOpen(p, c.id)) unlocks.push({ kind: 'chapter', id: String(c.id), name: c.name, icon: c.icon, color: c.color }); });
+  unlocks.push(...grantTricks(p));
+  const doorOpened = !doorBefore && homeDone(p);
 
   let hint: string | null = null;
   if (!r.success && level.hints.length) hint = level.hints[Math.min(level.hints.length - 1, Math.max(0, rec.streak - 1))];
@@ -235,6 +290,6 @@ export function settle(p: Profile, level: LevelDef, r: Result, perk: PerkId): Se
   const churu = lines.reduce((a, l) => a + l.amount, 0);
   return {
     lines, churu, prevStars, stars: r.success ? r.stars : 0, prevBest, newBest, firstClear: r.success && !wasCleared,
-    challenges, discoveries, achievements: ach.achievements, unlocks, chapterCleared: chapterClearedNow, finale, hint,
+    challenges, discoveries, achievements: ach.achievements, unlocks, chapterCleared: chapterClearedNow, finale, doorOpened, worldEnd, hint,
   };
 }

@@ -31,6 +31,14 @@ export function formatWon(n: number): string {
   return '₩' + Math.round(n).toLocaleString('ko-KR');
 }
 
+/** the HUD's short form for sums too long for one line: ₩1,000조 7억 */
+export function formatWonShort(n: number): string {
+  if (n < 1e10) return formatWon(n);
+  const jo = Math.floor(n / 1e12), eok = Math.floor((n % 1e12) / 1e8);
+  if (!jo) return `₩${eok.toLocaleString('ko-KR')}억`;
+  return `₩${jo.toLocaleString('ko-KR')}조${eok ? ` ${eok.toLocaleString('ko-KR')}억` : ''}`;
+}
+
 /** hours of care → 3시간 / 4일 / 석 달 / 30년 */
 export function formatHeart(h: number): string {
   if (h < 24) return `${Math.round(h)}시간`;

@@ -1,5 +1,5 @@
 import { formatHeart, formatWon } from '../core/util';
-import type { Result } from '../game/Game';
+import { TRICKS, type Result, type TrickId } from '../game/Game';
 import type { LedgerEntry, LevelDef } from '../game/types';
 import type { Settlement, UnlockItem } from '../meta/rewards';
 import type { AchDef } from '../meta/achievements';
@@ -7,7 +7,7 @@ import type { Discovery } from '../meta/dex';
 import { CHURU_SVG, btn, churu, countUp, esc, h, wait } from './dom';
 
 export interface Sound {
-  click(): void; star(i: number): void; fanfare(): void; fail(): void; stamp(): void; reveal(): void; tick(i: number): void; discover(): void; jingle(): void;
+  click(): void; star(i: number): void; fanfare(): void; fail(): void; stamp(): void; reveal(): void; tick(i: number): void; discover(): void; jingle(): void; denied(): void;
 }
 
 export interface ChapterCard {
@@ -20,6 +20,11 @@ export interface MapData {
   chapters: ChapterCard[]; sel: number; stages: StageNode[];
   badges: { cats: boolean; dex: boolean; ach: boolean };
   catName: string; catColor: string;
+  /** the house (chapters 1–6, plus the request board) or the world outside (7+) */
+  region: 'home' | 'world';
+  world: { open: boolean; lock: string; fresh: boolean; ended: boolean };
+  /** the request board (sel = 0): remixed house stages */
+  board: { open: boolean; lock: string; stars: number; max: number } | null;
 }
 
 export interface IntroData {
@@ -27,6 +32,10 @@ export interface IntroData {
   challenges: { text: string; icon: string }[];
   cat: { name: string; color: string; perk: string };
   first: boolean;
+  /** tricks the player can equip (empty: none unlocked yet) and the chosen one; fixed = the stage decides */
+  tricks: { id: string; icon: string; name: string; desc: string }[];
+  trick: string | null;
+  trickFixed?: boolean;
 }
 
 /**
@@ -53,7 +62,7 @@ export class Screens {
 
   /* ------------------------------ chapter map ------------------------------ */
 
-  map(d: MapData, on: { chapter: (id: number) => void; stage: (id: string) => void; cats: () => void; dex: () => void; ach: () => void; settings: () => void; title: () => void }) {
+  map(d: MapData, on: { chapter: (id: number) => void; region: (r: 'home' | 'world') => void; stage: (id: string) => void; cats: () => void; dex: () => void; ach: () => void; settings: () => void; title: () => void }) {
     const e = h('div', 'mapscr');
     const head = h('div', 'maphead');
     head.append(btn('btn-round', '🏠', on.title));
@@ -67,14 +76,46 @@ export class Screens {
     tb('⚙️', '설정', false, on.settings);
     e.append(head, tools);
 
-    const sheet = h('div', 'mapsheet');
+    const sheet = h('div', `mapsheet ${d.region}`);
+    // the front door: home ⇄ the world outside
+    const reg = h('div', 'regions');
+    const rh = btn(`region${d.region === 'home' ? ' sel' : ''}`, '🏠 우리 집', () => { if (d.region !== 'home') { this.snd.click(); on.region('home'); } });
+    const rw = btn(`region world${d.region === 'world' ? ' sel' : ''}${d.world.open ? '' : ' locked'}${d.world.fresh ? ' badge' : ''}`,
+      d.world.open ? (d.world.ended ? '🚀 바깥 세상' : '🌍 바깥 세상') : '🔒 바깥 세상', () => {
+        if (d.world.open) { if (d.region !== 'world') { this.snd.click(); on.region('world'); } return; }
+        this.snd.denied();
+        lockTip.classList.remove('hidden');
+        lockTip.classList.remove('shake'); void lockTip.offsetWidth; lockTip.classList.add('shake');
+      });
+    reg.append(rh, rw);
+    const lockTip = h('div', 'regionlock hidden', `🚪 ${esc(d.world.lock)}`);
+    sheet.append(reg, lockTip);
+    if (d.region === 'world' && d.world.ended) sheet.append(h('div', 'worldend', '🪐 지구는 조각났지만… 기억 속의 장소는 언제든 다시 어지럽힐 수 있다냥.'));
     const tabs = h('div', 'chtabs');
+    if (d.board && d.region === 'home') {
+      const t = btn(`chtab board${d.sel === 0 ? ' sel' : ''}${d.board.open ? '' : ' locked'}`, `<span class="ci">${d.board.open ? '📋' : '🔒'}</span><span class="cn">의뢰</span>`, () => { this.snd.click(); on.chapter(0); });
+      t.style.setProperty('--cc', '#ffe3a8');
+      tabs.append(t);
+    }
     for (const c of d.chapters) {
       const t = btn(`chtab${c.id === d.sel ? ' sel' : ''}${c.open ? '' : ' locked'}${c.fresh ? ' badge' : ''}`, `<span class="ci">${c.open ? c.icon : '🔒'}</span><span class="cn">${c.id}</span>`, () => { this.snd.click(); on.chapter(c.id); });
       t.style.setProperty('--cc', c.color);
       tabs.append(t);
     }
     sheet.append(tabs);
+    if (d.sel === 0 && d.board) {
+      const b = d.board;
+      const info = h('div', 'chinfo');
+      info.style.setProperty('--cc', '#ffe3a8');
+      info.innerHTML = `<div class="cht"><span class="chno">의뢰판</span> 동네 고양이들의 부탁 <span class="chs">⭐ ${b.stars}/${b.max}</span></div>
+        <div class="chd">익숙한 방, 새로운 규칙. 앞발은 더 적게, 장난 기술은 더 영리하게.</div><div class="chl">의뢰는 기한도 없고 사라지지 않아요.</div>`;
+      sheet.append(info);
+      if (!b.open) sheet.append(h('div', 'chlock', `🔒 ${esc(b.lock)}`));
+      else sheet.append(this.stagePath(d.stages, on.stage, true));
+      e.append(sheet);
+      this.show(e);
+      return;
+    }
     const c = d.chapters.find((x) => x.id === d.sel)!;
     const info = h('div', 'chinfo');
     info.style.setProperty('--cc', c.color);
@@ -84,26 +125,30 @@ export class Screens {
     if (!c.open) {
       sheet.append(h('div', 'chlock', c.empty ? '🚧 준비 중인 장소예요' : `🔒 ${esc(c.lock)}`));
     } else {
-      const path = h('div', 'stagepath');
-      d.stages.forEach((s, i) => {
-        const n = btn(`snode${s.open ? '' : ' locked'}${s.cleared ? ' cleared' : ''}${s.current ? ' current' : ''}`,
-          s.open ? `<span class="sn">${i + 1}</span><span class="ss">${'★'.repeat(s.stars)}<i>${'★'.repeat(3 - s.stars)}</i></span><span class="sc">${s.ch.map((x) => (x ? '●' : '○')).join('')}</span>` : '<span class="sn">🔒</span>',
-          () => { if (s.open) { this.snd.click(); on.stage(s.id); } });
-        n.title = s.title;
-        const lab = h('div', 'slabel', esc(s.title));
-        const w = h('div', 'snwrap');
-        w.append(n, lab);
-        path.append(w);
-      });
-      sheet.append(path);
+      sheet.append(this.stagePath(d.stages, on.stage, false));
     }
     e.append(sheet);
     this.show(e);
   }
 
+  private stagePath(stages: StageNode[], pick: (id: string) => void, board: boolean): HTMLElement {
+    const path = h('div', `stagepath${board ? ' board' : ''}`);
+    stages.forEach((s, i) => {
+      const n = btn(`snode${s.open ? '' : ' locked'}${s.cleared ? ' cleared' : ''}${s.current ? ' current' : ''}`,
+        s.open ? `<span class="sn">${board ? s.id : i + 1}</span><span class="ss">${'★'.repeat(s.stars)}<i>${'★'.repeat(3 - s.stars)}</i></span><span class="sc">${s.ch.map((x) => (x ? '●' : '○')).join('')}</span>` : '<span class="sn">🔒</span>',
+        () => { if (s.open) { this.snd.click(); pick(s.id); } });
+      n.title = s.open ? s.title : s.goal;
+      const lab = h('div', 'slabel', esc(s.title));
+      const w = h('div', 'snwrap');
+      w.append(n, lab);
+      path.append(w);
+    });
+    return path;
+  }
+
   /* ------------------------------ stage card ------------------------------ */
 
-  intro(d: IntroData, on: { start: () => void; back: () => void; cat: () => void; replay?: () => void }) {
+  intro(d: IntroData, on: { start: () => void; back: () => void; cat: () => void; replay?: () => void; trick?: (id: string | null) => void }) {
     const L = d.level;
     const e = h('div', 'introscr');
     const card = h('div', 'sheet-card');
@@ -114,7 +159,31 @@ export class Screens {
       <div class="goalline"><span class="tgt"></span>${esc(L.goal.text)}</div>
       <div class="pawsline">앞발 장난 <b>${L.paws}번</b> · ⭐⭐ ${pts(L.stars[0])} · ⭐⭐⭐ ${pts(L.stars[1])}</div>
       <div class="chlist">${d.challenges.map((c, i) => `<div class="chrow${d.ch[i] ? ' done' : ''}"><span class="chi">${c.icon}</span><span class="cht2">${esc(c.text)}</span><span class="chk">${d.ch[i] ? '✔' : ''}</span></div>`).join('')}</div>
+      ${L.remix ? `<div class="remixnote">📋 의뢰: ${esc(L.remix.note)}</div>` : ''}
       ${L.tip ? `<div class="tip">💡 ${esc(L.tip)}</div>` : ''}`;
+    if (d.tricks.length) {
+      const tr = h('div', 'trickrow');
+      tr.append(h('span', 'tl', '장난 기술 <small>앞발 소모 없음 · 1번</small>'));
+      if (d.trickFixed) {
+        const t = d.tricks.find((x) => x.id === d.trick);
+        if (t) tr.append(h('span', 'trickchip fixed', `${t.icon} ${esc(t.name)} (고정)`));
+      } else {
+        const chips: HTMLElement[] = [];
+        const opts = [{ id: null as string | null, icon: '🚫', name: '없음', desc: '' }, ...d.tricks];
+        for (const t of opts) {
+          const c = btn(`trickchip${d.trick === t.id ? ' sel' : ''}`, `${t.icon} ${esc(t.name)}`, () => {
+            this.snd.click();
+            chips.forEach((x) => x.classList.remove('sel'));
+            c.classList.add('sel');
+            on.trick?.(t.id);
+          });
+          c.title = t.desc;
+          chips.push(c);
+          tr.append(c);
+        }
+      }
+      card.append(tr);
+    }
     const row = h('div', 'row');
     row.append(btn('btn-round', '←', on.back));
     const cat = btn('catchip', `<i class="catdot" style="background:${d.cat.color}"></i><span><b>${esc(d.cat.name)}</b><small>${esc(d.cat.perk)}</small></span>`, on.cat);
@@ -213,7 +282,7 @@ export class Screens {
     const what = (x: LedgerEntry) => x.label ?? ({ break: '파손', damage: '망가짐', fall: '추락 흠집', topple: '넘어짐', dunk: '침수', other: '피해' } as const)[x.what];
     const line = (x: LedgerEntry) => `<div class="rl"><span class="ri">${x.icon}</span><span class="rn">${esc(x.owner ? `${x.owner}의 ${x.name}` : x.name)} <small>${what(x)}</small>`
       + `${x.heart ? `<em class="rh">💗 정성 ${formatHeart(x.heart)}</em>` : ''}<span class="rp">${x.path.map((i) => `← ${i}`).join(' ')}</span></span>`
-      + `<b>${x.money > 0 ? formatWon(x.money) : '값을 매길 수 없음'}</b></div>`;
+      + `<b>${x.money >= 1e14 ? '측정 불가' : x.money > 0 ? formatWon(x.money) : '값을 매길 수 없음'}</b></div>`;
     const bonusBits = [r.heart ? '정성 보너스' : '', r.maxChain >= 3 ? `연쇄 x${r.maxChain}` : '', r.pawBonus ? '남은 앞발' : '', r.perfect ? '완전범죄' : '', r.run.swats.length && r.run.swats.every((x) => !x.target) ? '간접 공략' : ''].filter(Boolean).join(' · ');
     el.innerHTML = `<div class="rtitle">손해배상 청구서</div>
       <div class="rlines2">${top.map(line).join('')}${rest.length ? `<div class="rl more"><span class="ri">…</span><span class="rn">그 외 ${rest.length}건</span><b>${formatWon(rest.reduce((a, x) => a + x.money, 0))}</b></div>` : ''}${!top.length ? '<div class="rl more"><span class="rn">아무것도 망가지지 않았다…</span></div>' : ''}</div>
@@ -260,6 +329,7 @@ export class Screens {
       if (u.kind === 'cat') await revealCat(u.id);
       else if (u.kind === 'chapter') await this.reveal('chapter', u.icon, '새로운 장소 개방!', u.name, '지도에서 새로운 장소를 어지럽혀 보세요', u.color);
       else if (u.kind === 'acc') await this.reveal('unlock', u.icon, '꾸미기 아이템 획득!', u.name, '고양이 방에서 착용할 수 있어요');
+      else if (u.kind === 'trick') await this.reveal('unlock', u.icon, '새 장난 기술!', u.name, `${TRICKS[u.id as TrickId]?.desc ?? ''} 스테이지 카드에서 장착하고, 놀이 중 버튼으로 써요.`);
       else await this.reveal('unlock', '🎨', '새 털색 획득!', u.name, '고양이 방의 털색 탭에서 바꿀 수 있어요', u.color);
     }
   }

@@ -481,3 +481,54 @@ body { word-break: keep-all; overflow-wrap: anywhere; }
 .goal.seen .suspbar { animation: shakebar 0.4s linear infinite; }
 .suspbar.ping { animation: susping 0.5s ease-out; }
 @keyframes susping { 0% { transform: scale(1.12); box-shadow: 0 0 0 3px #ff5a6e88; } 100% { transform: scale(1); box-shadow: none; } }
+
+/* trick toggle (hairball / knead) */
+.trickbtn { position: absolute; right: 12px; bottom: calc(14px + var(--safe-bottom)); display: flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 18px; background: #fff3d6; border: 3px solid var(--ink); box-shadow: var(--shadow); font-size: 14px; }
+.trickbtn .ti { font-size: 20px; }
+.trickbtn.armed { background: #ffd23f; animation: pulse 0.8s ease-in-out infinite; }
+.trickbtn.used { opacity: 0.45; filter: grayscale(0.6); }
+.trickbtn.hidden { display: none; }
+.trickrow { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin: 8px 0 2px; font-size: 13px; }
+.trickrow .tl { opacity: 0.75; margin-right: 2px; }
+.trickchip { padding: 4px 10px; border-radius: 14px; border: 2px solid var(--ink); background: #fff; font-size: 13px; }
+.trickchip.sel { background: #ffd23f; }
+.trickchip.fixed { background: #e8f6ff; }
+.remixnote { margin: 6px 0; font-size: 13px; background: #f4ecff; border-radius: 10px; padding: 6px 10px; }
+
+/* ------------------------------ the front door: home ⇄ world ------------------------------ */
+.regions { display: flex; gap: 8px; margin: -2px 0 10px; }
+.region { flex: 1; font-family: var(--font); font-size: 15px; padding: 6px 0; border-radius: 14px; border: 3px solid var(--ink); background: #f3ebde; color: var(--ink); box-shadow: 0 3px 0 var(--ink); }
+.region.sel { background: #ffd8a8; transform: translateY(-2px); box-shadow: 0 5px 0 var(--ink); }
+.region.world.sel { background: #bfe3ff; }
+.region.locked { opacity: 0.7; }
+.regionlock { text-align: center; font-size: 13px; background: #fff1d6; border: 2px dashed var(--ink); border-radius: 12px; padding: 6px 10px; margin: -4px 0 10px; }
+.regionlock.shake { animation: shakebar 0.25s 2; }
+.mapsheet.world { background: linear-gradient(#f2f8ff, var(--cream) 40%); }
+.chtab.board { flex: 0.9; }
+.stagepath.board { flex-wrap: wrap; row-gap: 8px; }
+.stagepath.board::before { display: none; }
+.stagepath.board .snwrap { flex: 0 0 calc(25% - 3px); }
+.stagepath.board .snode { width: 56px; height: 56px; }
+.stagepath.board .sn { font-size: 15px; }
+.storyscr.door { background: radial-gradient(ellipse at 50% 120%, rgba(255, 214, 140, 0.9), rgba(60, 40, 70, 0.95) 55%, rgba(24, 16, 34, 0.98)); }
+.storyscr.door .sbig { color: #ffe6a0; }
+
+/* ------------------------------ the end of the world ------------------------------ */
+.finale { position: absolute; inset: 0; pointer-events: auto; overflow: hidden; animation: fadein 0.6s; }
+.finale.out { animation: fadeout 0.4s forwards; }
+.finale .fbars::before, .finale .fbars::after { content: ''; position: absolute; left: 0; right: 0; height: 9vh; background: #120c22; }
+.finale .fbars::before { top: 0; }
+.finale .fbars::after { bottom: 0; }
+.finale .fflash { position: absolute; inset: 0; background: #fffbe8; opacity: 0; pointer-events: none; }
+.finale .fflash.go { animation: fflash 1.4s ease-out; }
+@keyframes fflash { 0% { opacity: 0; } 6% { opacity: 1; } 100% { opacity: 0; } }
+.finale .fcap { position: absolute; left: 0; right: 0; bottom: calc(12vh + var(--safe-bottom)); text-align: center; color: white; font-size: 20px; opacity: 0; text-shadow: 0 2px 0 var(--ink); transition: opacity 0.4s; padding: 0 16px; }
+.finale .fcap.show { opacity: 1; animation: lineup 0.6s; }
+.finale .fcap.big { font-size: 54px; color: var(--sun); -webkit-text-stroke: 9px var(--ink); paint-order: stroke fill; bottom: 40vh; animation: titlein 0.5s cubic-bezier(.2,1.6,.4,1); }
+.finale .fskip { position: absolute; right: 14px; top: calc(9vh + 10px + var(--safe-top)); font-family: var(--font); font-size: 14px; color: white; background: rgba(255, 255, 255, 0.16); border: 2px solid rgba(255, 255, 255, 0.5); border-radius: 14px; padding: 5px 12px; transition: opacity 0.4s; }
+.finale .fskip.later { opacity: 0; pointer-events: none; }
+.finale .fbubble { position: absolute; transform: translate(-50%, -100%); background: white; color: var(--ink); border: 3px solid var(--ink); border-radius: 18px; padding: 8px 14px; font-size: 18px; white-space: nowrap; box-shadow: 0 4px 0 var(--ink); animation: bubblein 0.35s cubic-bezier(.2,1.6,.4,1); margin-top: -18px; }
+.finale .fbubble.cat { background: #fff1c9; }
+.finale .fbubble::after { content: ''; position: absolute; left: 50%; bottom: -12px; margin-left: -8px; border: 8px solid transparent; border-top-color: var(--ink); }
+.finale.fade::after { content: ''; position: absolute; inset: 0; background: #120c22; animation: fadein 0.6s forwards; }
+.worldend { text-align: center; font-size: 13px; color: white; background: linear-gradient(90deg, #2b2050, #5b3f8a); border-radius: 12px; padding: 6px 10px; margin: -4px 0 10px; }

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { formatHeart, formatWon } from '../core/util';
+import { formatHeart, formatWon, formatWonShort } from '../core/util';
 import type { LevelDef } from '../game/types';
 import type { Prop } from '../game/Prop';
 import { OBJECTS, type Discovery } from '../meta/dex';
@@ -77,6 +77,8 @@ export class UI {
   onEnd: () => void = () => {};
   onView: () => void = () => {};
   onHint: () => void = () => {};
+  onTrick: () => void = () => {};
+  private trickBtn!: HTMLElement;
 
   constructor(root: HTMLElement, private project: (p: THREE.Vector3) => { x: number; y: number }) {
     this.root = root;
@@ -119,6 +121,7 @@ export class UI {
     this.hintBtn = btn('btn-round small', '💡', () => this.onHint());
     this.sideEl.append(this.viewBtn, this.hintBtn);
     this.pawsEl = h('div', 'paws');
+    this.trickBtn = btn('trickbtn hidden', '', () => this.onTrick());
     this.endBtn = btn('endbtn', '😼 시치미 떼기 (끝내기)', () => this.onEnd());
     this.chainEl = h('div', 'chain');
     this.climaxEl = h('div', 'climax');
@@ -128,7 +131,7 @@ export class UI {
     this.coachEl = h('div', 'coach');
     this.inspectEl = h('div', 'inspect');
     this.labelsEl = h('div', 'roomlabels');
-    this.hud.append(this.labelsEl, top, this.sideEl, this.pawsEl, this.endBtn, this.chainEl, this.climaxEl, this.toastEl, this.aimEl, this.bannerEl, this.coachEl, this.inspectEl);
+    this.hud.append(this.labelsEl, top, this.sideEl, this.pawsEl, this.trickBtn, this.endBtn, this.chainEl, this.climaxEl, this.toastEl, this.aimEl, this.bannerEl, this.coachEl, this.inspectEl);
   }
 
   /* ------------------------------ HUD ------------------------------ */
@@ -181,6 +184,14 @@ export class UI {
     }
   }
 
+  /** the equipped trick's toggle (hidden when none) */
+  setTrick(t: { icon: string; name: string } | null, armed: boolean, used: boolean) {
+    this.trickBtn.classList.toggle('hidden', !t);
+    if (!t) return;
+    this.trickBtn.innerHTML = `<span class="ti">${t.icon}</span><span class="tn">${used ? '사용함' : armed ? `${esc(t.name)} 준비!` : esc(t.name)}</span>`;
+    this.trickBtn.classList.toggle('armed', armed);
+    this.trickBtn.classList.toggle('used', used);
+  }
   setScore(total: number) { this.targetScore = total; }
   setSuspicion(v: number, seen: boolean) {
     this.suspFill.style.width = `${v}%`;
@@ -312,7 +323,7 @@ export class UI {
     if (this.shownScore !== this.targetScore) {
       const d = this.targetScore - this.shownScore;
       this.shownScore += Math.abs(d) < 50 ? d : d * Math.min(1, dt * 10);
-      this.scoreVal.textContent = formatWon(this.shownScore);
+      this.scoreVal.textContent = formatWonShort(this.shownScore);
       this.meterFill.style.width = `${Math.min(100, (this.shownScore / this.maxScore) * 100)}%`;
       this.marks[1].classList.toggle('on', this.shownScore >= this.stars[0]);
       this.marks[2].classList.toggle('on', this.shownScore >= this.stars[1]);

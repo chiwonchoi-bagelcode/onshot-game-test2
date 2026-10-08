@@ -4,12 +4,13 @@ import * as THREE from 'three';
 import { Stage } from './render/Stage';
 import { Sfx } from './audio/Sfx';
 import { Music } from './audio/Music';
-import { Game, type Result } from './game/Game';
+import { Game, TRICKS, type Result, type TrickId } from './game/Game';
 import { Input } from './game/Input';
 import { UI } from './ui/UI';
 import { Screens, type ChapterCard, type MapData, type StageNode } from './ui/Screens';
 import { CatRoom } from './ui/CatRoom';
-import { BY_CHAPTER, CHAPTERS, LEVELS, levelById } from './levels/index';
+import { Finale } from './ui/Finale';
+import { BY_CHAPTER, CHAPTERS, LEVELS, REMIXES, levelById } from './levels/index';
 import { THEME_STYLE } from './levels/rooms';
 import type { LevelDef, TutorialStep } from './game/types';
 import { PreludePlayer } from './game/Prelude';
@@ -19,8 +20,9 @@ import { CATS, catById, withSkin } from './meta/cats';
 import { challengeDone, challengeIcon, challengeText } from './meta/challenges';
 import { DISCOVERIES, OBJECTS, discoveryById } from './meta/dex';
 import { ACHIEVEMENTS } from './meta/achievements';
-import { CHURU, chapterCleared, chapterLock, chapterOpen, checkAchievements, nextLevel, settle, stageOpen, totalStars } from './meta/rewards';
-import { formatWon } from './core/util';
+import { CHURU, chapterCleared, chapterLock, chapterOpen, checkAchievements, homeDone, nextLevel, settle, stageOpen, totalStars } from './meta/rewards';
+import { HOME_CHAPTERS } from './levels/chapters';
+import { formatHeart, formatWon } from './core/util';
 
 type Mode = 'title' | 'map' | 'intro' | 'prelude' | 'play' | 'pause' | 'result' | 'cats' | 'panel';
 
@@ -53,6 +55,8 @@ class App {
   /** a stage opening is playing */
   private prelude: PreludePlayer | null = null;
   private forcePrelude = false;
+  /** the end-of-the-world cinematic, while it plays */
+  private fin: Finale | null = null;
 
   constructor() {
     this.stage = new Stage(document.getElementById('game') as HTMLCanvasElement);
@@ -67,7 +71,7 @@ class App {
     this.ui = new UI(document.getElementById('ui')!, (p) => this.stage.toScreen(p));
     const snd = {
       click: () => this.sfx.click(), star: (i: number) => this.sfx.star(i), fanfare: () => this.sfx.fanfare(), fail: () => this.sfx.fail(),
-      stamp: () => this.sfx.stamp(), reveal: () => this.sfx.reveal(), tick: (i: number) => this.sfx.tick(i), discover: () => this.sfx.discover(), jingle: () => this.sfx.jingle(),
+      stamp: () => this.sfx.stamp(), reveal: () => this.sfx.reveal(), tick: (i: number) => this.sfx.tick(i), discover: () => this.sfx.discover(), jingle: () => this.sfx.jingle(), denied: () => this.sfx.denied(),
       meow: (k?: 'short' | 'long' | 'ask' | 'smug' | 'annoyed', p?: number) => this.sfx.meow(k, p), purr: (d?: number) => this.sfx.purr(d),
     };
     this.screens = new Screens(this.ui.overlay, this.ui.top, snd);
@@ -126,6 +130,7 @@ class App {
           if (this.level.goal.kind === 'sneak' && e.value >= 60 && !this.hintShown) { this.hintShown = true; ui.toast('😰 집사가 뒤척여요! 더 조용히…', 2200); }
           break;
         case 'suspicion': ui.setSuspicion(e.value, e.seen); if (e.seen) this.sfx.denied(); break;
+        case 'trick': this.syncTrick(); break;
         case 'discover': {
           if (this.profile.disc.includes(e.id)) break;
           const d = discoveryById(e.id);
@@ -156,6 +161,7 @@ class App {
     ui.onEnd = () => { this.sfx.click(); g.requestEnd(); };
     ui.onView = () => { this.sfx.click(); this.stage.showOverview(!this.stage.overview); if (!this.stage.overview) this.stage.lookAtPoint(g.cat.group.position); ui.setViewActive(this.stage.overview); };
     ui.onHint = () => this.showHint();
+    ui.onTrick = () => { if (!g.trick || g.trickUsed || this.mode !== 'play') return; this.sfx.click(); g.armTrick(!g.trickArmed); };
     this.input.onAim = (label, power, x, y, special) => {
       ui.aimLabel(label, power, x, y, special);
       this.aiming = !!label;
@@ -188,6 +194,7 @@ class App {
     if (!force && this.loadedId === level.id && this.game.phase === 'intro') { this.stage.setFocus(null); return; }
     this.loadedId = level.id;
     this.applyCat();
+    this.game.trick = this.trickFor(level);
     this.game.load(level);
     this.applyTheme(level);
     this.stage.setFocus(null);
@@ -203,15 +210,29 @@ class App {
 
   private setInsets(top: number, bottom: number) { this.stage.setInsets(top, bottom); }
 
+  /** the trick this run uses: the stage's own (remixes) or the equipped one */
+  private trickFor(level: LevelDef): TrickId | null {
+    if (level.remix?.trick) return level.remix.trick;
+    const t = this.profile.trick as TrickId | null;
+    return t && this.profile.tricks.includes(t) ? t : null;
+  }
+
+  private syncTrick() {
+    const g = this.game;
+    this.ui.setTrick(g.trick ? TRICKS[g.trick] : null, g.trickArmed, g.trickUsed);
+  }
+
   private currentChapter(): number {
     let ch = 1;
-    for (const c of CHAPTERS) if (chapterOpen(this.profile, c.id)) ch = c.id;
+    // the outside stays a surprise until the front door has opened
+    for (const c of CHAPTERS) if (chapterOpen(this.profile, c.id) && (c.id <= HOME_CHAPTERS || this.profile.outside)) ch = c.id;
     return ch;
   }
 
   /** the stage a chapter's diorama shows on the map: the next one to play */
   private focusStage(ch: number): LevelDef {
-    const ls = BY_CHAPTER[ch - 1];
+    if (ch === 0) return REMIXES.find((l) => !peekRec(this.profile, l.id)?.cleared && stageOpen(this.profile, l)) ?? REMIXES[0];
+    const ls = BY_CHAPTER[ch - 1] ?? [];
     if (!ls.length) return LEVELS[0];
     return ls.find((l) => !peekRec(this.profile, l.id)?.cleared && stageOpen(this.profile, l)) ?? ls[ls.length - 1];
   }
@@ -249,16 +270,33 @@ class App {
     });
   }
 
+  private lastHome: number | null = null;
+  /** the furthest place outside that is open */
+  private lastWorld(): number {
+    let ch = HOME_CHAPTERS + 1;
+    for (const c of CHAPTERS) if (c.id > HOME_CHAPTERS && chapterOpen(this.profile, c.id)) ch = c.id;
+    return ch;
+  }
+
+  /** the map tab a stage belongs to (request-board stages live on tab 0) */
+  private tabOf(level: LevelDef) { return level.remix ? 0 : level.chapter; }
+
   toMap(ch = this.mapChapter) {
+    const p = this.profile;
+    // an old save that already cleared the whole house: the door opens now
+    if (homeDone(p) && !p.outside) { void this.openDoor(); return; }
     this.mode = 'map';
     this.leaveOverlayModes();
+    if (ch === 0 && !homeDone(p)) ch = 1;
     this.mapChapter = ch;
-    const p = this.profile;
+    const region: 'home' | 'world' = ch > HOME_CHAPTERS ? 'world' : 'home';
+    if (region === 'home') this.lastHome = ch;
     const lv = this.focusStage(ch);
-    if (BY_CHAPTER[ch - 1].length) this.loadLevel(lv);
+    if (ch === 0 || BY_CHAPTER[ch - 1].length) this.loadLevel(lv);
     this.stage.swayAmp = 0.3;
     this.music.setMood('calm');
-    const chapters: ChapterCard[] = CHAPTERS.map((c) => {
+    const inRegion = (id: number) => (region === 'world' ? id > HOME_CHAPTERS : id <= HOME_CHAPTERS);
+    const chapters: ChapterCard[] = CHAPTERS.filter((c) => inRegion(c.id)).map((c) => {
       const ls = BY_CHAPTER[c.id - 1];
       const stars = ls.reduce((a, l) => a + (peekRec(p, l.id)?.stars ?? 0), 0);
       const chal = ls.reduce((a, l) => a + (peekRec(p, l.id)?.ch.filter(Boolean).length ?? 0), 0);
@@ -269,19 +307,29 @@ class App {
         fresh: open && !p.chapterIntro.includes(c.id), empty: ls.length === 0,
       };
     });
-    const ls = BY_CHAPTER[ch - 1];
+    const ls = ch === 0 ? REMIXES : BY_CHAPTER[ch - 1];
     const stages: StageNode[] = ls.map((l) => {
       const r = peekRec(p, l.id);
-      return { id: l.id, title: l.title, stars: r?.stars ?? 0, ch: l.challenges.map((_, i) => !!r?.ch[i]), chN: l.challenges.length, open: stageOpen(p, l), cleared: !!r?.cleared, current: l === lv && !r?.cleared, goal: l.goal.short };
+      const open = stageOpen(p, l);
+      const why = l.remix && !open ? `${l.remix.base} 스테이지를 먼저 클리어하세요` : l.goal.short;
+      return { id: l.id, title: l.title, stars: r?.stars ?? 0, ch: l.challenges.map((_, i) => !!r?.ch[i]), chN: l.challenges.length, open, cleared: !!r?.cleared, current: l === lv && !r?.cleared, goal: why };
     });
     const def = catById(p.cat);
+    const worldOpen = chapterOpen(p, HOME_CHAPTERS + 1);
     const d: MapData = {
-      churu: p.churu, stars: totalStars(p), maxStars: LEVELS.length * 3, chapters, sel: ch, stages,
+      churu: p.churu, stars: totalStars(p), maxStars: (LEVELS.length + REMIXES.length) * 3, chapters, sel: ch, stages,
       badges: { cats: p.fresh.includes('cats'), dex: p.fresh.includes('dex'), ach: p.fresh.includes('ach') },
       catName: def.name, catColor: def.color,
+      region,
+      world: { open: worldOpen, lock: chapterLock(p, HOME_CHAPTERS + 1), fresh: worldOpen && !p.chapterIntro.includes(HOME_CHAPTERS + 1), ended: p.worldEnd },
+      board: region === 'home' && REMIXES.length ? {
+        open: homeDone(p), lock: '우리 집 스테이지를 모두 클리어하면 동네 고양이들이 의뢰를 맡겨요',
+        stars: REMIXES.reduce((a, l) => a + (peekRec(p, l.id)?.stars ?? 0), 0), max: REMIXES.length * 3,
+      } : null,
     };
     this.screens.map(d, {
       chapter: (id) => this.toMap(id),
+      region: (r) => this.toMap(r === 'home' ? (this.lastHome ?? 1) : this.lastWorld()),
       stage: (id) => { const l = levelById(id); if (l) this.toIntro(l); },
       cats: () => this.toCats(() => this.toMap()),
       dex: () => this.toDex(),
@@ -300,7 +348,7 @@ class App {
   async toIntro(level: LevelDef) {
     this.mode = 'intro';
     this.leaveOverlayModes();
-    this.mapChapter = level.chapter;
+    this.mapChapter = this.tabOf(level);
     this.loadLevel(level);
     const p = this.profile;
     // entering a new space for the first time: chapter title + camera swoop
@@ -321,9 +369,12 @@ class App {
       level, stars: r?.stars ?? 0, best: r?.best ?? 0, ch: level.challenges.map((_, i) => !!r?.ch[i]),
       challenges: level.challenges.map((c) => ({ text: challengeText(c), icon: challengeIcon(c) })),
       cat: { name: def.name, color: def.color, perk: def.perk.name }, first: !r?.cleared,
+      tricks: (level.remix?.trick ? [level.remix.trick] : p.tricks).map((id) => ({ id, ...TRICKS[id as TrickId] })),
+      trick: level.remix?.trick ?? p.trick, trickFixed: !!level.remix?.trick,
     }, {
+      trick: (id) => { p.trick = id; this.save(); this.game.trick = this.trickFor(level); },
       start: () => { this.sfx.click(); this.startPlay(); },
-      back: () => { this.sfx.click(); this.toMap(level.chapter); },
+      back: () => { this.sfx.click(); this.toMap(this.tabOf(level)); },
       cat: () => this.toCats(() => this.toIntro(level)),
       replay: level.prelude && p.preludes.includes(level.id) ? () => { this.sfx.click(); this.forcePrelude = true; this.startPlay(); } : undefined,
     });
@@ -375,6 +426,7 @@ class App {
     this.setInsets(140, 82);
     this.ui.showHud(level, { roomy: this.stage.roomy, labels: this.game.roomLabels, watched: this.game.watchers.length > 0 });
     this.ui.setPaws(this.game.paws, this.game.maxPaws);
+    this.syncTrick();
     this.ui.setViewActive(false);
     this.ui.resetChainTier();
     this.game.emitGoal();
@@ -524,7 +576,7 @@ class App {
       challenges: this.level.challenges.map((c, i) => ({ text: challengeText(c), icon: challengeIcon(c), done: !!rec?.ch[i] || challengeDone(c, fake) })),
       resume: () => { this.sfx.click(); this.mode = 'play'; this.frozen = false; this.screens.clear(); this.last = performance.now(); },
       retry: () => { this.sfx.click(); this.mode = 'play'; this.frozen = false; this.retry(); },
-      map: () => { this.sfx.click(); this.keepDiscoveries(); this.toMap(this.level.chapter); },
+      map: () => { this.sfx.click(); this.keepDiscoveries(); this.toMap(this.tabOf(this.level)); },
       settings: () => { this.sfx.click(); this.toSettings(() => { this.mode = 'play'; this.pause(); }); },
     });
   }
@@ -536,22 +588,75 @@ class App {
     const p = this.profile;
     const s = settle(p, level, r, this.game.perk);
     this.save();
-    const next = nextLevel(level);
-    const hasNext = !!next && stageOpen(p, next);
+    // the end of the world: the cinematic comes first, the receipt after
+    if (r.finale) {
+      await this.earthEnd(!s.worldEnd);
+      if (this.mode !== 'result') return;
+    }
+    const next = nextLevel(level, p);
+    const hasNext = !!next && stageOpen(p, next) && !s.doorOpened;
     await this.screens.result(level, r, s, hasNext, {
       retry: () => { this.sfx.click(); this.retry(); },
       next: () => { this.sfx.click(); if (next) void this.toIntro(next); },
-      map: () => { this.sfx.click(); this.toMap(level.chapter); },
+      map: () => { this.sfx.click(); this.toMap(this.tabOf(level)); },
     });
-    // reward reveals, one by one, on top of the result card
-    if (s.achievements.length || s.unlocks.length) {
-      await this.screens.revealAll(s.achievements, s.unlocks, s.discoveries, (id) => this.catRoom.reveal(id, this.ui.top));
+    // reward reveals, one by one, on top of the result card (the door speaks for chapter 7 itself)
+    const unlocks = s.doorOpened ? s.unlocks.filter((u) => !(u.kind === 'chapter' && u.id === String(HOME_CHAPTERS + 1))) : s.unlocks;
+    if (s.achievements.length || unlocks.length) {
+      await this.screens.revealAll(s.achievements, unlocks, s.discoveries, (id) => this.catRoom.reveal(id, this.ui.top));
     }
-    if (s.chapterCleared && !s.finale) {
+    if (s.chapterCleared && !s.finale && !s.worldEnd) {
       const c = CHAPTERS[s.chapterCleared - 1];
-      await this.screens.story([`${c.name}은(는) 이제 완벽한 난장판이다.`, '집사는 오늘도 범인을 찾지 못했다…'], `${c.icon} ${c.name} 정복!`, 'clear');
+      const out = CHAPTERS[s.chapterCleared - 1]?.outside;
+      await this.screens.story(out ? [`${c.name}도 이제 완벽한 난장판이다.`, '사람들은 오늘도 범인을 찾지 못했다…', '저 멀리, 더 큰 무언가가 고양이를 부른다.'] : [`${c.name}은(는) 이제 완벽한 난장판이다.`, '집사는 오늘도 범인을 찾지 못했다…'], `${c.icon} ${c.name} 정복!`, 'clear');
     }
     if (s.finale) await this.finale();
+    if (s.worldEnd) await this.afterEarth();
+    if (s.doorOpened) await this.openDoor();
+  }
+
+  /** the planet goes, a little ship gets away; first time: watch at least a moment */
+  private async earthEnd(seen: boolean) {
+    this.screens.clear();
+    this.ui.hideHud();
+    this.ui.hand(null);
+    this.music.setMood('calm');
+    const p = this.profile;
+    const def = catById(p.cat);
+    this.fin = new Finale(this.stage, this.sfx, withSkin(def, p.skinOf[def.id]), p.wear[def.id] ?? []);
+    await this.fin.play(this.ui.top, seen);
+    this.fin = null;
+  }
+
+  private async afterEarth() {
+    await this.screens.story([
+      '그날, 지구는 사라졌다.',
+      '사건 일지의 첫 줄에는 털실 한 뭉치가 적혀 있었다.',
+      '하지만 우주선 안은 따뜻했고, 츄르는 넉넉했다.',
+      '집사는 끝내 범인을 찾지 못했다.',
+      '…다음 행성에는 뭐가 있을까냥?',
+    ], '🪐 와장창 대우주 완결!', 'finale');
+  }
+
+  /** all thirty house stages cleared: the front door opens onto the world */
+  private async openDoor() {
+    const p = this.profile;
+    p.outside = true;
+    this.save();
+    this.mode = 'result';
+    this.leaveOverlayModes();
+    this.music.setMood('calm');
+    this.sfx.reveal();
+    await this.screens.story([
+      '거실, 주방, 욕실, 아이방, 서재, 그리고 온 집 안.',
+      '더 깨뜨릴 게 남아 있지 않았다.',
+      '그때, 현관문 틈으로 바깥 냄새가 들어왔다.',
+      '끼이익—',
+      '이 집은… 너무 작다냥.',
+    ], '🚪 현관문이 열렸다!', 'door');
+    const first = BY_CHAPTER[HOME_CHAPTERS]?.[0];
+    if (first) await this.toIntro(first);
+    else this.toMap(1);
   }
 
   private async finale() {
@@ -599,7 +704,8 @@ class App {
         ['누적 손해액', formatWon(stat(p, 'damage'))], ['한 판 최고 손해액', formatWon(stat(p, 'bestRun'))], ['깨뜨린 물건', `${fmt(stat(p, 'breaks'))}개`],
         ['넘어뜨린 물건', `${fmt(stat(p, 'topples'))}개`], ['물에 빠뜨린 물건', `${fmt(stat(p, 'dunks'))}개`], ['최대 연쇄', `x${stat(p, 'chainMax')}`],
         ['휘두른 앞발', `${fmt(stat(p, 'swats'))}번`], ['플레이', `${fmt(stat(p, 'plays'))}판`], ['클리어', `${fmt(stat(p, 'clears'))}번`],
-        ['집사 깨운 횟수', `${fmt(stat(p, 'wakes'))}번`], ['모은 별', `${totalStars(p)}/${LEVELS.length * 3}`], ['함께하는 고양이', `${p.cats.length}/${CATS.length}`],
+        ['집사 깨운 횟수', `${fmt(stat(p, 'wakes'))}번`], ['모은 별', `${totalStars(p)}/${(LEVELS.length + REMIXES.length) * 3}`], ['함께하는 고양이', `${p.cats.length}/${CATS.length}`],
+        ['망가뜨린 정성', formatHeart(stat(p, 'heart'))], ['완전 범죄', `${fmt(stat(p, 'perfect'))}번`], ['들킨 횟수', `${fmt(stat(p, 'caught'))}번`],
       ],
     }, () => { this.sfx.click(); this.toMap(); });
   }
@@ -662,6 +768,7 @@ class App {
       if (this.prelude.done) this.endPrelude();
     }
     this.catRoom.update(dt);
+    this.fin?.update(dt);
     this.stage.update(dt);
     this.stage.render();
     this.ui.update(dt);
