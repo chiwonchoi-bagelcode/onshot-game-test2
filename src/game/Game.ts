@@ -1278,7 +1278,7 @@ export class Game {
   private beginEnding(success: boolean) {
     this.phase = 'ending';
     this.emit({ type: 'phase', phase: 'ending' });
-    const pawBonus = success ? this.paws * 10000 * (this.perk === 'bonus2x' ? 2 : 1) : 0;
+    const pawBonus = success ? this.paws * (this.level.pawValue ?? 10000) * (this.perk === 'bonus2x' ? 2 : 1) : 0;
     if (pawBonus) { this.score += pawBonus; this.bonus += pawBonus; }
     // nobody saw a thing: the perfect crime is worth 30% more
     const perfect = success && this.watchers.length > 0 && !this.caught && this.maxSuspicion < 35;

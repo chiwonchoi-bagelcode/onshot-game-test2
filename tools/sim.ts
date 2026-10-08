@@ -73,6 +73,8 @@ export function runPlan(level: LevelDef, plan: Action[], verbose = false): SimOu
     let guard = 0;
     while (!g.canAct() && guard++ < 600 && g.phase === 'ready') g.simulate(1 / 60);
     if (g.phase !== 'ready') break;
+    // a pause without a paw (timing plans)
+    if (a.pick === 'wait') { g.simulate(a.wait ?? 0.6); continue; }
     const p = findProp(g, a);
     if (!p) { log.push(`! no prop ${a.pick}`); continue; }
     const c = p.center(new THREE.Vector3());

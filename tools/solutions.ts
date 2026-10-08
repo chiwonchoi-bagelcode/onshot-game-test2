@@ -10,8 +10,9 @@ import { CASES as C5 } from './cases/ch5';
 import { CASES as C6 } from './cases/ch6';
 import { CASES as C7 } from './cases/ch7';
 import { CASES as C8 } from './cases/ch8';
+import { CASES as C9 } from './cases/ch9';
 
-const CASES: Case[] = [...C1, ...C2, ...C3, ...C4, ...C5, ...C6, ...C7, ...C8];
+const CASES: Case[] = [...C1, ...C2, ...C3, ...C4, ...C5, ...C6, ...C7, ...C8, ...C9];
 const robust = process.argv.includes('--robust');
 const only = process.argv.filter((a) => /^\d(-\d)?$/.test(a));
 const pick = (c: Case) => !only.length || only.some((o) => c.level === o || c.level.startsWith(o + '-'));

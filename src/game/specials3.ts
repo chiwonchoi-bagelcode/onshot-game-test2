@@ -4,6 +4,7 @@ import type { Prop } from './Prop';
 import type { Special } from './types';
 import type { Loop } from '../audio/Sfx';
 import { clamp, rand, srand } from '../core/util';
+import { GRAVITY as GRAV } from '../core/constants';
 
 /* ------------------------------------------------------------------ */
 /* Outside-world gadgets. The paw never gets stronger: it pulls a      */
@@ -349,6 +350,120 @@ export class PowerStripSpecial implements Special {
       game.breakProp(q, 99);
     }
     if (k) game.count('short', k);
+  }
+}
+
+/* ------------------------------ timed machines ------------------------------ */
+
+/**
+ * A parking barrier arm that lifts on a fixed rhythm (cars leaving), so a
+ * rolling thing gets through only if it arrives while the arm is up. Its
+ * button holds it open for good.
+ */
+export class BarrierSpecial implements Special {
+  label = '차단기';
+  held = false;
+  private q = new THREE.Quaternion();
+  constructor(private o: { yaw: number; period: number; open: number; offset?: number }) {}
+  busy() { return false; }
+  /** 0 = down, 1 = up at game time t */
+  liftAt(t: number) {
+    if (this.held) return 1;
+    const u = (((t + (this.o.offset ?? 0)) % this.o.period) + this.o.period) % this.o.period;
+    const k = Math.min(1, u / 0.5, Math.max(0, (this.o.open - u) / 0.5));
+    return u < this.o.open ? k : 0;
+  }
+  step(game: Game, p: Prop) {
+    const a = this.liftAt(game.time) * 1.35;
+    this.q.setFromEuler(new THREE.Euler(0, this.o.yaw, a, 'YXZ'));
+    p.body.setNextKinematicRotation({ x: this.q.x, y: this.q.y, z: this.q.z, w: this.q.w });
+  }
+  onSwat(game: Game, p: Prop): boolean {
+    game.emit({ type: 'word', text: '덜컹', pos: p.center(new THREE.Vector3()), size: 0.8, color: '#ffffff' });
+    return true;
+  }
+}
+
+/**
+ * A crane: the trolley shuttles along the jib; pulling the lever drops the
+ * hanging load wherever the trolley happens to be.
+ */
+export class CraneSpecial implements Special {
+  released = false;
+  private x = 0;
+  constructor(private o: { trolley: THREE.Object3D; cable: THREE.Object3D; load: Prop; x0: number; x1: number; z: number; y: number; speed: number; hang: number }) {}
+  busy() { return false; }
+  /** trolley x at game time t (ping-pong) */
+  xAt(t: number) {
+    const L = this.o.x1 - this.o.x0;
+    const u = (t * this.o.speed) % (2 * L);
+    return this.o.x0 + (u < L ? u : 2 * L - u);
+  }
+  step(game: Game) {
+    this.x = this.xAt(game.time);
+    const l = this.o.load;
+    if (!this.released && l.alive) l.body.setNextKinematicTranslation({ x: this.x, y: this.o.y - this.o.hang, z: this.o.z });
+  }
+  frame(game: Game) {
+    this.o.trolley.position.x = this.x;
+    this.o.cable.position.x = this.x;
+    this.o.cable.visible = !this.released;
+    void game;
+  }
+  release(game: Game, by: Prop) {
+    if (this.released) return;
+    this.released = true;
+    const l = this.o.load;
+    l.body.setBodyType(game.R.RigidBodyType.Dynamic, true);
+    (l as { kinematic: boolean }).kinematic = false;
+    l.body.wakeUp();
+    blame(game, l, by);
+    l.graceUntil = game.time + 0.1;
+    game.sfx.clunk();
+    game.emit({ type: 'word', text: '철컥… 휘이잉', pos: l.center(new THREE.Vector3()), size: 1.2, color: '#ffd23f' });
+  }
+}
+
+/**
+ * A wrecking ball hanging from a jib: once released it swings as a pendulum
+ * and plows through whatever is in its arc (kinematic: nothing stops it).
+ */
+export class WreckingBallSpecial implements Special {
+  swinging = false;
+  private t0 = 0;
+  private q = new THREE.Quaternion();
+  constructor(private o: { pivot: THREE.Vector3; len: number; dir: THREE.Vector3; from: number; chain: THREE.Object3D }) {}
+  busy() { return this.swinging; }
+  release(game: Game, p: Prop, by: Prop) {
+    if (this.swinging) return;
+    this.swinging = true;
+    this.t0 = game.time;
+    blame(game, p, by);
+    game.sfx.whoosh(1);
+    game.discover('trigger', p.center(new THREE.Vector3()));
+  }
+  angleAt(game: Game) {
+    if (!this.swinging) return this.o.from;
+    const t = game.time - this.t0;
+    const w = Math.sqrt(-GRAV / this.o.len) * 0.9;
+    return this.o.from * Math.cos(w * t) * Math.exp(-t * 0.12);
+  }
+  step(game: Game, p: Prop) {
+    const a = this.angleAt(game);
+    const d = this.o.dir;
+    const x = this.o.pivot.x + d.x * Math.sin(a) * this.o.len, z = this.o.pivot.z + d.z * Math.sin(a) * this.o.len;
+    const y = this.o.pivot.y - Math.cos(a) * this.o.len;
+    p.body.setNextKinematicTranslation({ x, y, z });
+    if (this.swinging && game.time - this.t0 > 12) this.swinging = false;
+  }
+  frame(game: Game, p: Prop) {
+    const t = p.body.translation();
+    const c = this.o.chain;
+    const v = new THREE.Vector3(t.x, t.y, t.z).sub(this.o.pivot);
+    c.position.copy(this.o.pivot).addScaledVector(v, 0.5);
+    c.scale.set(1, v.length(), 1);
+    c.quaternion.setFromUnitVectors(new THREE.Vector3(0, -1, 0), v.normalize());
+    void game; void this.q;
   }
 }
 

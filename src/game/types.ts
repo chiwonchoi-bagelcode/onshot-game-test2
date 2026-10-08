@@ -199,6 +199,8 @@ export interface LevelDef {
   prelude?: import('./Prelude').PreludeDef;
   /** which actor comes back to discover the mess at the end */
   reactor?: string;
+  /** prank points per paw left over (default 10,000; bigger places pay more for a clean job) */
+  pawValue?: number;
 }
 
 export type RAPIERType = typeof RAPIER;

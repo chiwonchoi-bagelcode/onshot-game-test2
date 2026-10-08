@@ -4,7 +4,7 @@ import { mergeByMaterial } from '../render/merge';
 import type { Builder } from '../levels/Builder';
 import type { ColDef, Worth } from './types';
 import type { Prop } from './Prop';
-import { CableSpecial, CarSpecial, HoseSpecial, PowerStripSpecial, SwingSpecial, TriggerSpecial, WobbleSpecial, type CarParts } from './specials3';
+import { BarrierSpecial, CableSpecial, CarSpecial, HoseSpecial, PowerStripSpecial, SwingSpecial, TriggerSpecial, WobbleSpecial, type CarParts } from './specials3';
 import { fruit, type O, type V3 } from './catalog';
 import { screenTexture } from '../render/kit';
 
@@ -737,4 +737,70 @@ export function powerStrip(b: Builder, o: O): { prop: Prop; strip: PowerStripSpe
     mass: 0.4, mat: 'electronic', value: 15000, special: strip, friction: 0.8, traits: ['젖으면 합선'],
   });
   return { prop, strip };
+}
+
+/* ------------------------------ city machines ------------------------------ */
+
+/** a parking barrier: kinematic arm on a rhythm + a booth button that holds it up */
+export function parkingBarrier(b: Builder, o: { x: number; z0: number; z1: number; period: number; open: number; offset?: number; button: V3 }): { arm: Prop; spec: import('./specials3').BarrierSpecial } {
+  const len = o.z1 - o.z0;
+  const grp = g();
+  for (let i = 0; i < Math.round(len / 0.5); i++) grp.add(mesh(box(0.5, 0.16, 0.14, 0.03), M(i % 2 ? '#ffffff' : '#ff5a6e'), { pos: [0.25 + i * 0.5, 0, 0] }));
+  const spec = new BarrierSpecial({ yaw: -Math.PI / 2, period: o.period, open: o.open, offset: o.offset });
+  const arm = b.prop({
+    kind: 'barrier', name: '주차 차단기', icon: '🚧', group: grp, pos: [o.x, 1.35, o.z0], rotY: -Math.PI / 2, kinematic: true,
+    colliders: [{ shape: 'box', hx: len / 2, hy: 0.1, hz: 0.1, at: [len / 2, 0, 0] }],
+    mass: 20, mat: 'metal', value: 0, special: spec, traits: ['일정하게 오르내림'],
+  });
+  // post + booth
+  const post = new THREE.Group();
+  post.add(mesh(box(0.5, 1.5, 0.5, 0.05), M('#ffd23f'), { pos: [0, 0.75, 0] }));
+  b.solid(post, [{ shape: 'box', hx: 0.25, hy: 0.75, hz: 0.25, at: [0, 0.75, 0] }], [o.x, 0, o.z0 - 0.35]);
+  const booth = new THREE.Group();
+  booth.add(mesh(box(1.6, 2.6, 1.6, 0.1), M('#e8e2d8'), { pos: [0, 1.3, 0] }));
+  booth.add(mesh(box(1.3, 0.9, 0.06, 0.02), M('#bfe8ff'), { pos: [0, 1.9, 0.81], shadow: false }));
+  b.solid(booth, [{ shape: 'box', hx: 0.8, hy: 1.3, hz: 0.8, at: [0, 1.3, 0] }], [o.button[0], 0, o.button[2] - 1.0]);
+  button(b, { at: o.button, label: '차단기 열기', word: '삑! 열림 고정', action: () => { spec.held = true; } });
+  return { arm, spec };
+}
+
+/** a big friendly push button on a little stand (or on a wall) */
+export function button(b: Builder, o: { at: V3; label: string; word?: string; color?: string; action: (game: import('./Game').Game, self: Prop) => void; once?: boolean }): Prop {
+  const grp = g();
+  grp.add(mesh(box(0.5, 0.9, 0.4, 0.05), M('#5b5f73'), { pos: [0, 0.45, 0] }));
+  const cap = keep(g());
+  cap.add(mesh(cyl(0.16, 0.18, 0.12, 12), M(o.color ?? '#ff5a6e'), {}));
+  cap.position.set(0, 0.96, 0);
+  cap.userData.y0 = 0.96;
+  grp.add(cap);
+  const trig = new TriggerSpecial({ label: o.label, kind: 'button', word: o.word, handle: cap, action: o.action, once: o.once });
+  return b.prop({
+    kind: 'button', name: o.label, icon: '🔴', group: grp, pos: o.at, kinematic: true,
+    colliders: [{ shape: 'box', hx: 0.25, hy: 0.5, hz: 0.2, at: [0, 0.5, 0] }],
+    mass: 5, mat: 'metal', value: 0, special: trig, traits: ['방아쇠'],
+  });
+}
+
+/** a lever on a post */
+export function lever(b: Builder, o: { at: V3; label: string; word?: string; action: (game: import('./Game').Game, self: Prop) => void; rot?: number }): Prop {
+  const grp = g();
+  grp.add(mesh(box(0.5, 1.0, 0.5, 0.05), M('#5b5f73'), { pos: [0, 0.5, 0] }));
+  const h = keep(g());
+  h.add(mesh(cyl(0.05, 0.05, 0.9, 6), M('#c9c3b8'), { pos: [0, 0.45, 0] }));
+  h.add(mesh(sphere(0.13, 8, 6), M('#ff5a6e'), { pos: [0, 0.92, 0] }));
+  h.position.set(0, 1.0, 0);
+  h.rotation.z = 0.7;
+  h.userData.r0 = 0.7;
+  grp.add(h);
+  const trig = new TriggerSpecial({ label: o.label, kind: 'lever', word: o.word ?? '철컥!', handle: h, action: o.action });
+  return b.prop({
+    kind: 'lever', name: o.label, icon: '🕹️', group: grp, pos: o.at, rotY: o.rot, kinematic: true,
+    colliders: [{ shape: 'box', hx: 0.25, hy: 0.5, hz: 0.25, at: [0, 0.5, 0] }],
+    mass: 5, mat: 'metal', value: 0, special: trig, traits: ['방아쇠'],
+  });
+}
+
+/** a shopping cart (a garden cart in supermarket colours) */
+export function shoppingCart(b: Builder, o: O & { slope?: number }): Prop {
+  return gardenCart(b, { ...o, color: o.color ?? '#c9d6ea', name: o.name ?? '쇼핑 카트' });
 }
